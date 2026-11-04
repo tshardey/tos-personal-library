@@ -62,3 +62,7 @@ Pushes to `main` run `.github/workflows/deploy.yml`. Add two repository secrets 
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 and set Pages source to "GitHub Actions".
+
+## Install on Android
+
+Open the deployed site in Chrome, then menu (three dots) > "Add to Home screen" / "Install app". The app is online-only (no service worker), so it needs a connection to load.
