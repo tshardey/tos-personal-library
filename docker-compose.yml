@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    working_dir: /app
+    environment:
+      TOS_REPO_DIR: /tos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - ${TOS_REPO_PATH:-../tome-of-secrets}:/tos
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  node_modules:
