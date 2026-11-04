@@ -13,6 +13,16 @@ Edit `.env`:
 - `TOS_REPO_PATH` - host path of the Tome of Secrets checkout (or worktree) that owns `supabase/` migrations. It is mounted at `/tos` in the container.
 - `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` - local values from `supabase status`.
 
+## First-time install
+
+`node_modules` lives in a named Docker volume (`node_modules`), so Linux deps never clash with Windows. A fresh clone has an empty volume, so install before anything else:
+
+```bash
+docker compose run --rm app npm install
+```
+
+Re-run it whenever `package.json` or `package-lock.json` changes.
+
 ## Daily commands (Docker Compose)
 
 ```bash
@@ -21,8 +31,6 @@ docker compose run --rm app npm test
 docker compose run --rm app npm run lint
 docker compose run --rm app npm run build
 ```
-
-`node_modules` lives in a named volume (`node_modules`), so Linux deps never clash with Windows. The first `up` or `run` needs `docker compose run --rm app npm install` (the `up` command does it automatically).
 
 ## Local database (Supabase)
 
