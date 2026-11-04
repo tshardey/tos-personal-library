@@ -6,8 +6,24 @@ import InviteCode from "@/components/household/InviteCode";
 
 function SignedIn() {
   const { user, signOut } = useAuth();
-  const { household, loading } = useHousehold();
+  const { household, loading, error, refresh } = useHousehold();
   if (loading) return <p className="p-6">Loading…</p>;
+  if (!household && error) {
+    return (
+      <div className="p-6">
+        <p role="alert" className="mb-3 text-red-700">
+          {error}
+        </p>
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          className="rounded bg-stone-800 px-3 py-2 text-white"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
   if (!household) return <HouseholdSetup />;
   return (
     <div>

@@ -7,6 +7,7 @@ interface HouseholdContextValue {
   household: Household | null;
   members: HouseholdMember[];
   loading: boolean;
+  error: string | null;
   refresh(): Promise<void>;
 }
 
@@ -18,31 +19,37 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!userId) {
       setHousehold(null);
       setMembers([]);
+      setError(null);
       setLoading(false);
       return;
     }
     setLoading(true);
+    setError(null);
     try {
       const result = await getMyHousehold();
       setHousehold(result?.household ?? null);
       setMembers(result?.members ?? []);
+    } catch (err) {
+      console.error("Failed to load household", err);
+      setError("Couldn't load your household.");
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
   useEffect(() => {
-    void refresh().catch(() => {});
+    void refresh();
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ household, members, loading, refresh }),
-    [household, members, loading, refresh],
+    () => ({ household, members, loading, error, refresh }),
+    [household, members, loading, error, refresh],
   );
   return <HouseholdContext.Provider value={value}>{children}</HouseholdContext.Provider>;
 }
