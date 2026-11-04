@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import BookCard from "./BookCard";
 import type { BookWithCopies } from "@/lib/types";
@@ -29,12 +29,24 @@ describe("BookCard", () => {
   it("renders a placeholder with title and first author when there is no cover", () => {
     render(<BookCard book={make(null)} />);
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
-    expect(screen.getByText("Slewfoot")).toBeInTheDocument();
-    expect(screen.getByText("Brom")).toBeInTheDocument();
+    const ph = screen.getByTestId("cover-placeholder");
+    expect(ph).toHaveTextContent("Slewfoot");
+    expect(ph).toHaveTextContent("Brom");
     expect(screen.queryByText("Other")).not.toBeInTheDocument();
   });
-  it("renders the cover image when present", () => {
+  it("renders the cover image when present, with visible title and first author", () => {
     render(<BookCard book={make("http://x/c.jpg")} />);
     expect(screen.getByAltText("Slewfoot cover")).toHaveAttribute("src", "http://x/c.jpg");
+    expect(screen.getByText("Slewfoot")).toBeVisible();
+    expect(screen.getByText("Brom")).toBeVisible();
+    expect(screen.queryByText("Other")).not.toBeInTheDocument();
+  });
+  it("falls back to the placeholder when the cover fails to load", () => {
+    render(<BookCard book={make("http://x/broken.jpg")} />);
+    fireEvent.error(screen.getByAltText("Slewfoot cover"));
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    const ph = screen.getByTestId("cover-placeholder");
+    expect(ph).toHaveTextContent("Slewfoot");
+    expect(ph).toHaveTextContent("Brom");
   });
 });

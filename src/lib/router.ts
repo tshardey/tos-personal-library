@@ -6,7 +6,13 @@ export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, "");
   if (path === "/add") return { name: "add" };
   const m = /^\/book\/(.+)$/.exec(path);
-  if (m) return { name: "book", id: decodeURIComponent(m[1]) };
+  if (m) {
+    try {
+      return { name: "book", id: decodeURIComponent(m[1]) };
+    } catch {
+      return { name: "library" };
+    }
+  }
   return { name: "library" };
 }
 
