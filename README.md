@@ -63,6 +63,14 @@ Pushes to `main` run `.github/workflows/deploy.yml`. Add two repository secrets 
 
 and set Pages source to "GitHub Actions".
 
+Production prerequisites (one-time, on the shared Supabase project):
+
+1. The Tome of Secrets `library-schema` PR is merged.
+2. Mark the baseline applied, then push migrations: `supabase migration repair --status applied 20260407000000`, then `supabase db push`.
+3. Dashboard > Project Settings > API > Exposed schemas: add `library`.
+4. Dashboard > Authentication > URL Configuration > Redirect URLs: add `https://<user>.github.io/tos-personal-library/`.
+5. The two Actions secrets above are set.
+
 ## Install on Android
 
 Open the deployed site in Chrome, then menu (three dots) > "Add to Home screen" / "Install app". The app is online-only (no service worker), so it needs a connection to load.

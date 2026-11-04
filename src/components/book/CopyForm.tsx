@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { CopyInput, HouseholdMember } from "@/lib/types";
+import { normalizeCopyInput } from "@/lib/normalize";
 
 export default function CopyForm({
   initial,
@@ -25,11 +26,7 @@ export default function CopyForm({
     setBusy(true);
     setError(null);
     try {
-      await onSubmit({
-        ownerUserId: owner || null,
-        editionNote: editionNote.trim() || null,
-        location: location.trim() || null,
-      });
+      await onSubmit(normalizeCopyInput({ ownerUserId: owner, editionNote, location }));
     } catch (err) {
       console.error("Failed to save copy", err);
       setError("Couldn't save the copy.");

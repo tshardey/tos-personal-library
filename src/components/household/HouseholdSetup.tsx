@@ -98,7 +98,15 @@ export default function HouseholdSetup() {
         <form onSubmit={onJoin} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
             Invite code
-            <input required value={code} onChange={(e) => setCode(e.target.value)} className={INPUT} />
+            <input
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className={INPUT}
+            />
           </label>
           <label className="flex flex-col gap-1">
             Your name

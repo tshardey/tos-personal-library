@@ -109,11 +109,27 @@ export function toCopy(row: Row): Copy {
   };
 }
 
+/** Book keys callers may write; ids, household and bookkeeping columns are never patched from here. */
+const BOOK_EDITABLE: readonly (keyof Book)[] = [
+  "title",
+  "authors",
+  "synopsis",
+  "coverUrl",
+  "isbn13",
+  "isbn10",
+  "openlibraryId",
+  "googleBooksId",
+  "pageCount",
+  "publisher",
+  "publishDate",
+];
+
 /** Maps a camelCase partial book to snake_case columns, skipping undefined values. */
 export function fromBookPatch(patch: Partial<Book>): Row {
   const out: Row = {};
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
+    if (!BOOK_EDITABLE.includes(key as keyof Book)) continue;
     const column = BOOK_COLUMNS[key as keyof Book];
     if (column) out[column] = value;
   }

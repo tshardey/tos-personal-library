@@ -10,6 +10,7 @@ import {
   type CopyInput,
 } from "@/lib/types";
 
+// PostgREST caps responses at 1000 rows by default; page this query if the catalog grows beyond that.
 export async function listBooks(householdId: string): Promise<BookWithCopies[]> {
   const { data, error } = await supabase
     .from("books")

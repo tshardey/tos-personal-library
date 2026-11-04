@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { deleteBook, deleteCopy, updateCopy } from "@/lib/library-repo";
-import { changedFields, markEdited } from "@/lib/edited-fields";
+import { diffPatch, markEdited } from "@/lib/edited-fields";
+import { normalizeCopyInput } from "@/lib/normalize";
 import type { Copy, CopyInput, HouseholdMember } from "@/lib/types";
 import CopyForm from "./CopyForm";
 
@@ -42,16 +43,13 @@ export default function CopyList({
   }
 
   async function save(copy: Copy, next: CopyInput) {
-    const before: CopyInput = {
+    const before: CopyInput = normalizeCopyInput({
       ownerUserId: copy.ownerUserId,
       editionNote: copy.editionNote,
       location: copy.location,
-    };
-    await updateCopy(
-      copy.id,
-      next,
-      markEdited(copy.userEditedFields, changedFields(before, next, EDITABLE)),
-    );
+    });
+    const { changed, patch } = diffPatch(before, next, EDITABLE);
+    await updateCopy(copy.id, patch, markEdited(copy.userEditedFields, changed));
     setEditingId(null);
     await onChanged();
   }

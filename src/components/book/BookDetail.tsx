@@ -3,7 +3,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { addCopy, deleteBook, updateBook } from "@/lib/library-repo";
-import { changedFields, markEdited } from "@/lib/edited-fields";
+import { diffPatch, markEdited } from "@/lib/edited-fields";
+import { normalizeBookInput } from "@/lib/normalize";
 import { navigate } from "@/lib/router";
 import type { BookInput, BookWithCopies } from "@/lib/types";
 import BookForm from "./BookForm";
@@ -82,7 +83,8 @@ export default function BookDetail({ id }: { id: string }) {
     );
   }
 
-  const before: BookInput = {
+  // Normalise like the form does, so untidy imported values don't read as user edits.
+  const before: BookInput = normalizeBookInput({
     title: book.title,
     authors: book.authors,
     synopsis: book.synopsis,
@@ -92,7 +94,7 @@ export default function BookDetail({ id }: { id: string }) {
     pageCount: book.pageCount,
     publisher: book.publisher,
     publishDate: book.publishDate,
-  };
+  });
 
   async function removeBook() {
     if (!window.confirm("Delete this book and all its copies?")) return;
@@ -119,11 +121,8 @@ export default function BookDetail({ id }: { id: string }) {
           submitLabel="Save book"
           onCancel={() => setEditing(false)}
           onSubmit={async (next) => {
-            await updateBook(
-              id,
-              next,
-              markEdited(book.userEditedFields, changedFields(before, next, EDITABLE)),
-            );
+            const { changed, patch } = diffPatch(before, next, EDITABLE);
+            await updateBook(id, patch, markEdited(book.userEditedFields, changed));
             setEditing(false);
             await reload();
           }}

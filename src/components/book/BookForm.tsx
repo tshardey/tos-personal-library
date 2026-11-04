@@ -1,11 +1,8 @@
 import { useState } from "react";
 import type { BookInput } from "@/lib/types";
+import { normalizeBookInput, splitList } from "@/lib/normalize";
 
-const list = (s: string) =>
-  s
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
+const list = splitList;
 
 export default function BookForm({
   initial,
@@ -44,17 +41,19 @@ export default function BookForm({
     setBusy(true);
     setError(null);
     try {
-      await onSubmit({
-        title: title.trim(),
-        authors: list(authors),
-        synopsis: synopsis.trim() || null,
-        coverUrl: coverUrl.trim() || null,
-        isbn13: list(isbn13),
-        isbn10: list(isbn10),
-        pageCount: pages,
-        publisher: publisher.trim() || null,
-        publishDate: publishDate.trim() || null,
-      });
+      await onSubmit(
+        normalizeBookInput({
+          title,
+          authors: list(authors),
+          synopsis,
+          coverUrl,
+          isbn13: list(isbn13),
+          isbn10: list(isbn10),
+          pageCount: pages,
+          publisher,
+          publishDate,
+        }),
+      );
     } catch (err) {
       console.error("Failed to save book", err);
       setError("Couldn't save the book.");
