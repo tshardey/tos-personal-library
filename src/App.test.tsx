@@ -30,6 +30,10 @@ vi.mock("@/contexts/HouseholdContext", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useCatalog", () => ({
+  useCatalog: () => ({ books: [], loading: false, error: null, reload: vi.fn() }),
+}));
+
 import App from "./App";
 
 beforeEach(() => {
