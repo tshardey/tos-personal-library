@@ -4,7 +4,8 @@ import SignIn from "@/components/auth/SignIn";
 import HouseholdSetup from "@/components/household/HouseholdSetup";
 import InviteCode from "@/components/household/InviteCode";
 import LibraryPage from "@/components/library/LibraryPage";
-import ComingSoon from "@/components/library/ComingSoon";
+import BookDetail from "@/components/book/BookDetail";
+import AddBook from "@/components/book/AddBook";
 import { useRoute } from "@/lib/router";
 
 function SignedIn() {
@@ -43,7 +44,13 @@ function SignedIn() {
       <div className="border-b p-4">
         <InviteCode />
       </div>
-      {route.name === "library" ? <LibraryPage /> : <ComingSoon />}
+      {route.name === "book" ? (
+        <BookDetail key={route.id} id={route.id} />
+      ) : route.name === "add" ? (
+        <AddBook />
+      ) : (
+        <LibraryPage />
+      )}
     </div>
   );
 }

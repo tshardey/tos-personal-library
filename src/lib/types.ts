@@ -119,3 +119,38 @@ export function fromBookPatch(patch: Partial<Book>): Row {
   }
   return out;
 }
+
+export interface BookInput {
+  title: string;
+  authors: string[];
+  synopsis: string | null;
+  coverUrl: string | null;
+  isbn13: string[];
+  isbn10: string[];
+  pageCount: number | null;
+  publisher: string | null;
+  publishDate: string | null;
+}
+
+export interface CopyInput {
+  ownerUserId: string | null;
+  editionNote: string | null;
+  location: string | null;
+}
+
+const COPY_COLUMNS = {
+  ownerUserId: "owner_user_id",
+  editionNote: "edition_note",
+  location: "location",
+} as const satisfies Record<keyof CopyInput, string>;
+
+/** Maps a camelCase partial copy to snake_case columns, skipping undefined values. */
+export function fromCopyPatch(patch: Partial<CopyInput>): Row {
+  const out: Row = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    const column = COPY_COLUMNS[key as keyof CopyInput];
+    if (column) out[column] = value;
+  }
+  return out;
+}
