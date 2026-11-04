@@ -1,22 +1,40 @@
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { HouseholdProvider, useHousehold } from "@/contexts/HouseholdContext";
 import SignIn from "@/components/auth/SignIn";
+import HouseholdSetup from "@/components/household/HouseholdSetup";
+import InviteCode from "@/components/household/InviteCode";
 
-function Shell() {
-  const { user, loading, signOut } = useAuth();
+function SignedIn() {
+  const { user, signOut } = useAuth();
+  const { household, loading } = useHousehold();
   if (loading) return <p className="p-6">Loading…</p>;
-  if (!user) return <SignIn />;
+  if (!household) return <HouseholdSetup />;
   return (
     <div>
       <header className="flex items-center justify-between border-b p-4">
         <h1 className="text-xl font-semibold">Our Library</h1>
         <div className="flex items-center gap-3">
-          <span>{user.email}</span>
+          <span>{user?.email}</span>
           <button type="button" onClick={() => void signOut()} className="underline">
             Sign out
           </button>
         </div>
       </header>
+      <div className="border-b p-4">
+        <InviteCode />
+      </div>
     </div>
+  );
+}
+
+function Shell() {
+  const { user, loading } = useAuth();
+  if (loading) return <p className="p-6">Loading…</p>;
+  if (!user) return <SignIn />;
+  return (
+    <HouseholdProvider>
+      <SignedIn />
+    </HouseholdProvider>
   );
 }
 
