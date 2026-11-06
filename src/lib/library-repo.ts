@@ -1,3 +1,4 @@
+import type { ImportStore } from "@/lib/libib/apply";
 import { supabase } from "@/lib/supabase";
 import {
   fromBookPatch,
@@ -10,18 +11,49 @@ import {
   type CopyInput,
 } from "@/lib/types";
 
-// PostgREST caps responses at 1000 rows by default; page this query if the catalog grows beyond that.
+// PostgREST caps a response at 1000 rows, so a short read must never pass for the whole table.
+const PAGE_SIZE = 1000;
+
+/** Every row across pages; any page's error rejects, so a partial list is never returned. */
+async function readAllPages<T>(
+  readPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await readPage(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) return rows;
+  }
+}
+
 export async function listBooks(householdId: string): Promise<BookWithCopies[]> {
-  const { data, error } = await supabase
-    .from("books")
-    .select("*, copies(*)")
-    .eq("household_id", householdId)
-    .order("title");
-  if (error) throw error;
-  return (data ?? []).map((row) => ({
+  const rows = await readAllPages((from, to) =>
+    supabase
+      .from("books")
+      .select("*, copies(*)")
+      .eq("household_id", householdId)
+      .order("title")
+      .order("id")
+      .range(from, to),
+  );
+  return rows.map((row) => ({
     ...toBook(row),
     copies: (row.copies ?? []).map(toCopy),
   }));
+}
+
+export async function listLibibLedger(householdId: string): Promise<Map<string, number>> {
+  const rows = await readAllPages((from, to) =>
+    supabase
+      .from("libib_import_rows")
+      .select("libib_id, copies_seen")
+      .eq("household_id", householdId)
+      .order("libib_id")
+      .range(from, to),
+  );
+  return new Map(rows.map((row) => [row.libib_id, row.copies_seen]));
 }
 
 export async function createBook(
@@ -89,3 +121,49 @@ export async function deleteCopy(id: string): Promise<void> {
   const { error } = await supabase.from("copies").delete().eq("id", id);
   if (error) throw error;
 }
+
+export const libibStore: ImportStore = {
+  async insertBooks(rows) {
+    const { error } = await supabase
+      .from("books")
+      .insert(rows.map((r) => ({ ...fromBookPatch(r.input), id: r.id, household_id: r.householdId })));
+    if (error) throw error;
+  },
+
+  async insertCopies(rows) {
+    const { error } = await supabase.from("copies").insert(
+      rows.map((r) => ({
+        book_id: r.bookId,
+        owner_user_id: r.ownerUserId,
+        edition_note: r.editionNote,
+        libib_id: r.libibId,
+        origin: "libib",
+      })),
+    );
+    if (error) throw error;
+  },
+
+  async linkCopy(copyId, libibId) {
+    const { error } = await supabase.from("copies").update({ libib_id: libibId }).eq("id", copyId);
+    if (error) throw error;
+  },
+
+  async patchBook(bookId, expectedUpdatedAt, patch) {
+    const { data, error } = await supabase
+      .from("books")
+      .update(fromBookPatch(patch))
+      .eq("id", bookId)
+      .eq("updated_at", expectedUpdatedAt)
+      .select("id");
+    if (error) throw error;
+    return (data ?? []).length > 0;
+  },
+
+  async upsertLedger(householdId, rows) {
+    const { error } = await supabase.from("libib_import_rows").upsert(
+      rows.map((r) => ({ household_id: householdId, libib_id: r.libibId, copies_seen: r.copiesSeen })),
+      { onConflict: "household_id,libib_id" },
+    );
+    if (error) throw error;
+  },
+};
