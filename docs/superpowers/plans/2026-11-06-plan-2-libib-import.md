@@ -61,18 +61,22 @@ Where this refines the spec, the spec's §6.3 ladder still applies and the reaso
 | Same-owner copies on the matched book | Reading | Behavior |
 |---|---|---|
 | None | Household owns it again under another owner | Add copy, no question |
-| All are libib copies whose ids are **also in this file** | Two live libib items | Add copy, no question |
-| A libib copy whose id is **absent from this file** | **Ambiguous:** id changed or item rescanned, or the old item was removed in libib and a second one bought | Review, default **link** (same physical copy; no new copy) |
-| A photo or manual copy (no libib id) | **Ambiguous:** the same book entered twice, or a real second copy | Review, default **add copy** (spec §6.3's stated behavior) |
+| Any libib copy whose id is **absent from this file** | **Ambiguous:** id changed or item rescanned, or the old item was removed in libib and a second one bought | Review `rescan`, default **link** to that copy (same physical copy; no new copy) |
+| Otherwise, any photo or manual copy (no libib id) | **Ambiguous:** the same book entered twice, or a real second copy | Review `existing_copy`, default **add copy** (spec §6.3's stated behavior) |
+| Otherwise, all are libib copies whose ids are **also in this file** | Two live libib items | Add copy, no question |
+
+**Precedence for a mixed book is the table's order, top to bottom:** absent-id libib copy first, then photo or manual copy, then all in-file ids. Copies already consumed by a link in this run don't count.
 
 The rotated-id default is link because a mass id change would otherwise duplicate the whole library, while a missed copy takes one tap to add. Decisions take effect through the ledger, so a row is never asked about twice. Known wrong default: if both collections map to Shared and are exported separately, a same-ISBN row in the second file reads as a rescan and defaults to link. It appears in review, where "add copy" corrects it.
 
 **D4. Repeat imports only fill empty book fields; they never replace values.** Spec §6.3 allows "skip, or update non-edited fields". Replacement fails in practice: two rows for one book (one per collection) with different descriptions would flip the value on every import, and later photo or manual values would be overwritten by libib. Fill-only converges: a second run writes nothing. Exception: `isbn13` and `isbn10` union in new values unless edited, so the next row with that ISBN matches directly. Trade-off: a metadata correction made in libib after import doesn't propagate; the user edits it in the app. **Existing copies are never patched at all**, so `ownerUserId`, `editionNote` and `location` can't be clobbered, whether or not they are in `user_edited_fields`. Changing the collection mapping doesn't re-tag existing copies.
 
-**D5. No-ISBN and differing-ISBN rows match on title and author, always through review, never silently.** Applies when no ISBN matched, including a row with an ISBN that isn't in the catalog: a paperback and hardback are one book (Goal 2), and the spec's preview already reserves "possible matches to review".
+**D5. No-ISBN and differing-ISBN rows match on title and author, through review, never silently.** Applies when no ISBN matched, including a row with an ISBN that isn't in the catalog: a paperback and hardback are one book (Goal 2), and the spec's preview already reserves "possible matches to review". The one exception is adoption, below.
+- **Adoption (no review):** a book with **no copies** and the same `titleKey` and overlapping authors takes the row as a copy, overriding a retained `new_book` decision. Without this, a retry after "Separate book" inserted the book but failed on copies would insert a second book, and an interrupted plain new-book row would raise a question on retry. A book whose copies were all deleted by hand is adopted too. That's acceptable because the row is genuinely unseen and the book has no competing copy. The added copy still shows in the preview's counts.
 - **Strong:** same `titleKey` and overlapping `authorKey`s. Default **add copy**.
 - **Weak:** same `baseTitleKey` (text before the first `:` or ` - `) and overlapping authors, not strong. Default **new book**. Colon titles are often series entries ("Series: Book 2"), so these must not merge by default.
-- **Authors must overlap.** A shared title alone never matches, except when both sides have no authors at all (needed for convergence after a failure; see Task 5).
+- **Authors must overlap.** A shared title alone never matches, except when both sides have no authors at all (needed so adoption converges after a failure; see Task 5).
+- **An empty key never matches anything.** A title or author made only of punctuation normalises to `""`, which must not equal another `""`.
 - **No fuzzy matching.** Plan 3 owns that. A near-miss becomes a visible separate book, which is recoverable.
 - **False merges** are caught by choosing "Separate book" in review. After the fact, deleting the copy and adding the book by hand sticks, because the ledger keeps the row from returning. Automatic merge or split tools are out of scope.
 
@@ -84,13 +88,13 @@ The rotated-id default is link because a mass id change would otherwise duplicat
 
 **D9. Removals are permanent but visible.** A row with ledger history, no live copies and no rise in `copies` is listed as "Removed here earlier, staying removed", with an unticked "Import again" per row. This is the only undo for an accidental delete. If `copies` rises in libib, the difference is added even after a delete, because that is a new purchase. A row whose `copies` falls, or a row missing from the file, deletes nothing (spec §6.3).
 
-**D10. Partial failure relies on ordering and convergence, not a transaction.** Write order: books, copies, links, patches, ledger **last**. A failure before the ledger leaves copies whose `libib_id` prevents duplicates; a failure after a book insert leaves a copyless book that the next run matches and fills. A transactional RPC was rejected: it would put the whole plan format and fill rules into plpgsql for a benefit a two-person household doesn't need. Accepted narrow gap: two devices importing at the same moment can create duplicate books. There is no lock.
+**D10. Partial failure relies on ordering and convergence, not a transaction.** Write order: books, copies, links, patches, ledger **last**. A failure before the ledger leaves copies whose `libib_id` prevents duplicates; a failure after a book insert leaves a copyless book that the next run adopts (D5) and fills. A failure at the ledger stage leaves pending ledger entries, and the preview must still offer a way to write them (Task 6), because rows without a ledger entry lose their protection against D2's resurrection. A transactional RPC was rejected: it would put the whole plan format and fill rules into plpgsql for a benefit a two-person household doesn't need. Accepted narrow gaps: two devices importing at the same moment can create duplicate books, since there is no lock; and a book deleted after a ledger-stage failure but before any re-upload comes back as new.
 
 **D11. The plan is recomputed against a fresh catalog at Confirm.** If the summary differs from what the user saw, nothing is written and the updated preview returns. Book patches also compare `updated_at`, so an edit landing in the remaining milliseconds wins, and the patch is skipped and reported.
 
-**D12. Covers come from OpenLibrary, as a separate fill-only step after import.** The CSV has no cover column, so an import alone would give a wall of placeholders. Checked with OpenLibrary's documented example ISBN: `api/books?jscmd=details` allows any origin and returns `details.covers` as ids, which can include `-1`; that record had no `description`. **Google Books is left out of this plan:** the anonymous request returned HTTP 429, and spec §6.3 says "may". Task 7 can be cut without affecting anything else.
+**D12. Covers come from OpenLibrary, as a separate fill-only step after import.** The CSV has no cover column, so an import alone would give a wall of placeholders. Checked with OpenLibrary's documented example ISBN: `api/books?jscmd=details` allows any origin and returns `details.covers` as ids, which can include `-1`; that record had no `description`. **Google Books is left out of this plan:** the anonymous request returned HTTP 429, and spec §6.3 says "may". Nothing else depends on Task 7.
 
-**D13. Brief versus repo process.** ToS `AGENTS.md` mandates Beads and the spec §6.5 repeats it; the dispatch brief for this plan says no Beads, and the brief wins. The ToS base is `origin/main`: the local ToS `main` predates the library migration, and the main checkout is on an unrelated branch.
+**D13. Repo process.** ToS `AGENTS.md` mandates Beads and the spec §6.5 repeats it; the user has decided against Beads for this work, and the user's decision wins. The ToS base is `origin/main`: the local ToS `main` predates the library migration, and the main checkout is on an unrelated branch.
 
 ## Review Focus
 
@@ -100,7 +104,7 @@ Each has a test in the named task.
 2. **Every libib id changes between exports.** No mass duplication: all rows land in review, defaulting to link. *(Task 4.)*
 3. **File opened and re-saved in Excel.** Windows-1252 accents, CRLF, and ISBNs like `9.78E+12` give a visible warning, and the row isn't matched on a garbage ISBN. *(Task 2.)*
 4. **Partner hasn't joined yet, or the collection name matches nobody.** Confirm stays disabled until a choice is made; Skip writes nothing and a later upload imports those rows. *(Tasks 3, 4, 6.)*
-5. **Phone sleeps or the session expires mid-write.** At every failure point, re-running reaches the same final state as an uninterrupted run. *(Task 5.)*
+5. **Phone sleeps or the session expires mid-write.** At every failure point, re-running reaches the same final state as an uninterrupted run, and the screen still offers the write that finishes it. *(Task 5, Task 6.)*
 
 ---
 
@@ -205,7 +209,7 @@ Rules: `MAX_FILE_BYTES = 10 * 1024 * 1024`, `MAX_ROWS = 10_000`. Required column
     - `copies`: `"2"` gives 2; `""` gives 1 with no warning; `"0"`, `"abc"`, `"51"` give 1 with `unreadable_copies`.
     - `item_type: "movie"` is skipped as `not_a_book`, and its id is in `allIds`. Blank id gives `missing_id`, blank title gives `missing_title`, a short row gives `wrong_column_count`; each skip keeps its `rowNumber`, and good rows still parse.
     - Duplicate id with `copies` 1 and 3 gives one row with `copies: 3` and a `duplicate_id` warning.
-    - File errors: no `collection` column gives `not_libib` with `missingColumns: ["collection"]`; a Goodreads-shaped header gives `not_libib`; header only gives `empty`; empty string gives `empty`; an unclosed quote gives `malformed`; bytes starting `PK` give `not_text`; `new File` over 10 MB gives `too_large` without decoding.
+    - File errors: no `collection` column gives `not_libib` with `missingColumns: ["collection"]`; a Goodreads-shaped header gives `not_libib`; header only gives `empty`; empty string gives `empty`; an unclosed quote gives `malformed`; bytes starting `PK` give `not_text`; `new File` over 10 MB gives `too_large` without decoding; 10,001 data rows give `too_many_rows`, and exactly 10,000 parse.
 - [ ] **Step 2: Run to verify failure.** `docker compose run --rm app npm test -- src/lib/libib`. Expected: FAIL, modules missing.
 - [ ] **Step 3: Implement** per Interfaces.
 - [ ] **Step 4: Verify.** Same command. Expected: PASS.
@@ -223,7 +227,7 @@ Rules: `MAX_FILE_BYTES = 10 * 1024 * 1024`, `MAX_ROWS = 10_000`. Required column
 titleKey(title: string): string       // see rules
 baseTitleKey(title: string): string   // titleKey of the text before the first ":" or " - "
 authorKey(name: string): string
-authorsOverlap(a: string[], b: string[]): boolean   // true when both empty, or any authorKey shared
+authorsOverlap(a: string[], b: string[]): boolean   // true when both arrays are empty, or any non-empty authorKey is shared
 
 fillPatch(book: Book, incoming: BookInput): { changed: string[]; patch: Partial<BookInput> }
 
@@ -235,10 +239,11 @@ saveMapping(householdId: string, mapping: CollectionMapping): void
 ownerUserIdFor(choice: OwnerChoice): string | null   // "shared" gives null
 ```
 
-Rules. `titleKey`: strip the D6 edition parenthetical, NFD and strip marks, lowercase, delete apostrophes (straight and curly), `&` becomes `and`, other non-alphanumerics become a space, collapse, drop one leading `the`, `a` or `an`. `authorKey`: same base normalisation, then join runs of single-letter tokens so `J. K. Vale`, `J K Vale` and `JK Vale` all give `jk vale`. `fillPatch`: `before` is `normalizeBookInput` of the book's fields; `after` starts as `before`; for each key in `authors, synopsis, coverUrl, isbn13, isbn10, pageCount, publisher, publishDate` not in `book.userEditedFields`, arrays `isbn13` and `isbn10` take the order-preserving union, and every other key takes `incoming` only if `before` is null or an empty array. Return `diffPatch(before, after, keys)`. `title` is never in the key list.
+Rules. `titleKey`: strip the D6 edition parenthetical, NFD and strip marks (`/\p{M}/gu`), lowercase, delete apostrophes (straight and curly), `&` becomes `and`, everything else outside `[\p{L}\p{N}]` becomes a space (`/[^\p{L}\p{N}]+/gu`; an ASCII class would reduce Cyrillic or CJK titles to an empty key), collapse, drop one leading `the`, `a` or `an`. `authorKey`: same base normalisation, then join runs of single-letter tokens (counted in code points) so `J. K. Vale`, `J K Vale` and `JK Vale` all give `jk vale`. **An empty key never matches anything:** callers skip title matching on an empty `titleKey` or `baseTitleKey`, and `authorsOverlap` ignores empty author keys. Stripping marks also merges a few non-Latin spellings, such as voiced kana. That only widens match candidates, which is acceptable. `suggestOwners` compares display names and collection names with the same base normalisation, and an empty display-name key suggests nobody. `fillPatch`: `before` is `normalizeBookInput` of the book's fields; `after` starts as `before`; for each key in `authors, synopsis, coverUrl, isbn13, isbn10, pageCount, publisher, publishDate` not in `book.userEditedFields`, arrays `isbn13` and `isbn10` take the order-preserving union, and every other key takes `incoming` only if `before` is null or an empty array. Return `diffPatch(before, after, keys)`. `title` is never in the key list.
 
 - [ ] **Step 1: Write the failing tests.**
   - `match-keys.test.ts`: `titleKey("The Glass Orchard (Deluxe Limited Edition)") === titleKey("glass orchard")`; `"Moon's Tide"` equals `"Moon’s Tide"`; `"Salt & Ember"` equals `"Salt and Ember"`; `"Poète"` equals `"Poete"`; `"The Glass Orchard (Original)"` doesn't equal `"The Glass Orchard"`. `baseTitleKey("Ember Road: Book 2") === baseTitleKey("Ember Road: Book 3")`. `authorKey` equal for the three initial styles. `authorsOverlap(["A B"],["C D","a b"])` true; `(["A B"],[])` false; `([],[])` true.
+  - `match-keys.test.ts`, non-Latin and empty keys: `titleKey("Стеклянный сад")` is non-empty and equals `titleKey("СТЕКЛЯННЫЙ САД")`, and differs from `titleKey("Соляная дорога")`. `titleKey("硝子の果樹園")` is non-empty and differs from `titleKey("塩の道")`. `authorKey("波多野 蓮")` is non-empty. `titleKey("!!!")` and `baseTitleKey(": Book 2")` are `""`. `authorsOverlap(["!!!"],["!!!"])` and `(["!!!"],[])` are false.
   - `fill-patch.test.ts`:
     - Empty `synopsis` filled and `changed` is `["synopsis"]`.
     - Non-empty `publisher` differing from incoming: no change.
@@ -296,7 +301,11 @@ interface PlanInput {
 }
 buildImportPlan(input: PlanInput): ImportPlan   // pure and deterministic
 sameSummary(a: ImportSummary, b: ImportSummary): boolean
+type PlanState = "writes" | "ledger_only" | "removed_only" | "nothing";
+planState(plan: ImportPlan): PlanState
 ```
+
+`planState`: `writes` when any of `newBooks`, `newCopies`, `links` or `bookPatches` is non-empty; otherwise `ledger_only` when `ledger` is non-empty (`removed` may be too); otherwise `removed_only` when `removed` is non-empty; otherwise `nothing`. So **`nothing` means every write list is empty, ledger included, and `removed` is empty.**
 
 **Algorithm.** Process rows in file order against a working catalog that includes pending new books, pending fills and consumed link targets. Rows whose collection maps to `"skip"` only bump `skippedCollection`. Let `live` be copies with this `libibId`, `seen = max(ledger, live.length)`.
 
@@ -309,11 +318,14 @@ sameSummary(a: ImportSummary, b: ImportSummary): boolean
 | `live = 0`, `seen > 0`, otherwise | `removed` |
 | `seen = 0` | Run the ladder for `copies` copies |
 
-**Ladder.** Each `chosen` is `decisions.get(libibId)` if it is still among `options`, otherwise the default.
-1. ISBN: books sharing any `canonicalIsbns` value. More than one: review `several_isbn_matches`, one `add_copy` option per book, default the oldest `createdAt`. Exactly one: apply the D3 table using `file.allIds`; review `rescan` (default link to the first absent-id copy) or `existing_copy` (default add copy), each offering `link` and `add_copy`.
-2. Strong candidates (D5): review `same_title`, an `add_copy` per candidate plus `new_book`, default first candidate. Pending books count as candidates, via `{ kind: "pending" }`.
-3. Weak candidates: review `similar_title`, same options, default `new_book`.
-4. Otherwise a new book.
+**Ladder.** Each `chosen` is `decisions.get(libibId)` if it is still among `options`, otherwise the default. A retained `add_copy` pointing at `{ kind: "pending", libibId: X }` means the book now holding X's copy, because on a retry X's book may already exist; it resolves to that `{ kind: "existing" }` option.
+1. ISBN: books sharing any `canonicalIsbns` value. More than one: review `several_isbn_matches`, one `add_copy` option per book, default the oldest `createdAt`. Exactly one: apply the D3 table, in its stated precedence, using `file.allIds`; review `rescan` (default link to the first absent-id copy) or `existing_copy` (default add copy), each offering `link` and `add_copy`.
+2. Adoption (D5): a book with no live or planned copies, a non-empty matching `titleKey` and `authorsOverlap`. Add the copy with no review, ignoring any retained decision including `new_book`. With several, take the oldest `createdAt`, then lowest id. Rows inserted in one batch can tie, and swapping between identically titled copyless books is harmless. A row with an ISBN needs no such rule when its own book was inserted, because step 1 finds it.
+3. Strong candidates (D5): review `same_title`, an `add_copy` per candidate plus `new_book`, default first candidate. Pending books count as candidates, via `{ kind: "pending" }`.
+4. Weak candidates: review `similar_title`, same options, default `new_book`.
+5. Otherwise a new book.
+
+Steps 3 and 4 and adoption skip empty keys (Task 3).
 
 `link` uses one copy and adds `count - 1` more. A linked copy is consumed, so a second row can't link to it. `add_copy` also applies `fillPatch` (or merges into the pending input). Patches collapse to one per book. A ledger entry is emitted when `max(seen, copies)` differs from the stored value, or the row was processed by the ladder. It is not emitted for `removed` rows or skipped collections. A ledger-only heal counts as `unchanged`.
 
@@ -327,7 +339,11 @@ sameSummary(a: ImportSummary, b: ImportSummary): boolean
   - *Ambiguity, rescan (**RF2**):* every row's id differs from the catalog's, ISBNs and owners match, old ids absent from file: every row in `review` with reason `rescan`, chosen `link`; `newCopies: 0, newBooks: 0`, and `links` has one entry per row. Choosing `add_copy` via `decisions` adds a copy instead.
   - *Link consumed:* two new rows, same ISBN and owner, one absent-id copy: first links, second has no resolvable target and adds a copy.
   - *Ambiguity, photo or manual:* same-owner `origin: "photo"` copy, ISBN match: review `existing_copy`, chosen `add_copy` (`newCopies: 1`). Choosing `link` sets the copy's `libibId` and adds nothing. Different-owner photo copy: add, no review.
-  - *No ISBN:* same title and author as a catalog book: review `same_title`, chosen add copy. `new_book` honored. Different author, same title: new book, no review. No authors versus a book with authors: new book, no review. No authors versus a book with no authors and the same title: review `same_title`.
+  - *Mixed book (D3 precedence):* same-owner copies are one absent-id libib copy, one photo copy and one in-file libib copy: review `rescan`, chosen links the absent-id copy. Without the absent-id copy: review `existing_copy`, chosen `add_copy`.
+  - *Adoption:* unseen no-ISBN row, catalog book with zero copies, same title and author: no review, `newBooks: 0`, one planned copy on it. Same with a retained `new_book` decision: still adopted, no second book. Copyless book with a different ISBN: adopted, ISBN unioned. A book whose copies were all deleted by hand: adopted, same path. Two such rows and two such books: one copy on each. Not adopted: a book that has a copy (retained `new_book` is honored and creates a book), a copyless book with a different author, a copyless book with only a `baseTitleKey` match (review `similar_title`).
+  - *Retained pending decision:* second row retains `add_copy` to `{ kind: "pending", libibId: first }`, and the first row's book now exists copyless: the first adopts it, the second adds to that same book rather than falling back to a default.
+  - *Empty keys:* a row titled `"!!!"` and a catalog book titled `"!!!"`, same author, with or without copies: new book, no review, no adoption. Non-Latin title with the same author: strong match, review `same_title`.
+  - *No ISBN (catalog books here and in the next three items have at least one copy):* same title and author as a catalog book: review `same_title`, chosen add copy. `new_book` honored. Different author, same title: new book, no review. No authors versus a book with authors: new book, no review. No authors versus a book with no authors and the same title: review `same_title`.
   - *Differing ISBN:* row ISBN unmatched, strong title match: review `same_title`; add copy also unions the ISBN into the patch. *Edition qualifier:* `"The Glass Orchard (Deluxe Limited Edition)"` versus catalog `"The Glass Orchard"`, same author: strong, and the planned copy has `editionNote: "Deluxe Limited Edition"`.
   - *False-merge guard:* `"Ember Road: Book 2"` versus catalog `"Ember Road: Book 3"`, same author: review `similar_title`, chosen `new_book`, `newBooks: 1`.
   - *In-file no-ISBN pair:* two new rows, same title and author, no ISBN: first is a new book; second reviews with `{ kind: "pending", libibId: first }`, chosen add copy.
@@ -336,6 +352,7 @@ sameSummary(a: ImportSummary, b: ImportSummary): boolean
   - *Missing rows:* catalog book with a libib id absent from the file, no related row: untouched.
   - *Mapping (**RF4**):* `"skip"`: row writes nothing, no ledger entry, `skippedCollection: 1`; rerun mapped to a member imports it. `"shared"` gives `ownerUserId: null`. Known row with mapping changed: no change to anything.
   - *Fill convergence:* two rows for one book with differing synopsis and an empty catalog field: first in file order wins, one patch. Stale decision (option no longer valid) falls back to default.
+  - *`planState`:* all lists empty gives `nothing`. Only `ledger` non-empty gives `ledger_only`, also when `removed` is non-empty. Only `removed` non-empty gives `removed_only`. Any of the four other write lists gives `writes`. Ticking `restore` on a `removed_only` row gives `writes`.
 - [ ] **Step 2: Run to verify failure.** `docker compose run --rm app npm test -- src/lib/libib/plan`. Expected: FAIL.
 - [ ] **Step 3: Implement** per Algorithm.
 - [ ] **Step 4: Verify.** Same command. Expected: PASS.
@@ -376,10 +393,10 @@ applyImportPlan(plan: ImportPlan, householdId: string, store: ImportStore, opts:
 
 Order: books, copies, links, patches, ledger. `CHUNK_SIZE = 200` for inserts and ledger upsert. Links and patches run sequentially. Pending `BookRef`s resolve through a map of `libibId` to generated id. `patchBook` is `.update(fromBookPatch(patch)).eq("id", id).eq("updated_at", expected).select("id")`; empty result returns `false`. It **never sends `user_edited_fields`**. `upsertLedger` uses `onConflict: "household_id,libib_id"`. `insertBooks` adds `id` and `household_id` around `fromBookPatch(input)`. Don't change the existing `addCopy`, which stays `origin: "manual"`.
 
-- [ ] **Step 1: Write the failing tests.** `fake-store.ts` is an in-memory catalog and ledger implementing `ImportStore`, with `failAt(stage, callIndex)` to throw, and `snapshot()` returning sorted books and copies with generated ids removed.
+- [ ] **Step 1: Write the failing tests.** `fake-store.ts` is an in-memory catalog and ledger implementing `ImportStore`, with `failAt(stage, callIndex)` to throw, `snapshot()` returning sorted books and copies with generated ids removed, `listBooks()`, `ledger()`, `deleteBook(id)` and `deleteCopy(id)` for rebuilding plans and for Task 6's tests, and an increasing `createdAt` on each inserted book.
   - *Order:* calls recorded are books before copies before links before patches before ledger; a 450-row plan produces 3 book chunks. `onProgress` reaches `total`. Pending refs resolve to the generated book id.
   - *Idempotent (the headline requirement):* import a mixed file, rebuild the plan from the store's state with the same file: every write list empty, `newBooks: 0, newCopies: 0, review: 0`, and `unchanged` equals the row count. A third run is identical. Covers ISBN, no-ISBN, multi-copy and two-collection rows.
-  - *Convergence (**RF5**):* for each stage and call index in a mixed file (including a no-ISBN row and a no-author row), run with `failAt`, expect `ImportWriteError` with that stage, rebuild the plan and rerun with default decisions, then assert `snapshot()` (sorted, so insert order is irrelevant) equals an uninterrupted run's. Loop over all failure points in a single test.
+  - *Convergence (**RF5**):* for each stage and call index in a mixed file (including a no-ISBN row and a no-author row), run with `failAt`, expect `ImportWriteError` with that stage, rebuild the plan and rerun, then assert `snapshot()` (sorted, so insert order is irrelevant) equals an uninterrupted run's with the same decisions. Run the whole loop twice: once with default decisions, and once **retaining non-default decisions** across the retry, as "Run it again" does: `new_book` on `same_title` rows (no-ISBN and differing-ISBN), `add_copy` on a `rescan` row, `link` on an `existing_copy` row, and `add_copy` to a pending book from an in-file pair. Then assert a further rebuild has `planState` `nothing`.
   - *Ledger last:* failing at `copies` leaves no ledger entries.
   - *Delete then re-import:* import, delete a book and a copy in the store, rebuild: `removed: 2`, no writes.
   - *Patch race:* `patchBook` returning false adds the title to `patchesSkipped`, doesn't throw, and the import continues.
@@ -398,7 +415,7 @@ Order: books, copies, links, patches, ledger. `CHUNK_SIZE = 200` for inserts and
 - Test: `src/components/import/ImportPage.test.tsx`
 
 **Interfaces:**
-- Consumes: `readLibibFile`, `LibibFileError` (Task 2); `suggestOwners`, `loadSavedMapping`, `saveMapping` (Task 3); `buildImportPlan`, `sameSummary` (Task 4); `applyImportPlan`, `libibStore`, `listBooks`, `listLibibLedger` (Task 5); `useHousehold`.
+- Consumes: `readLibibFile`, `LibibFileError` (Task 2); `suggestOwners`, `loadSavedMapping`, `saveMapping` (Task 3); `buildImportPlan`, `sameSummary`, `planState` (Task 4); `applyImportPlan`, `libibStore`, `listBooks`, `listLibibLedger`, and `fake-store.ts` in tests (Task 5); `useHousehold`.
 - Produces: `<ImportPage />`, a state machine: `pick`, `loading`, `preview`, `writing`, `done` or `failed`.
 
 Flow: pick a file (`<input type="file" accept=".csv,text/csv">`; validate by content, because Android reports CSV under varying MIME types), then `readLibibFile`, then fetch `listBooks` and `listLibibLedger`, then the preview. **Nothing is written before Confirm.** Preview shows owner selects per collection (member names, Shared, Skip this collection) and the summary line, then lists: new books (title, author), review items (radios per option, default preselected), removed rows (unticked "Import again"), skipped rows (row number, title, reason) and warnings. Mapping, decisions and restore changes rebuild the plan live. On Confirm: `saveMapping`, re-fetch catalog and ledger, rebuild; if `!sameSummary`, return to preview with the notice; otherwise apply with `crypto.randomUUID`, showing progress, and disable the button while writing. On `done`: counts, any skipped patch titles, link back to the library. On `failed`: the message and "Run it again", which re-enters `loading` with the parsed file, mapping, review decisions and restore ticks still in memory.
@@ -413,19 +430,24 @@ Exact copy:
 - Catalog or ledger load failure: `Couldn't read the library, so nothing was imported.`
 - Spreadsheet: `Some ISBNs look damaged, which usually means the file was opened in Excel. Export it from libib again and upload that file directly.`
 - Unmapped: Confirm disabled, with `Choose an owner for {collection}.` A blank collection shows as `(no collection)`.
-- Nothing to do: `Everything in this file is already in the library.` Confirm hidden.
+- `planState` decides the preview's action:
+  - `writes`: summary and `Import` button.
+  - `ledger_only`: summary, `These books are all here, but an earlier import didn't finish recording them.` and a `Finish the earlier import` button, which runs the same Confirm flow. Without this the ledger would never be written, and a later delete would come back as new.
+  - `removed_only`: summary and the removed list, no action button, and no "already in the library" text, because that would be false for these rows. Ticking a row makes the state `writes`, so `Import` appears.
+  - `nothing`: `Everything in this file is already in the library.` and no button. If `summary.skippedCollection` or `file.skipped` is non-zero, that sentence would be false too, so show `Nothing to import from this file.` with the summary and skipped list instead.
 - Changed: `The library changed while you were reviewing. Check the updated summary, then confirm again.`
 - Failed: `The import stopped partway. Everything saved so far is kept, and running it again adds only what's missing.`
 
-- [ ] **Step 1: Write the failing tests** (mock `library-repo`, `useHousehold`; `new File([libibCsv(...)])`).
+- [ ] **Step 1: Write the failing tests** (mock `library-repo`, with its reads and `libibStore` delegating to the Task 5 fake store so state persists across uploads; mock `useHousehold`; `new File([libibCsv(...)])`).
   - `router.test.ts`: `parseHash("#/import")` gives `{ name: "import" }`; `routeToHash` round-trips.
   - Upload of two new rows shows `2 new books, 0 extra copies, 0 unchanged, 0 to review`, and **no store write has been called**. Confirm calls `insertBooks`, `insertCopies` and `upsertLedger`, then shows the done state.
   - Each file error from the copy list renders its text and writes nothing.
   - **RF1:** `listBooks` rejecting shows `Couldn't read the library, so nothing was imported.` with no plan and no writes. The ledger rejecting (migration not applied yet) gives the same result.
   - **RF4:** collection `Partner Shelf` with no matching member: Confirm disabled with the prompt; choosing `Skip this collection` enables it, and those rows aren't written. `Tierra's Books` is preselected to member `Tierra`.
   - Review: a `same_title` row shows radios with the default checked; choosing `Separate book` changes the summary to one more new book; Confirm applies that choice.
-  - Removed: row appears with an unticked box; ticking changes the summary.
-  - Re-upload where all rows are known: `Everything in this file is already in the library.`, no Confirm.
+  - Removed only: the row appears with an unticked box, the summary shows, `Everything in this file is already in the library.` is absent and there is no `Import` button. Ticking changes the summary and `Import` appears; untick and it goes again.
+  - Re-upload where all rows are known and the ledger is complete: `Everything in this file is already in the library.`, no action button. All rows in a collection mapped to Skip: `Nothing to import from this file.`, not that sentence.
+  - **RF5, lost ledger write:** the fake store has `failAt("ledger", 0)`. Confirm shows the failed text. `Run it again` shows `Finish the earlier import`, with `Everything in this file is already in the library.` absent. Clicking it writes the ledger and shows the done state. Then delete a book in the store and re-upload: the row is listed as removed, `newBooks` stays 0, and no book is inserted.
   - Confirm when the re-fetched catalog differs: the changed notice, and no writes.
   - **RF3:** a damaged ISBN shows the spreadsheet warning.
   - Failure: a store rejection shows the failed text; `Run it again` re-fetches and shows the refreshed preview. Double-clicking Confirm applies once.
@@ -436,7 +458,7 @@ Exact copy:
 
 ### Task 7: Fill missing covers from OpenLibrary
 
-Independently cuttable (D12).
+Nothing else depends on this task (D12).
 
 **Files:**
 - Create: `src/lib/libib/enrich.ts`
@@ -485,7 +507,7 @@ Candidates: books with a canonical ISBN and null `coverUrl` or null `synopsis`, 
 **Agents don't run this without the user's explicit go-ahead in that moment.** Approval of this plan isn't approval of this step. The user runs it or explicitly tells an agent to, in this order:
 
 1. Merge the ToS `libib-import-ledger` PR.
-2. From an up-to-date ToS `main`: `npx supabase@2.122.1 db push`. Confirm first that the only pending migration is `20261106000000_library-libib-import-rows`.
+2. Push from the Supabase-linked worktree, `C:/Users/tierr/Github/tome-of-secrets-library-schema`. The Task 1 worktree isn't linked, and the main checkout is on an unrelated branch. The linked worktree sits on a detached HEAD, so update it first: `git -C C:/Users/tierr/Github/tome-of-secrets-library-schema fetch origin`, then `git -C C:/Users/tierr/Github/tome-of-secrets-library-schema checkout --detach origin/main`. Run `npx supabase@2.122.1 db push --dry-run --workdir C:/Users/tierr/Github/tome-of-secrets-library-schema` and confirm the only pending migration is `20261106000000_library-libib-import-rows`. Then run the same command without `--dry-run`.
 3. Merge the library PR; the Pages deploy runs.
 4. Upload the real export. The preview writes nothing, so read it first. Expected: about one new book per row (hand-added books appear in review instead), and owner preselected for `Tierra's Books`.
 5. **Check id stability (D1).** Export again from libib and upload without confirming. Expected: `Everything in this file is already in the library.` If rows appear under review as `rescan`, ids aren't stable; don't confirm those defaults blindly, and report it, because D1 would need revisiting.
@@ -495,6 +517,5 @@ Candidates: books with a canonical ISBN and null `coverUrl` or null `synopsis`, 
 
 None block execution. For the user to weigh in review:
 
-1. **New table (D2).** The brief prefers no schema change. This plan adds one because deletions can't otherwise survive re-import. The no-schema alternative is to accept that deleted books return in every preview.
-2. **Covers in scope? (D12)** Task 7 isn't a listed requirement, but without it the wall shows only placeholders after import. How many real ISBNs OpenLibrary covers is unknown, because none were sent to check.
-3. **libib behaviors never observed:** `copies > 1`, the partner's collection name, no-ISBN rows, and id stability across exports. All are handled and tested from synthetic shapes; a second real export settles most of them.
+1. **Covers: button or automatic? (D12)** Spec Goal 4 (the cover wall) and §6.3 (backfilling missing covers) cover this work. Task 7 runs it from a `Find missing covers` button, which tells the user before ISBNs go to OpenLibrary. The alternative is to run it automatically after each import. How many real ISBNs OpenLibrary covers is unknown, because none were sent to check.
+2. **libib behaviors never observed:** `copies > 1`, the partner's collection name, no-ISBN rows, and id stability across exports. All are handled and tested from synthetic shapes; a second real export settles most of them.
