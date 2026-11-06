@@ -211,6 +211,45 @@ export function buildImportPlan(input: PlanInput): ImportPlan {
     if (count > 0 && !holder.has(row.libibId)) holder.set(row.libibId, work);
   }
 
+  /** A row reaches the ladder when it has no live copy and isn't staying removed. */
+  function isLadderRow(row: LibibRow): boolean {
+    const choice = mapping[row.collection];
+    if (choice === undefined || choice === "skip" || liveCount.has(row.libibId)) return false;
+    const stored = ledger.get(row.libibId) ?? 0;
+    return stored === 0 || row.copies > stored || restore.has(row.libibId);
+  }
+
+  // Reservations: on a retry, a copyless book may be one a later row inserted. An unreserved
+  // scan would hand it to an earlier row, so it is held for the row it belongs to.
+  const reservedFor = new Map<WorkBook, string>();
+  const ladderRows = file.rows.filter(isLadderRow);
+  const reserve = (rows: LibibRow[], belongs: (row: LibibRow, w: WorkBook) => boolean) => {
+    for (const row of rows) {
+      const key = titleKey(row.book.title);
+      if (key === "") continue;
+      const found = books.find(
+        (w) =>
+          w.copies.length === 0 &&
+          !reservedFor.has(w) &&
+          w.titleKey === key &&
+          authorsOverlap(row.book.authors, w.book.authors) &&
+          belongs(row, w),
+      );
+      if (found) reservedFor.set(found, row.libibId);
+    }
+  };
+  reserve(ladderRows, (row, w) => [...canonicalIsbns(row.book)].some((i) => w.isbns.has(i)));
+  const holdsReservation = new Set(reservedFor.values());
+  reserve(
+    ladderRows.filter(
+      (row) => !holdsReservation.has(row.libibId) && decisions.get(row.libibId)?.action === "new_book",
+    ),
+    () => true,
+  );
+
+  const heldForAnother = (w: WorkBook, row: LibibRow): boolean =>
+    w.copies.length === 0 && (reservedFor.get(w) ?? row.libibId) !== row.libibId;
+
   const addCopyOption = (w: WorkBook): ReviewDecision => ({ action: "add_copy", book: w.ref });
   const linkOption = (c: WorkCopy): ReviewDecision => ({ action: "link", copyId: c.copyId! });
 
@@ -269,7 +308,9 @@ export function buildImportPlan(input: PlanInput): ImportPlan {
 
     const key = titleKey(row.book.title);
     const baseKey = baseTitleKey(row.book.title);
-    const authorsMatch = (w: WorkBook) => authorsOverlap(row.book.authors, w.book.authors);
+    // A book held for a later row isn't there yet for this one: not adoptable, not a candidate.
+    const authorsMatch = (w: WorkBook) =>
+      !heldForAnother(w, row) && authorsOverlap(row.book.authors, w.book.authors);
     const strong = key === "" ? [] : books.filter((w) => w.titleKey === key && authorsMatch(w));
 
     const adoptable = strong.find((w) => w.copies.length === 0);

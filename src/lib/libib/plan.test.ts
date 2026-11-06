@@ -441,6 +441,131 @@ describe("buildImportPlan: adoption (D5)", () => {
   });
 });
 
+describe("buildImportPlan: reservations on retry", () => {
+  const INSERTED = "2026-06-01T00:00:00+00:00";
+  // A book as the books stage left it: inserted, then the run failed before its copies.
+  const inserted = (id: string, over: Partial<BookWithCopies> = {}) =>
+    book({ id, isbn13: [], createdAt: INSERTED, copies: [], ...over });
+  const placed = (p: ImportPlan) => p.newCopies.map((c) => [c.libibId, c.book]);
+  const separate = (libibId: string) =>
+    new Map<string, ReviewDecision>([[libibId, { action: "new_book" }]]);
+
+  const withCopy = book({ id: "b1", isbn13: [], copies: [copy({ libibId: "Y0" })] });
+
+  it("B: an earlier row doesn't take the book inserted for a later new_book row", () => {
+    const p = plan(
+      [
+        { id: "Y", ean_isbn13: "" },
+        { id: "X", ean_isbn13: "" },
+      ],
+      { catalog: [withCopy, inserted("m")], decisions: separate("X") },
+    );
+    expect(p.newBooks).toEqual([]);
+    expect(placed(p)).toEqual([
+      ["Y", existing("b1")],
+      ["X", existing("m")],
+    ]);
+    expect(p.review.find((r) => r.libibId === "Y")?.options).toEqual([
+      addTo("b1"),
+      { action: "new_book" },
+    ]);
+  });
+
+  it("C: the same with X on a differing ISBN", () => {
+    const p = plan(
+      [
+        { id: "Y", ean_isbn13: "" },
+        { id: "X", ean_isbn13: ISBN_B },
+      ],
+      { catalog: [withCopy, inserted("m", { isbn13: [ISBN_B] })], decisions: separate("X") },
+    );
+    expect(p.newBooks).toEqual([]);
+    expect(placed(p)).toEqual([
+      ["Y", existing("b1")],
+      ["X", existing("m")],
+    ]);
+    expect(p.bookPatches).toEqual([]);
+  });
+
+  it.each([
+    ["A's book has the lower id", "a-low", "b-high"],
+    ["B's book has the lower id", "b-high", "a-low"],
+  ])("J: a plain new book and an ISBN row keep their own books when %s", (_name, aId, bId) => {
+    const p = plan(
+      [
+        { id: "A", ean_isbn13: "" },
+        { id: "B", ean_isbn13: ISBN_B },
+      ],
+      {
+        catalog: [inserted(aId), inserted(bId, { isbn13: [ISBN_B] })],
+        decisions: separate("B"),
+      },
+    );
+    expect(p.newBooks).toEqual([]);
+    expect(placed(p)).toEqual([
+      ["A", existing(aId)],
+      ["B", existing(bId)],
+    ]);
+    expect(p.bookPatches).toEqual([]);
+  });
+
+  it("a row's default candidate is never a copyless book reserved for another row", () => {
+    // Uninterrupted: Z is a new book, Y adds to it, X retains new_book.
+    const p = plan(
+      [
+        { id: "Z", ean_isbn13: "" },
+        { id: "Y", ean_isbn13: "" },
+        { id: "X", ean_isbn13: "" },
+      ],
+      { catalog: [inserted("k-low"), inserted("w-high")], decisions: separate("X") },
+    );
+    expect(p.newBooks).toEqual([]);
+    expect(placed(p)).toEqual([
+      ["Z", existing("w-high")],
+      ["Y", existing("w-high")],
+      ["X", existing("k-low")],
+    ]);
+  });
+
+  it("ISBN rows reserve before new_book rows, even when later in the file", () => {
+    const p = plan(
+      [
+        { id: "X", ean_isbn13: "" },
+        { id: "Q", ean_isbn13: ISBN_B },
+      ],
+      {
+        catalog: [inserted("a-low", { isbn13: [ISBN_B] }), inserted("z-high")],
+        decisions: separate("X"),
+      },
+    );
+    expect(p.newBooks).toEqual([]);
+    expect(placed(p)).toEqual([
+      ["X", existing("z-high")],
+      ["Q", existing("a-low")],
+    ]);
+  });
+
+  it("a row that isn't on the ladder reserves nothing", () => {
+    // R is known, skipped or removed in turn, and its retained new_book must not hold the book.
+    const rows = [
+      { id: "P", ean_isbn13: "" },
+      { id: "R", ean_isbn13: "", collection: OTHER },
+    ];
+    const catalog = [inserted("m")];
+    const decisions = separate("R");
+    const skipped = plan(rows, { catalog, decisions, mapping: { [COLLECTION]: "u1", [OTHER]: "skip" } });
+    expect(placed(skipped)).toEqual([["P", existing("m")]]);
+    const gone = plan(rows, { catalog, decisions, ledger: new Map([["R", 1]]) });
+    expect(placed(gone)).toEqual([["P", existing("m")]]);
+    const known = plan(rows, {
+      catalog: [...catalog, book({ id: "k", isbn13: [], copies: [copy({ libibId: "R" })] })],
+      decisions,
+    });
+    expect(known.newCopies.map((c) => c.libibId)).toEqual(["P"]);
+    expect(known.newCopies[0].book).toEqual(existing("m"));
+  });
+});
+
 describe("buildImportPlan: empty keys", () => {
   const row = { id: "X", ean_isbn13: "", title: "!!!" };
 
