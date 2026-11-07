@@ -103,6 +103,23 @@ function seededBook(over: Partial<BookWithCopies> & { id: string }): BookWithCop
 
 const stages = () => h.store.calls.map((c) => c.stage);
 
+const fetchMock = vi.fn();
+
+/** An OpenLibrary reply that gives every requested ISBN a cover. */
+function olCovers(url: string | URL | Request) {
+  const keys = new URL(String(url)).searchParams.get("bibkeys")!.split(",");
+  return Object.fromEntries(keys.map((k) => [k, { details: { covers: [7] } }]));
+}
+
+function olOk() {
+  fetchMock.mockImplementation(async (url: string | URL | Request) => ({
+    ok: true,
+    json: async () => olCovers(url),
+  }));
+}
+
+const LOOKUP_FAILED = "Your import is complete, but the OpenLibrary lookup didn't finish.";
+
 beforeEach(() => {
   localStorage.clear();
   h.store = createFakeStore();
@@ -110,11 +127,15 @@ beforeEach(() => {
   h.failLedger = false;
   h.listBooks.mockClear();
   vi.spyOn(console, "error").mockImplementation(() => {});
+  fetchMock.mockReset();
+  olOk();
+  vi.stubGlobal("fetch", fetchMock);
 });
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("ImportPage", () => {
@@ -127,7 +148,9 @@ describe("ImportPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Import" }));
     expect(await screen.findByText("Import complete")).toBeInTheDocument();
-    expect(stages()).toEqual(["books", "copies", "ledger"]);
+    // The lookup that follows the import adds its own cover patches after the import writes.
+    expect(await screen.findByText("Found details for 2 of 2 books.")).toBeInTheDocument();
+    expect(stages()).toEqual(["books", "copies", "ledger", "patches", "patches"]);
     expect(screen.getByRole("link", { name: "Back to the library" })).toHaveAttribute("href", "#/");
   });
 
@@ -390,5 +413,148 @@ describe("ImportPage", () => {
     fireEvent.click(button);
     await screen.findByText("Import complete");
     expect(stages().filter((s) => s === "books")).toHaveLength(1);
+  });
+
+  describe("OpenLibrary lookup", () => {
+    const requestedKeys = () =>
+      fetchMock.mock.calls.flatMap((c) => new URL(String(c[0])).searchParams.get("bibkeys")!.split(","));
+
+    it("starts after Confirm, shows progress, then the result, and never earlier", async () => {
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      fetchMock.mockImplementation(async (url: string | URL | Request) => {
+        await gate;
+        return { ok: true, json: async () => olCovers(url) };
+      });
+      render(<ImportPage />);
+      upload([row(1), row(2)]);
+      fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+      expect(fetchMock).not.toHaveBeenCalled();
+      await screen.findByText("Import complete");
+      expect(await screen.findByText("Looking up covers on OpenLibrary. 0 of 2 books.")).toBeInTheDocument();
+      expect(screen.getByText("Added 2 new books and 0 extra copies.")).toBeInTheDocument();
+
+      release();
+      expect(await screen.findByText("Found details for 2 of 2 books.")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(requestedKeys()).toEqual([`ISBN:${isbn(1)}`, `ISBN:${isbn(2)}`]);
+      expect(
+        h.store.listBooks().every((b) => b.coverUrl === "https://covers.openlibrary.org/b/id/7-L.jpg"),
+      ).toBe(true);
+    });
+
+    it("makes one request per chunk of 40 ISBNs", async () => {
+      render(<ImportPage />);
+      upload(Array.from({ length: 45 }, (_, i) => row(i + 1)));
+      fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+      expect(await screen.findByText("Found details for 45 of 45 books.")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("a ledger-only finish starts it too", async () => {
+      h.store.failAt("ledger", 0);
+      render(<ImportPage />);
+      upload([row(1)]);
+      fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+      expect(await screen.findByText(FAILED)).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Run it again" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Finish the earlier import" }));
+      expect(await screen.findByText("Found details for 1 of 1 books.")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not start when nothing was written, or for a removed-only preview", async () => {
+      render(<ImportPage />);
+      upload([row(1)]);
+      fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+      await screen.findByText("Found details for 1 of 1 books.");
+      cleanup();
+      fetchMock.mockClear();
+
+      render(<ImportPage />);
+      upload([row(1)]);
+      expect(await screen.findByText(ALL_HERE)).toBeInTheDocument();
+      cleanup();
+
+      h.store = createFakeStore({ ledger: [[row(2).id, 1]] });
+      render(<ImportPage />);
+      upload([row(2)]);
+      await screen.findByRole("checkbox", { name: /Book 2/ });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("a failed apply does not start it; Run it again to done does", async () => {
+      h.store.failAt("books", 0);
+      render(<ImportPage />);
+      upload([row(1)]);
+      fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+      expect(await screen.findByText(FAILED)).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Run it again" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+      expect(await screen.findByText("Found details for 1 of 1 books.")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("a lookup failure is not an import failure, and Try again fills the book", async () => {
+      fetchMock.mockRejectedValueOnce(new Error("offline"));
+      render(<ImportPage />);
+      upload([row(1)]);
+      fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+      expect(await screen.findByText(LOOKUP_FAILED)).toBeInTheDocument();
+      expect(screen.getByText("Import complete")).toBeInTheDocument();
+      expect(screen.getByText("Added 1 new book and 0 extra copies.")).toBeInTheDocument();
+      expect(screen.queryByText(FAILED)).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(await screen.findByText("Found details for 1 of 1 books.")).toBeInTheDocument();
+      expect(screen.queryByText(LOOKUP_FAILED)).not.toBeInTheDocument();
+      expect(h.store.listBooks()[0].coverUrl).toBe("https://covers.openlibrary.org/b/id/7-L.jpg");
+    });
+
+    it("a failed library refresh reads the same way", async () => {
+      render(<ImportPage />);
+      upload([row(1)]);
+      const button = await screen.findByRole("button", { name: "Import" });
+      h.listBooks.mockImplementationOnce(async () => h.store.listBooks());
+      h.listBooks.mockImplementationOnce(async () => {
+        throw new Error("books unavailable");
+      });
+      fireEvent.click(button);
+      expect(await screen.findByText(LOOKUP_FAILED)).toBeInTheDocument();
+      expect(screen.getByText("Import complete")).toBeInTheDocument();
+      expect(screen.queryByText(FAILED)).not.toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(await screen.findByText("Found details for 1 of 1 books.")).toBeInTheDocument();
+    });
+
+    it("the pick screen's Find missing covers runs a lookup with no file chosen", async () => {
+      h.store = createFakeStore({
+        books: [
+          seededBook({ id: "b1", isbn13: [isbn(900)] }),
+          seededBook({ id: "b2", coverUrl: "https://x.test/c.jpg", synopsis: "S", isbn13: [isbn(901)] }),
+        ],
+      });
+      render(<ImportPage />);
+      expect(screen.getByText(/looks up ISBNs on OpenLibrary/)).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Find missing covers" }));
+      expect(await screen.findByText("Found details for 1 of 1 books.")).toBeInTheDocument();
+      expect(requestedKeys()).toEqual([`ISBN:${isbn(900)}`]);
+    });
+
+    it("on the pick screen a failure says only that the lookup didn't finish", async () => {
+      fetchMock.mockRejectedValue(new Error("offline"));
+      h.store = createFakeStore({ books: [seededBook({ id: "b1", isbn13: [isbn(900)] })] });
+      render(<ImportPage />);
+      fireEvent.click(screen.getByRole("button", { name: "Find missing covers" }));
+      expect(await screen.findByText("The OpenLibrary lookup didn't finish.")).toBeInTheDocument();
+      expect(screen.queryByText(/Your import is complete/)).not.toBeInTheDocument();
+    });
   });
 });
