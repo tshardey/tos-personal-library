@@ -217,6 +217,34 @@ describe("ImportPage", () => {
     expect(h.store.listBooks().map((b) => b.title)).toEqual(["Book 1"]);
   });
 
+  it("RF4: a file whose only collection is unmatched asks for an owner, not 'nothing to import'", async () => {
+    render(<ImportPage />);
+    upload([row(1, { collection: "Partner Shelf" })]);
+    expect(await screen.findByText("Choose an owner for Partner Shelf.")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing to import from this file.")).not.toBeInTheDocument();
+    expect(screen.queryByText(ALL_HERE)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Owner for Partner Shelf"), { target: { value: "u2" } });
+    expect(await screen.findByText(/^1 new book/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import" })).toBeEnabled();
+  });
+
+  it("RF4: known rows beside an unmatched collection don't read as finished", async () => {
+    render(<ImportPage />);
+    upload([row(1)]);
+    fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+    await screen.findByText("Import complete");
+    cleanup();
+
+    render(<ImportPage />);
+    upload([row(1), row(2, { collection: "Partner Shelf" })]);
+    expect(await screen.findByText("Choose an owner for Partner Shelf.")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing to import from this file.")).not.toBeInTheDocument();
+    expect(screen.queryByText(ALL_HERE)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
+  });
+
   it("labels a blank collection", async () => {
     render(<ImportPage />);
     upload([row(1, { collection: "" })]);

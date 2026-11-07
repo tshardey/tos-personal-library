@@ -56,6 +56,8 @@ export default function ImportPreview(p: Props) {
   // A ticked row leaves plan.removed but stays listed, or it couldn't be unticked.
   const removedIds = new Set([...plan.removed.map((r) => r.libibId), ...p.restore]);
   const removedRows = file.rows.filter((r) => removedIds.has(r.libibId));
+  // Until every collection has an owner the plan leaves those rows out, so "nothing to do" isn't known.
+  const awaitingOwner = unmapped.length > 0;
   const nothingToImport =
     state === "nothing" && (plan.summary.skippedCollection > 0 || file.skipped.length > 0);
 
@@ -109,6 +111,7 @@ export default function ImportPreview(p: Props) {
 
       <p className="mb-2 font-medium">{summaryLine(plan.summary)}</p>
       {state === "nothing" &&
+        !awaitingOwner &&
         (nothingToImport ? (
           <p className="mb-3">Nothing to import from this file.</p>
         ) : (
@@ -195,14 +198,14 @@ export default function ImportPreview(p: Props) {
       )}
 
       <div className="flex gap-3">
-        {(state === "writes" || state === "ledger_only") && (
+        {(state === "writes" || state === "ledger_only" || awaitingOwner) && (
           <button
             type="button"
             onClick={p.onConfirm}
-            disabled={unmapped.length > 0}
+            disabled={awaitingOwner}
             className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
           >
-            {state === "writes" ? "Import" : "Finish the earlier import"}
+            {state === "ledger_only" ? "Finish the earlier import" : "Import"}
           </button>
         )}
         <button type="button" onClick={p.onReset} className="rounded border px-3 py-2">
