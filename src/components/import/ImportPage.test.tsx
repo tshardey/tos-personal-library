@@ -341,6 +341,47 @@ describe("ImportPage", () => {
     expect(h.listBooks.mock.calls.length).toBeGreaterThan(reads);
   });
 
+  it("a retry that can't read the library keeps choices and ticks in memory", async () => {
+    h.store = createFakeStore({
+      books: [
+        seededBook({
+          id: "b1",
+          isbn13: [isbn(900)],
+          copies: [
+            {
+              id: "c1", bookId: "b1", ownerUserId: "u1", editionNote: null, location: null,
+              origin: "libib", libibId: "OLD0000001", photoPath: null, userEditedFields: [],
+              createdAt: OLD, updatedAt: OLD,
+            },
+          ],
+        }),
+      ],
+      ledger: [
+        ["OLD0000001", 1],
+        [row(2).id, 1],
+      ],
+    });
+    render(<ImportPage />);
+    upload([row(1, { title: "Sample Title" }), row(2)]);
+    fireEvent.click(await screen.findByRole("radio", { name: "Separate book" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Book 2/ }));
+    h.store.failAt("books", 0);
+    fireEvent.click(await screen.findByRole("button", { name: "Import" }));
+    expect(await screen.findByText(FAILED)).toBeInTheDocument();
+
+    h.failBooks = true;
+    fireEvent.click(screen.getByRole("button", { name: "Run it again" }));
+    expect(await screen.findByText("Couldn't read the library, so nothing was imported.")).toBeInTheDocument();
+    h.failBooks = false;
+    fireEvent.click(screen.getByRole("button", { name: "Run it again" }));
+
+    expect(await screen.findByRole("radio", { name: "Separate book" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Book 2/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    await screen.findByText("Import complete");
+    expect(h.store.listBooks()).toHaveLength(3);
+  });
+
   it("double-clicking Import applies once", async () => {
     render(<ImportPage />);
     upload([row(1), row(2)]);

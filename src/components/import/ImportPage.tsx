@@ -40,7 +40,7 @@ type Stage =
   | { name: "preview"; notice: string | null }
   | { name: "writing"; progress: { done: number; total: number } | null }
   | { name: "done"; summary: ImportSummary; result: ApplyResult }
-  | { name: "failed" };
+  | { name: "failed"; error: string | null };
 
 interface Snapshot {
   catalog: BookWithCopies[];
@@ -80,14 +80,17 @@ export default function ImportPage() {
 
   if (!householdId) return null;
 
-  /** Fetches the catalog and ledger; a failure goes back to `pick` with nothing planned. */
-  async function load(parsed: ParsedFile) {
+  /**
+   * Fetches the catalog and ledger. A failure shows the load error with nothing planned: on `pick`
+   * for a fresh file, but on `failed` for a retry, so the in-memory choices stay reachable.
+   */
+  async function load(parsed: ParsedFile, retry = false) {
     setStage({ name: "loading" });
     try {
       setSnapshot(await readSnapshot(householdId!));
     } catch (err) {
       console.error("Failed to read the library for import", err);
-      setStage({ name: "pick", error: LOAD_FAILED });
+      setStage(retry ? { name: "failed", error: LOAD_FAILED } : { name: "pick", error: LOAD_FAILED });
       return;
     }
     setFile(parsed);
@@ -150,7 +153,7 @@ export default function ImportPage() {
         setStage({ name: "done", summary: current.summary, result });
       } catch (err) {
         console.error("Import failed", err);
-        setStage({ name: "failed" });
+        setStage({ name: "failed", error: null });
       }
     } finally {
       busy.current = false;
@@ -233,9 +236,14 @@ export default function ImportPage() {
         <p role="alert" className="mb-3 text-red-700">
           {FAILED}
         </p>
+        {stage.error && (
+          <p role="alert" className="mb-3 text-red-700">
+            {stage.error}
+          </p>
+        )}
         <button
           type="button"
-          onClick={() => file && void load(file)}
+          onClick={() => file && void load(file, true)}
           className="rounded bg-stone-800 px-3 py-2 text-white"
         >
           Run it again
