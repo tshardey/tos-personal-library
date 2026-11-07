@@ -533,7 +533,7 @@ Exact copy:
 
 1. Merge the ToS `libib-import-ledger` PR.
 2. Push from the Supabase-linked worktree, `C:/Users/tierr/Github/tome-of-secrets-library-schema`. The Task 1 worktree isn't linked, and the main checkout is on an unrelated branch. The linked worktree sits on a detached HEAD, so update it first: `git -C C:/Users/tierr/Github/tome-of-secrets-library-schema fetch origin`, then `git -C C:/Users/tierr/Github/tome-of-secrets-library-schema checkout --detach origin/main`. Run `npx supabase@2.122.1 db push --dry-run --workdir C:/Users/tierr/Github/tome-of-secrets-library-schema` and confirm the only pending migration is `20261106000000_library-libib-import-rows`. Then run the same command without `--dry-run`.
-3. Merge the library PR; the Pages deploy runs.
+3. In the Supabase dashboard, confirm API settings Max Rows is at least 1000; catalog paging treats a short page as the end. Then merge the library PR; the Pages deploy runs.
 4. Upload the real export. The preview writes nothing, so read it first. Expected: about one new book per row (hand-added books appear in review instead), and owner preselected for `Tierra's Books`.
 5. **Re-upload the same file without confirming.** Expected: `Everything in this file is already in the library.` Ids held across exports 3 days apart (D1). If a later export ever shows `rescan` rows, don't confirm those defaults blindly, and report it.
 6. Upload the partner's collection file once they've joined the household. Until then, choose Skip for it. Same-book rows then become second copies.
