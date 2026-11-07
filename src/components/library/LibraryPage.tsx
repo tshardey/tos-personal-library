@@ -41,6 +41,9 @@ export default function LibraryPage() {
         >
           Add a book
         </button>
+        <a href="#/import" className="ml-3 underline">
+          Import from libib
+        </a>
       </div>
     );
   }

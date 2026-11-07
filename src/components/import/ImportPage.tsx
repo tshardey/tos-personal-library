@@ -1,0 +1,271 @@
+import { useMemo, useRef, useState } from "react";
+import { useHousehold } from "@/contexts/HouseholdContext";
+import { applyImportPlan, type ApplyResult } from "@/lib/libib/apply";
+import { loadSavedMapping, saveMapping, suggestOwners, type CollectionMapping } from "@/lib/libib/owner-map";
+import { LibibFileError, readLibibFile, type LibibFileErrorCode, type ParsedFile } from "@/lib/libib/parse";
+import {
+  buildImportPlan,
+  sameSummary,
+  type ImportSummary,
+  type ReviewDecision,
+} from "@/lib/libib/plan";
+import { libibStore, listBooks, listLibibLedger } from "@/lib/library-repo";
+import { routeToHash } from "@/lib/router";
+import type { BookWithCopies } from "@/lib/types";
+import ImportPreview from "./ImportPreview";
+
+const LOAD_FAILED = "Couldn't read the library, so nothing was imported.";
+const CHANGED =
+  "The library changed while you were reviewing. Check the updated summary, then confirm again.";
+const FAILED =
+  "The import stopped partway. Everything saved so far is kept, and running it again adds only what's missing.";
+
+function fileErrorText(err: LibibFileError): string {
+  const text: Record<Exclude<LibibFileErrorCode, "not_libib">, string> = {
+    not_text: "This isn't a CSV file. In libib, use Export, then upload the .csv it gives you.",
+    empty: "This file has no books in it.",
+    malformed: "This file looks damaged, so nothing was imported. Try exporting it from libib again.",
+    too_large: "This file is too big to be a libib export (over 10 MB).",
+    too_many_rows: "This file has more than 10,000 rows, which is too many to import at once.",
+  };
+  if (err.code === "not_libib") {
+    return `This doesn't look like a libib export. Missing column: ${err.missingColumns[0]}.`;
+  }
+  return text[err.code];
+}
+
+type Stage =
+  | { name: "pick"; error: string | null }
+  | { name: "loading" }
+  | { name: "preview"; notice: string | null }
+  | { name: "writing"; progress: { done: number; total: number } | null }
+  | { name: "done"; summary: ImportSummary; result: ApplyResult }
+  | { name: "failed" };
+
+interface Snapshot {
+  catalog: BookWithCopies[];
+  ledger: Map<string, number>;
+}
+
+async function readSnapshot(householdId: string): Promise<Snapshot> {
+  const [catalog, ledger] = await Promise.all([listBooks(householdId), listLibibLedger(householdId)]);
+  return { catalog, ledger };
+}
+
+export default function ImportPage() {
+  const { household, members } = useHousehold();
+  const householdId = household?.id ?? null;
+  const [stage, setStage] = useState<Stage>({ name: "pick", error: null });
+  const [file, setFile] = useState<ParsedFile | null>(null);
+  const [snapshot, setSnapshot] = useState<Snapshot>({ catalog: [], ledger: new Map() });
+  const [mapping, setMapping] = useState<CollectionMapping>({});
+  const [decisions, setDecisions] = useState<Map<string, ReviewDecision>>(new Map());
+  const [restore, setRestore] = useState<Set<string>>(new Set());
+  const busy = useRef(false);
+
+  const plan = useMemo(
+    () =>
+      file
+        ? buildImportPlan({
+            file,
+            catalog: snapshot.catalog,
+            ledger: snapshot.ledger,
+            mapping,
+            decisions,
+            restore,
+          })
+        : null,
+    [file, snapshot, mapping, decisions, restore],
+  );
+
+  if (!householdId) return null;
+
+  /** Fetches the catalog and ledger; a failure goes back to `pick` with nothing planned. */
+  async function load(parsed: ParsedFile) {
+    setStage({ name: "loading" });
+    try {
+      setSnapshot(await readSnapshot(householdId!));
+    } catch (err) {
+      console.error("Failed to read the library for import", err);
+      setStage({ name: "pick", error: LOAD_FAILED });
+      return;
+    }
+    setFile(parsed);
+    setStage({ name: "preview", notice: null });
+  }
+
+  async function onPick(picked: File) {
+    setStage({ name: "loading" });
+    let parsed: ParsedFile;
+    try {
+      parsed = await readLibibFile(picked);
+    } catch (err) {
+      if (err instanceof LibibFileError) {
+        setStage({ name: "pick", error: fileErrorText(err) });
+        return;
+      }
+      console.error("Failed to read the import file", err);
+      setStage({ name: "pick", error: "Couldn't read that file." });
+      return;
+    }
+    setMapping(suggestOwners(parsed.collections, members, loadSavedMapping(householdId!)));
+    setDecisions(new Map());
+    setRestore(new Set());
+    await load(parsed);
+  }
+
+  async function onConfirm() {
+    if (!file || busy.current) return;
+    busy.current = true;
+    try {
+      saveMapping(householdId!, mapping);
+      let fresh: Snapshot;
+      try {
+        fresh = await readSnapshot(householdId!);
+      } catch (err) {
+        console.error("Failed to re-read the library before importing", err);
+        setStage({ name: "preview", notice: LOAD_FAILED });
+        return;
+      }
+      const current = buildImportPlan({
+        file,
+        catalog: fresh.catalog,
+        ledger: fresh.ledger,
+        mapping,
+        decisions,
+        restore,
+      });
+      if (!plan || !sameSummary(plan.summary, current.summary)) {
+        setSnapshot(fresh);
+        setStage({ name: "preview", notice: CHANGED });
+        return;
+      }
+      setStage({ name: "writing", progress: null });
+      try {
+        const result = await applyImportPlan(current, householdId!, libibStore, {
+          newId: () => crypto.randomUUID(),
+          onProgress: (done, total) => setStage({ name: "writing", progress: { done, total } }),
+        });
+        setSnapshot(fresh);
+        setStage({ name: "done", summary: current.summary, result });
+      } catch (err) {
+        console.error("Import failed", err);
+        setStage({ name: "failed" });
+      }
+    } finally {
+      busy.current = false;
+    }
+  }
+
+  function reset() {
+    setFile(null);
+    setStage({ name: "pick", error: null });
+  }
+
+  if (stage.name === "pick") {
+    return (
+      <div className="p-4">
+        <h2 className="mb-3 text-lg font-semibold">Import from libib</h2>
+        <p className="mb-3">In libib, use Export, then upload the .csv it gives you.</p>
+        {stage.error && (
+          <p role="alert" className="mb-3 text-red-700">
+            {stage.error}
+          </p>
+        )}
+        <label htmlFor="libib-file" className="mb-1 block text-sm">
+          libib CSV file
+        </label>
+        <input
+          id="libib-file"
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(e) => {
+            const picked = e.target.files?.[0];
+            e.target.value = "";
+            if (picked) void onPick(picked);
+          }}
+          className="block w-full"
+        />
+      </div>
+    );
+  }
+
+  if (stage.name === "loading") return <p className="p-6">Reading the file and the library…</p>;
+
+  if (stage.name === "writing") {
+    const { progress } = stage;
+    return (
+      <div className="p-6" role="status">
+        <p className="mb-2">{progress ? `Importing… ${progress.done} of ${progress.total}` : "Importing…"}</p>
+        <progress className="w-full" value={progress?.done} max={progress?.total} />
+      </div>
+    );
+  }
+
+  if (stage.name === "done") {
+    const { summary, result } = stage;
+    return (
+      <div className="p-4">
+        <h2 className="mb-2 text-lg font-semibold">Import complete</h2>
+        <p className="mb-2">
+          {`Added ${summary.newBooks} ${summary.newBooks === 1 ? "new book" : "new books"} and ${summary.newCopies} extra ${summary.newCopies === 1 ? "copy" : "copies"}.`}
+        </p>
+        {result.patchesSkipped.length > 0 && (
+          <div className="mb-2">
+            <p>These books changed while importing, so their details weren't filled in:</p>
+            <ul className="list-disc pl-6">
+              {result.patchesSkipped.map((title, i) => (
+                <li key={`${title}-${i}`}>{title}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <a href={routeToHash({ name: "library" })} className="underline">
+          Back to the library
+        </a>
+      </div>
+    );
+  }
+
+  if (stage.name === "failed") {
+    return (
+      <div className="p-4">
+        <p role="alert" className="mb-3 text-red-700">
+          {FAILED}
+        </p>
+        <button
+          type="button"
+          onClick={() => file && void load(file)}
+          className="rounded bg-stone-800 px-3 py-2 text-white"
+        >
+          Run it again
+        </button>
+      </div>
+    );
+  }
+
+  if (!file || !plan) return null;
+  return (
+    <ImportPreview
+      file={file}
+      plan={plan}
+      catalog={snapshot.catalog}
+      members={members}
+      mapping={mapping}
+      restore={restore}
+      notice={stage.notice}
+      onMapping={(collection, choice) => setMapping((m) => ({ ...m, [collection]: choice }))}
+      onDecision={(libibId, decision) => setDecisions((d) => new Map(d).set(libibId, decision))}
+      onRestore={(libibId, on) =>
+        setRestore((r) => {
+          const next = new Set(r);
+          if (on) next.add(libibId);
+          else next.delete(libibId);
+          return next;
+        })
+      }
+      onConfirm={() => void onConfirm()}
+      onReset={reset}
+    />
+  );
+}
