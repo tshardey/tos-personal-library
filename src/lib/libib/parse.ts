@@ -184,7 +184,9 @@ export function parseLibibCsv(text: string): ParsedFile {
       else warn("unreadable_copies");
     }
 
-    const length = /^\d+$/.test(get("length")) ? Number(get("length")) : 0;
+    // Above 100000 is not a page count, and a value past int4 would fail the whole insert chunk.
+    const rawLength = /^\d+$/.test(get("length")) ? Number(get("length")) : 0;
+    const length = rawLength <= 100000 ? rawLength : 0;
 
     const row: LibibRow = {
       libibId: id,

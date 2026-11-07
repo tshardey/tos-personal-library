@@ -4,3 +4,4 @@ dist/
 .env
 *.tsbuildinfo
 library_*.csv
+.playwright-mcp/

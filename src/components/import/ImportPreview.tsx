@@ -109,7 +109,7 @@ export default function ImportPreview(p: Props) {
         })}
       </div>
 
-      <p className="mb-2 font-medium">{summaryLine(plan.summary)}</p>
+      {!awaitingOwner && <p className="mb-2 font-medium">{summaryLine(plan.summary)}</p>}
       {state === "nothing" &&
         !awaitingOwner &&
         (nothingToImport ? (

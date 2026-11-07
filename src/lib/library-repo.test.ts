@@ -60,17 +60,36 @@ beforeEach(() => {
 
 describe("listBooks paging (RF1)", () => {
   it("reads past the 1000-row cap", async () => {
-    h.results.push({ data: bookRows(1000), error: null }, { data: bookRows(3, 1000), error: null });
+    h.results.push(
+      { data: bookRows(1000), error: null },
+      { data: bookRows(3, 1000), error: null },
+      { data: [], error: null },
+    );
     const books = await listBooks("h1");
     expect(books).toHaveLength(1003);
     expect(books[1002].id).toBe("b1002");
-    expect(h.queries).toHaveLength(2);
+    expect(h.queries).toHaveLength(3);
     expect(stepArgs(0, "range")).toEqual([[0, 999]]);
     expect(stepArgs(1, "range")).toEqual([[1000, 1999]]);
+    expect(stepArgs(2, "range")).toEqual([[1003, 2002]]);
+  });
+
+  it("a lower row cap (pages of 500) still returns every row", async () => {
+    h.results.push(
+      { data: bookRows(500), error: null },
+      { data: bookRows(500, 500), error: null },
+      { data: bookRows(20, 1000), error: null },
+      { data: [], error: null },
+    );
+    const books = await listBooks("h1");
+    expect(books).toHaveLength(1020);
+    expect(stepArgs(1, "range")).toEqual([[500, 1499]]);
+    expect(stepArgs(2, "range")).toEqual([[1000, 1999]]);
+    expect(stepArgs(3, "range")).toEqual([[1020, 2019]]);
   });
 
   it("orders by title then id, so pages can't overlap", async () => {
-    h.results.push({ data: bookRows(3), error: null });
+    h.results.push({ data: bookRows(3), error: null }, { data: [], error: null });
     await listBooks("h1");
     expect(stepArgs(0, "order")).toEqual([["title"], ["id"]]);
     expect(stepArgs(0, "eq")).toEqual([["household_id", "h1"]]);
@@ -92,13 +111,16 @@ describe("listBooks paging (RF1)", () => {
 
 describe("listLibibLedger", () => {
   it("maps rows to a Map", async () => {
-    h.results.push({
-      data: [
-        { libib_id: "a", copies_seen: 2 },
-        { libib_id: "b", copies_seen: 1 },
-      ],
-      error: null,
-    });
+    h.results.push(
+      {
+        data: [
+          { libib_id: "a", copies_seen: 2 },
+          { libib_id: "b", copies_seen: 1 },
+        ],
+        error: null,
+      },
+      { data: [], error: null },
+    );
     await expect(listLibibLedger("h1")).resolves.toEqual(
       new Map([
         ["a", 2],
@@ -113,11 +135,24 @@ describe("listLibibLedger", () => {
     h.results.push(
       { data: ledgerRows(1000), error: null },
       { data: [{ libib_id: "y", copies_seen: 1 }], error: null },
+      { data: [], error: null },
     );
     const ledger = await listLibibLedger("h1");
     expect(ledger.size).toBe(1001);
     expect(stepArgs(0, "order")).toEqual([["libib_id"]]);
     expect(stepArgs(1, "range")).toEqual([[1000, 1999]]);
+    expect(stepArgs(2, "range")).toEqual([[1001, 2000]]);
+  });
+
+  it("a lower row cap (pages of 500) still returns every row", async () => {
+    h.results.push(
+      { data: ledgerRows(500), error: null },
+      { data: ledgerRows(500).map((r) => ({ ...r, libib_id: `z${r.libib_id}` })), error: null },
+      { data: [], error: null },
+    );
+    const ledger = await listLibibLedger("h1");
+    expect(ledger.size).toBe(1000);
+    expect(stepArgs(2, "range")).toEqual([[1000, 1999]]);
   });
 
   it("an error on page 2 rejects", async () => {

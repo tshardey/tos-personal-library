@@ -40,6 +40,16 @@ function setup(response: unknown = {}) {
 }
 
 describe("enrichMissing", () => {
+  it("passes a 60 s abort signal with each request", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const s = setup(details(1, { covers: [123] }));
+    await enrichMissing([book(1)], s, { fetchImpl: s.fetchImpl });
+    expect(timeout).toHaveBeenCalledWith(60_000);
+    const init = s.fetchMock.mock.calls[0][1];
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    timeout.mockRestore();
+  });
+
   it("uses the first positive cover id", async () => {
     const s = setup(details(1, { covers: [-1, 123] }));
     const r = await enrichMissing([book(1)], s, { fetchImpl: s.fetchImpl });

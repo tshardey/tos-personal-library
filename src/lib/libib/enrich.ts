@@ -96,6 +96,7 @@ export async function enrichMissing(
       const keys = [...new Set(group.flatMap((c) => c.isbns))].map((i) => `ISBN:${i}`).join(",");
       const res = await opts.fetchImpl(
         `https://openlibrary.org/api/books?bibkeys=${keys}&format=json&jscmd=details`,
+        { signal: AbortSignal.timeout(60_000) },
       );
       if (!res.ok) throw new Error(`OpenLibrary answered ${res.status}`);
       const data: unknown = await res.json();

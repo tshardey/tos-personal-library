@@ -203,7 +203,8 @@ describe("ImportPage", () => {
   it("RF4: an unmatched collection blocks Confirm until chosen; Skip writes nothing", async () => {
     render(<ImportPage />);
     upload([row(1), row(2, { collection: "Partner Shelf" })]);
-    await screen.findByText(/new book/);
+    await screen.findByText("Choose an owner for Partner Shelf.");
+    expect(screen.queryByText(/new book/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(`Owner for ${MINE}`)).toHaveValue("u1");
     expect(screen.getByText("Choose an owner for Partner Shelf.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
@@ -223,6 +224,7 @@ describe("ImportPage", () => {
     expect(await screen.findByText("Choose an owner for Partner Shelf.")).toBeInTheDocument();
     expect(screen.queryByText("Nothing to import from this file.")).not.toBeInTheDocument();
     expect(screen.queryByText(ALL_HERE)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+ new books?,/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Owner for Partner Shelf"), { target: { value: "u2" } });
@@ -461,9 +463,12 @@ describe("ImportPage", () => {
       await screen.findByText("Import complete");
       expect(await screen.findByText("Looking up covers on OpenLibrary. 0 of 2 books.")).toBeInTheDocument();
       expect(screen.getByText("Added 2 new books and 0 extra copies.")).toBeInTheDocument();
+      const LEAVE = "Covers keep arriving after you leave this page. Reload the library to see them.";
+      expect(screen.getByText(LEAVE)).toBeInTheDocument();
 
       release();
       expect(await screen.findByText("Found details for 2 of 2 books.")).toBeInTheDocument();
+      expect(screen.queryByText(LEAVE)).not.toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(requestedKeys()).toEqual([`ISBN:${isbn(1)}`, `ISBN:${isbn(2)}`]);
       expect(

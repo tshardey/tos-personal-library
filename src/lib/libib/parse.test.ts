@@ -114,6 +114,13 @@ describe("parseLibibCsv rows", () => {
     expect(r.rows[1].book.publisher).toBeNull();
   });
 
+  it("treats a length above 100000 as unknown, so it can't overflow int4", () => {
+    const r = parseLibibCsv(
+      libibCsv([{ length: "100000" }, { id: "BBBBBBBBBB", length: "100001" }, { id: "CCCCCCCCCC", length: "9999999999" }]),
+    );
+    expect(r.rows.map((x) => x.book.pageCount)).toEqual([100000, null, null]);
+  });
+
   it("skips bad rows and keeps good ones", () => {
     const short = LIBIB_HEADER.slice(0, 5).join(",");
     const csv =

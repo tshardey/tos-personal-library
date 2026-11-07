@@ -198,9 +198,14 @@ export default function ImportPage() {
   function lookupStatus(failedPrefix: string) {
     if (lookup.status === "running" && lookup.progress) {
       return (
-        <p role="status" className="mb-2">
-          {`Looking up covers on OpenLibrary. ${lookup.progress.done} of ${lookup.progress.total} books.`}
-        </p>
+        <>
+          <p role="status" className="mb-2">
+            {`Looking up covers on OpenLibrary. ${lookup.progress.done} of ${lookup.progress.total} books.`}
+          </p>
+          <p className="mb-2 text-sm">
+            Covers keep arriving after you leave this page. Reload the library to see them.
+          </p>
+        </>
       );
     }
     if (lookup.status === "done" && lookup.looked > 0) {

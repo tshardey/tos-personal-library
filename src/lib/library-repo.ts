@@ -11,7 +11,8 @@ import {
   type CopyInput,
 } from "@/lib/types";
 
-// PostgREST caps a response at 1000 rows, so a short read must never pass for the whole table.
+// PostgREST caps a response at the project's Max Rows (1000 by default, possibly lower), so a short
+// page can't mean the end. Reading stops only on an empty page.
 const PAGE_SIZE = 1000;
 
 /** Every row across pages; any page's error rejects, so a partial list is never returned. */
@@ -19,12 +20,13 @@ async function readAllPages<T>(
   readPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
 ): Promise<T[]> {
   const rows: T[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await readPage(from, from + PAGE_SIZE - 1);
+  for (let offset = 0; ; ) {
+    const { data, error } = await readPage(offset, offset + PAGE_SIZE - 1);
     if (error) throw error;
     const page = data ?? [];
+    if (page.length === 0) return rows;
     rows.push(...page);
-    if (page.length < PAGE_SIZE) return rows;
+    offset += page.length;
   }
 }
 
