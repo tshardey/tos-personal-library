@@ -54,6 +54,22 @@ npx supabase@2.122.1 stop     --workdir ../tome-of-secrets
 
 Use your `TOS_REPO_PATH` value for `--workdir`. The `npm run db:*` scripts read `TOS_REPO_DIR` (`/tos` in the container) and also work on the host if you set `TOS_REPO_DIR` to the ToS path.
 
+## Import from libib
+
+The Import screen needs the `library.libib_import_rows` table from the Tome of Secrets `libib-import-ledger` migration. Without it the screen shows `Couldn't read the library, so nothing was imported.` and writes nothing.
+
+1. **Export from libib.** libib exports each collection as its own CSV. Upload the file as it comes: opening and re-saving it in Excel can damage ISBNs, and the preview warns when it sees that.
+2. **Upload it** under Import. The preview writes nothing. It shows the counts, the new books, anything to review and any rows it skipped.
+3. **Choose an owner for each collection:** a household member, Shared, or Skip this collection. An owner is preselected when a member's name is a whole word of the collection name, or when you chose one for that collection before. Import stays disabled until every collection has a choice. Skipped rows write nothing and arrive on a later upload, which suits a partner who hasn't joined yet.
+4. **Settle the review items.** A row that may match a book you already have is listed with a suggested choice: the same copy, another copy, or a separate book.
+5. **Confirm.** Missing covers and descriptions are then looked up on OpenLibrary, which receives the ISBNs. A lookup failure doesn't affect the import. `Find missing covers` on the Import screen tries again.
+
+**Uploading again is safe.** Rows are recognised by their libib id, so a repeat upload adds only new rows and any rise in `copies`. A file with nothing new says `Everything in this file is already in the library.` Repeat uploads only fill empty book fields. They never replace a value, change a field you edited, or touch an existing copy, so changing an owner choice doesn't re-tag copies already imported.
+
+**Deletes stay deleted.** A book or copy you delete here doesn't come back on the next upload, and deleting a row in libib deletes nothing here. A row whose copies are all gone is listed under `Removed here earlier, staying removed`, with an `Import again` tick box to undo it. If `copies` rises in libib, the extra copies are added even after a delete.
+
+**If an import stops partway,** what was saved stays. `Run it again` adds only what's missing, without duplicates.
+
 ## Deploy (GitHub Pages)
 
 Pushes to `main` run `.github/workflows/deploy.yml`. Add two repository secrets (Settings > Secrets and variables > Actions):
