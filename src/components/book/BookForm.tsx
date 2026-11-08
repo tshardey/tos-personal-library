@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { BookInput } from "@/lib/types";
-import { normalizeBookInput, splitList } from "@/lib/normalize";
+import { normalizeBookInput, splitAuthors, splitList } from "@/lib/normalize";
 
 const list = splitList;
 
@@ -29,7 +29,7 @@ export default function BookForm({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || list(authors).length === 0) {
+    if (!title.trim() || splitAuthors(authors).length === 0) {
       setError("Title and at least one author are required.");
       return;
     }
@@ -44,7 +44,7 @@ export default function BookForm({
       await onSubmit(
         normalizeBookInput({
           title,
-          authors: list(authors),
+          authors: splitAuthors(authors),
           synopsis,
           coverUrl,
           isbn13: list(isbn13),

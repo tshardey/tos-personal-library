@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 
-export type Route = { name: "library" } | { name: "book"; id: string } | { name: "add" };
+export type Route = { name: "library" } | { name: "book"; id: string } | { name: "add" } | { name: "import" };
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, "");
   if (path === "/add") return { name: "add" };
+  if (path === "/import") return { name: "import" };
   const m = /^\/book\/(.+)$/.exec(path);
   if (m) {
     try {
@@ -20,6 +21,8 @@ export function routeToHash(route: Route): string {
   switch (route.name) {
     case "add":
       return "#/add";
+    case "import":
+      return "#/import";
     case "book":
       return `#/book/${encodeURIComponent(route.id)}`;
     default:

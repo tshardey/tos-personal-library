@@ -6,6 +6,7 @@ import InviteCode from "@/components/household/InviteCode";
 import LibraryPage from "@/components/library/LibraryPage";
 import BookDetail from "@/components/book/BookDetail";
 import AddBook from "@/components/book/AddBook";
+import ImportPage from "@/components/import/ImportPage";
 import { useRoute } from "@/lib/router";
 
 function SignedIn() {
@@ -35,6 +36,9 @@ function SignedIn() {
       <header className="flex items-center justify-between border-b p-4">
         <h1 className="text-xl font-semibold">Our Library</h1>
         <div className="flex items-center gap-3">
+          <a href="#/import" className="underline">
+            Import
+          </a>
           <span>{user?.email}</span>
           <button type="button" onClick={() => void signOut()} className="underline">
             Sign out
@@ -48,6 +52,8 @@ function SignedIn() {
         <BookDetail key={route.id} id={route.id} />
       ) : route.name === "add" ? (
         <AddBook />
+      ) : route.name === "import" ? (
+        <ImportPage />
       ) : (
         <LibraryPage />
       )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHash } from "./router";
+import { parseHash, routeToHash } from "./router";
 
 describe("parseHash", () => {
   it("decodes book ids", () => {
@@ -14,5 +14,9 @@ describe("parseHash", () => {
   });
   it("parses add", () => {
     expect(parseHash("#/add")).toEqual({ name: "add" });
+  });
+  it("parses import and round-trips it", () => {
+    expect(parseHash("#/import")).toEqual({ name: "import" });
+    expect(parseHash(routeToHash({ name: "import" }))).toEqual({ name: "import" });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeBookInput, normalizeCopyInput, splitList } from "./normalize";
+import { normalizeBookInput, normalizeCopyInput, splitAuthors, splitList } from "./normalize";
 import { diffPatch, markEdited } from "./edited-fields";
 import { fromBookPatch, fromCopyPatch } from "./types";
 import type { BookInput } from "./types";
@@ -9,6 +9,12 @@ const EDITABLE: (keyof BookInput)[] = ["title", "authors", "synopsis", "pageCoun
 describe("normalize", () => {
   it("splitList trims and drops blanks", () => {
     expect(splitList(" a, ,b ,")).toEqual(["a", "b"]);
+  });
+
+  it("splitAuthors keeps suffixes with their name", () => {
+    expect(splitAuthors("Wren Halloway, Jr., Ada Lund")).toEqual(["Wren Halloway, Jr.", "Ada Lund"]);
+    expect(splitAuthors("")).toEqual([]);
+    expect(splitList("Wren Halloway, Jr")).toEqual(["Wren Halloway", "Jr"]);
   });
 
   it("normalizeBookInput trims and turns blanks into null", () => {
