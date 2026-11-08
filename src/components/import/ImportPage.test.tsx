@@ -136,6 +136,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("ImportPage", () => {
@@ -588,6 +589,29 @@ describe("ImportPage", () => {
       fireEvent.click(screen.getByRole("button", { name: "Find missing covers" }));
       expect(await screen.findByText("The OpenLibrary lookup didn't finish.")).toBeInTheDocument();
       expect(screen.queryByText(/Your import is complete/)).not.toBeInTheDocument();
+    });
+
+    it("with a Google Books key, asks Google for what OpenLibrary didn't have", async () => {
+      vi.stubEnv("VITE_GOOGLE_BOOKS_API_KEY", "test-key-not-real");
+      fetchMock.mockImplementation(async (url: string | URL | Request) => {
+        if (String(url).startsWith("https://www.googleapis.com/")) {
+          const items = [
+            { volumeInfo: { industryIdentifiers: [{ type: "ISBN_13", identifier: isbn(900) }], description: "G" } },
+          ];
+          return { ok: true, json: async () => ({ items }) };
+        }
+        return { ok: true, json: async () => olCovers(url) };
+      });
+      h.store = createFakeStore({ books: [seededBook({ id: "b1", isbn13: [isbn(900)] })] });
+      render(<ImportPage />);
+      expect(screen.getByText(/looks up ISBNs on OpenLibrary and Google Books/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Find missing covers" }));
+      expect(await screen.findByText("Found details for 1 of 1 books.")).toBeInTheDocument();
+      expect(fetchMock.mock.calls.filter((c) => String(c[0]).includes("googleapis"))).toHaveLength(1);
+      expect(h.store.listBooks()[0]).toMatchObject({
+        coverUrl: "https://covers.openlibrary.org/b/id/7-L.jpg",
+        synopsis: "G",
+      });
     });
   });
 });

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useHousehold } from "@/contexts/HouseholdContext";
+import { googleBooksApiKey } from "@/lib/google-books";
 import { enrichMissing } from "@/lib/libib/enrich";
 import { applyImportPlan, type ApplyResult } from "@/lib/libib/apply";
 import { loadSavedMapping, saveMapping, suggestOwners, type CollectionMapping } from "@/lib/libib/owner-map";
@@ -172,7 +173,8 @@ export default function ImportPage() {
   }
 
   /**
-   * Re-reads the household's books and fills missing covers and synopses from OpenLibrary. Started
+   * Re-reads the household's books and fills missing covers and synopses from OpenLibrary, then
+   * Google Books when a key is configured. Started
    * from handlers only (never an effect), and a lookup already under way is not doubled. Any
    * failure here is a lookup failure: the import itself is already complete.
    */
@@ -184,23 +186,26 @@ export default function ImportPage() {
       const books = await listBooks(householdId!);
       const r = await enrichMissing(books, libibStore, {
         fetchImpl: (...args) => fetch(...args),
+        googleBooksKey: googleBooksApiKey(),
         onProgress: (done, total) => setLookup({ status: "running", progress: { done, total } }),
       });
       setLookup(r.failed ? { status: "failed" } : { status: "done", looked: r.looked, filled: r.filled });
     } catch (err) {
-      console.error("Failed to read the library for the OpenLibrary lookup", err);
+      console.error("Failed to read the library for the cover lookup", err);
       setLookup({ status: "failed" });
     } finally {
       lookupBusy.current = false;
     }
   }
 
+  const sources = googleBooksApiKey() ? "OpenLibrary and Google Books" : "OpenLibrary";
+
   function lookupStatus(failedPrefix: string) {
     if (lookup.status === "running" && lookup.progress) {
       return (
         <>
           <p role="status" className="mb-2">
-            {`Looking up covers on OpenLibrary. ${lookup.progress.done} of ${lookup.progress.total} books.`}
+            {`Looking up covers on ${sources}. ${lookup.progress.done} of ${lookup.progress.total} books.`}
           </p>
           <p className="mb-2 text-sm">
             Covers keep arriving after you leave this page. Reload the library to see them.
@@ -254,7 +259,7 @@ export default function ImportPage() {
           className="block w-full"
         />
         <p className="mb-2 mt-6 text-sm">
-          Already imported? This looks up ISBNs on OpenLibrary to fill in missing covers and descriptions.
+          Already imported? This looks up ISBNs on {sources} to fill in missing covers and descriptions.
         </p>
         <button
           type="button"
@@ -264,7 +269,7 @@ export default function ImportPage() {
         >
           Find missing covers
         </button>
-        {lookupStatus("The OpenLibrary lookup didn't finish.")}
+        {lookupStatus(`The ${sources} lookup didn't finish.`)}
       </div>
     );
   }
@@ -299,7 +304,7 @@ export default function ImportPage() {
             </ul>
           </div>
         )}
-        {lookupStatus("Your import is complete, but the OpenLibrary lookup didn't finish.")}
+        {lookupStatus(`Your import is complete, but the ${sources} lookup didn't finish.`)}
         <a href={routeToHash({ name: "library" })} className="underline">
           Back to the library
         </a>
