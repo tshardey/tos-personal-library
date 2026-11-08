@@ -12,6 +12,7 @@ Edit `.env`:
 
 - `TOS_REPO_PATH` - host path of the Tome of Secrets checkout (or worktree) that owns `supabase/` migrations. It is mounted at `/tos` in the container.
 - `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` - local values from `supabase status`.
+- `VITE_GOOGLE_BOOKS_API_KEY` - optional; leave blank to skip Google Books (see Deploy).
 
 ## First-time install
 
@@ -62,7 +63,7 @@ The Import screen needs the `library.libib_import_rows` table from the Tome of S
 2. **Upload it** under Import. The preview writes nothing. It shows the counts, the new books, anything to review and any rows it skipped.
 3. **Choose an owner for each collection:** a household member, Shared, or Skip this collection. An owner is preselected when a member's name is a whole word of the collection name, or when you chose one for that collection before. Import stays disabled until every collection has a choice. Skipped rows write nothing and arrive on a later upload, which suits a partner who hasn't joined yet.
 4. **Settle the review items.** A row that may match a book you already have is listed with a suggested choice: the same copy, another copy, or a separate book.
-5. **Confirm.** Missing covers and descriptions are then looked up on OpenLibrary, which receives the ISBNs. A lookup failure doesn't affect the import. `Find missing covers` on the Import screen tries again.
+5. **Confirm.** Missing covers and descriptions are then looked up on OpenLibrary, which receives the ISBNs, and then on Google Books for books OpenLibrary didn't fill, when a Google Books key is set. A lookup failure doesn't affect the import. `Find missing covers` on the Import screen tries again.
 
 **Uploading again is safe.** Rows are recognised by their libib id, so a repeat upload adds only new rows and any rise in `copies`. A file with nothing new says `Everything in this file is already in the library.` Repeat uploads only fill empty book fields. They never replace a value, change a field you edited, or touch an existing copy, so changing an owner choice doesn't re-tag copies already imported.
 
@@ -72,10 +73,11 @@ The Import screen needs the `library.libib_import_rows` table from the Tome of S
 
 ## Deploy (GitHub Pages)
 
-Pushes to `main` run `.github/workflows/deploy.yml`. Add two repository secrets (Settings > Secrets and variables > Actions):
+Pushes to `main` run `.github/workflows/deploy.yml`. Add these repository secrets (Settings > Secrets and variables > Actions):
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_GOOGLE_BOOKS_API_KEY` (optional): a Google Books API key for covers and descriptions OpenLibrary lacks. It ships in the client bundle and appears in request URLs, so treat it as public and restrict it by HTTP referrer to `https://tshardey.github.io/tos-personal-library/*` (and `http://localhost:5173/*` for dev), and to the Books API. Unset skips Google Books.
 
 and set Pages source to "GitHub Actions".
 
@@ -85,7 +87,7 @@ Production prerequisites (one-time, on the shared Supabase project):
 2. Mark the baseline applied, then push migrations: `supabase migration repair --status applied 20260407000000`, then `supabase db push`.
 3. Dashboard > Project Settings > API > Exposed schemas: add `library`.
 4. Dashboard > Authentication > URL Configuration > Redirect URLs: add `https://<user>.github.io/tos-personal-library/`.
-5. The two Actions secrets above are set.
+5. The two Supabase Actions secrets above are set.
 
 ## Install on Android
 

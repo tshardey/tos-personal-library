@@ -30,11 +30,13 @@ jobs:
         run: npm ci
 
       # Vite inlines VITE_* at build time. Add repo secrets: Settings → Secrets and variables → Actions
-      # — VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY (same names as .env.example).
+      # — VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY (same names as .env.example), and
+      # optionally VITE_GOOGLE_BOOKS_API_KEY (unset skips Google Books).
       - name: Build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_GOOGLE_BOOKS_API_KEY: ${{ secrets.VITE_GOOGLE_BOOKS_API_KEY }}
         run: npm run build
 
       - name: Setup Pages
