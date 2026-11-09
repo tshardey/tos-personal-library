@@ -43,6 +43,7 @@ export interface Copy {
   origin: CopyOrigin;
   libibId: string | null;
   photoPath: string | null;
+  intakeItemId: string | null;
   userEditedFields: string[];
   createdAt: string;
   updatedAt: string;
@@ -103,6 +104,7 @@ export function toCopy(row: Row): Copy {
     origin: row.origin,
     libibId: row.libib_id ?? null,
     photoPath: row.photo_path ?? null,
+    intakeItemId: row.intake_item_id ?? null,
     userEditedFields: row.user_edited_fields ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,

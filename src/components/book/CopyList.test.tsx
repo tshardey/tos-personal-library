@@ -23,6 +23,7 @@ function copy(id: string, ownerUserId: string | null): Copy {
     origin: "manual",
     libibId: null,
     photoPath: null,
+    intakeItemId: null,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",

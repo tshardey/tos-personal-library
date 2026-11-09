@@ -161,6 +161,7 @@ export function createFakeStore(seed: FakeStoreSeed = {}): FakeStore {
           origin: "libib",
           libibId: r.libibId,
           photoPath: null,
+          intakeItemId: null,
           userEditedFields: [],
           createdAt: stamp,
           updatedAt: stamp,

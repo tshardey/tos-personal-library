@@ -5,3 +5,6 @@ dist/
 *.tsbuildinfo
 library_*.csv
 .playwright-mcp/
+*.jpg
+*.jpeg
+*.heic

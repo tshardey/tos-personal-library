@@ -29,6 +29,7 @@ function copy(over: Partial<Copy> = {}): Copy {
     origin: "libib",
     libibId: null,
     photoPath: null,
+    intakeItemId: null,
     userEditedFields: [],
     createdAt: "2026-01-01T00:00:00+00:00",
     updatedAt: "2026-01-01T00:00:00+00:00",

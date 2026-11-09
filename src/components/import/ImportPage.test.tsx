@@ -263,7 +263,7 @@ describe("ImportPage", () => {
           copies: [
             {
               id: "c1", bookId: "b1", ownerUserId: "u1", editionNote: null, location: null,
-              origin: "libib", libibId: "OLD0000001", photoPath: null, userEditedFields: [],
+              origin: "libib", libibId: "OLD0000001", photoPath: null, intakeItemId: null, userEditedFields: [],
               createdAt: OLD, updatedAt: OLD,
             },
           ],
@@ -404,7 +404,7 @@ describe("ImportPage", () => {
           copies: [
             {
               id: "c1", bookId: "b1", ownerUserId: "u1", editionNote: null, location: null,
-              origin: "libib", libibId: "OLD0000001", photoPath: null, userEditedFields: [],
+              origin: "libib", libibId: "OLD0000001", photoPath: null, intakeItemId: null, userEditedFields: [],
               createdAt: OLD, updatedAt: OLD,
             },
           ],
