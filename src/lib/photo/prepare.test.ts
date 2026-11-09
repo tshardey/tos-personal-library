@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { fitWithin, PhotoError, preparePhoto, type ImageDeps } from "./prepare";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { browserImageDeps, fitWithin, PhotoError, preparePhoto, type ImageDeps } from "./prepare";
 
 const MIB = 1024 * 1024;
 
@@ -86,5 +86,39 @@ describe("preparePhoto", () => {
     });
     await expect(preparePhoto(file([1]), deps)).rejects.toThrow("boom");
     expect(close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("browserImageDeps.encode", () => {
+  function fakeCanvas(blob: Blob | null) {
+    const canvas = {
+      width: 0,
+      height: 0,
+      sizeAtEncode: [0, 0],
+      getContext: () => ({ drawImage: vi.fn() }),
+      toBlob(cb: (b: Blob | null) => void) {
+        this.sizeAtEncode = [this.width, this.height];
+        cb(blob);
+      },
+    };
+    vi.spyOn(document, "createElement").mockReturnValue(canvas as unknown as HTMLElement);
+    return canvas;
+  }
+  afterEach(() => vi.restoreAllMocks());
+
+  it("releases the canvas once the blob is made", async () => {
+    const canvas = fakeCanvas(new Blob(["x"], { type: "image/jpeg" }));
+    const out = await browserImageDeps.encode({ width: 1, height: 1, close() {} }, 1280, 960, 0.85);
+    expect(out.size).toBe(1);
+    expect(canvas.sizeAtEncode).toEqual([1280, 960]);
+    expect([canvas.width, canvas.height]).toEqual([0, 0]);
+  });
+
+  it("releases the canvas when encoding fails", async () => {
+    const canvas = fakeCanvas(null);
+    await expect(browserImageDeps.encode({ width: 1, height: 1, close() {} }, 640, 480, 0.85)).rejects.toThrow(
+      "encode failed",
+    );
+    expect([canvas.width, canvas.height]).toEqual([0, 0]);
   });
 });

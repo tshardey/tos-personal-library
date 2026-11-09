@@ -68,6 +68,19 @@ describe("useCopyPhotoUrls", () => {
     expect(result.current.size).toBe(0);
     err.mockRestore();
   });
+  it("logs a fixed message and the error name only, never a path", async () => {
+    const leaky = Object.assign(new Error("Object not found: p/secret-folder/a.jpg"), { name: "StorageError" });
+    signedPhotoUrls.mockRejectedValue(leaky);
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const books = [book("a", null, [copy("c1", "p/secret-folder/a.jpg", "2026-01-01")])];
+    renderHook(() => useCopyPhotoUrls(books));
+    await waitFor(() => expect(err).toHaveBeenCalled());
+    expect(err).toHaveBeenCalledWith("Failed to load copy photos", "StorageError");
+    const logged = JSON.stringify(err.mock.calls.map((call) => call.map(String)));
+    expect(logged).not.toContain("secret-folder");
+    expect(logged).not.toContain(".jpg");
+    err.mockRestore();
+  });
   it("refreshes after 50 minutes and stops on unmount", async () => {
     vi.useFakeTimers();
     const books = [book("a", null, [copy("c1", "p/a.jpg", "2026-01-01")])];

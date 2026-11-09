@@ -150,6 +150,7 @@ export default function UploadPanel({ householdId, members, userId, onItemCreate
   const done = rows.filter((r) => FINISHED.has(r.entry.state)).length;
   const pendingRows = rows.filter((r) => r.entry.state !== "done");
   const anyFailed = rows.some((r) => r.entry.state === "failed");
+  const uploaded = rows.filter((r) => r.entry.state === "done" || r.entry.state === "duplicate").length;
 
   return (
     <section aria-labelledby="inbox-upload" className="mb-4 rounded border p-3">
@@ -242,11 +243,14 @@ export default function UploadPanel({ householdId, members, userId, onItemCreate
       )}
 
       {uploading && <p className="mb-2 text-sm">Keep this page open until uploads finish.</p>}
-      {total > 0 && (
+      {total > 0 && uploading && (
         <div role="status">
           <p className="mb-1">{`Uploading ${done} of ${total}`}</p>
           <progress className="mb-2 w-full" value={done} max={total} />
         </div>
+      )}
+      {total > 0 && !uploading && anyFailed && (
+        <p role="status" className="mb-1">{`Uploaded ${uploaded} of ${total}`}</p>
       )}
       {pendingRows.length > 0 && (
         <ul className="space-y-1 text-sm">

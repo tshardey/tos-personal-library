@@ -333,8 +333,9 @@ export function useIntake(): IntakeState {
     [householdId],
   );
 
+  /** One write, then the local status. `refreshFirst` reloads before the item leaves openItems. */
   const perform = useCallback(
-    async (item: IntakeItem, action: IntakeAction, form: ConfirmForm) => {
+    async (item: IntakeItem, action: IntakeAction, form: ConfirmForm, refreshFirst = false) => {
       const result = await performConfirm(item, action, form, {
         confirm: confirmItem,
         discard: discardItem,
@@ -343,31 +344,35 @@ export function useIntake(): IntakeState {
         catalog: catalogRef.current,
         purge: () => (householdId ? purgeIntakePhotos(householdId) : Promise.resolve(0)),
       });
+      // While this item is still open, a twin card warns about it. Patching it to done before the
+      // catalog holds the new book would leave that card with no warning and no match, so the
+      // reload comes first.
+      if (refreshFirst) await load().catch(() => {});
       patchItem(item.id, {
-        status: action.kind === "already_recorded" ? "discarded" : "confirmed",
+        status: action.kind === "already_recorded" || action.kind === "discard" ? "discarded" : "confirmed",
         resultBookId: result.bookId,
         updatedAt: new Date().toISOString(),
       });
       return result;
     },
-    [enrich, householdId, patchItem],
+    [enrich, householdId, patchItem, load],
   );
 
   const confirm = useCallback(
     async (item: IntakeItem, action: IntakeAction, form: ConfirmForm) => {
-      await perform(item, action, form);
-      await load().catch(() => {});
+      await perform(item, action, form, true);
     },
-    [perform, load],
+    [perform],
   );
 
   const bulkConfirm = useCallback(
     async (itemIds: string[]) => {
       try {
+        // Bulk items have no twins (D7), and runBulkConfirm reloads before each next write.
         return await runBulkConfirm(
           itemIds,
           () => ({ catalog: catalogRef.current, openItems: itemsRef.current }),
-          { perform, refresh: load },
+          { perform: (item, action, form) => perform(item, action, form), refresh: load },
         );
       } finally {
         await load().catch(() => {});

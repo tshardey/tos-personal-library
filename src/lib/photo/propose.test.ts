@@ -145,10 +145,38 @@ describe("isbn matching", () => {
     const no = item({ lookup: lookup({ agrees: false, matchIsbns: [ISBN13] }) }, { title: "Unrelated Words" });
     expect(run(input(no, cat)).candidates).toEqual([]);
     expect(run(input(no, cat)).query.isbns).toEqual([]);
-    const yes = item({ lookup: lookup({ matchIsbns: [ISBN13, "bogus"] }) }, { title: "Unrelated Words" });
+    const yes = item(
+      { lookup: lookup({ title: "Unrelated Words", matchIsbns: [ISBN13, "bogus"] }) },
+      { title: "Unrelated Words" },
+    );
     const p = run(input(yes, cat));
     expect(p.query.isbns).toEqual([ISBN13]);
     expect(p.candidates[0]).toMatchObject({ bookId: "b13", reason: "isbn" });
+  });
+  it("ignores the ISBNs of a lookup that agrees only fuzzily", () => {
+    const cat = [book("b13", "Zzz One", { isbn13: [ISBN13] })];
+    const fuzzy = item(
+      { lookup: lookup({ title: "Unrelated Word", matchIsbns: [ISBN13] }) },
+      { title: "Unrelated Words" },
+    );
+    expect(run(input(fuzzy, cat)).query.isbns).toEqual([]);
+    expect(run(input(fuzzy, cat)).candidates).toEqual([]);
+  });
+  it("keeps a fuzzy lookup's sibling volume from becoming the default", () => {
+    // The lookup agreed on the sibling (similar title, same author) and carries its ISBNs.
+    const SIBLING = "9780000000019";
+    const owned = book("v1", "Ember Road: Book 1", {
+      isbn13: [SIBLING],
+      copies: [copy({ bookId: "v1", ownerUserId: A })],
+    });
+    const photo = item(
+      { lookup: lookup({ title: "Ember Road: Book 1", matchIsbns: [SIBLING] }) },
+      { title: "Ember Road: Book 2" },
+    );
+    const p = run(input(photo, [owned]));
+    expect(p.query.isbns).toEqual([]);
+    expect(p.candidates.every((c) => c.reason !== "isbn")).toBe(true);
+    expect(p.defaultAction).toEqual({ kind: "new_book" });
   });
 });
 

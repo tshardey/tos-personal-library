@@ -14,7 +14,9 @@ export interface Candidate {
 export type IntakeAction =
   | { kind: "add_copy"; bookId: string }
   | { kind: "already_recorded"; bookId: string }
-  | { kind: "new_book" };
+  | { kind: "new_book" }
+  /** The photo is removed and nothing is written; only ever chosen by a person. */
+  | { kind: "discard" };
 export interface Proposal {
   query: { title: string; authors: string[]; isbns: string[] };
   candidates: Candidate[];
@@ -54,8 +56,12 @@ function queryOf(input: ProposeInput): Proposal["query"] {
   const { item, titleOverride, authorsOverride } = input;
   const title = titleOverride?.trim() ? titleOverride : (item.extraction?.title ?? "");
   const authors = authorsOverride ?? item.extraction?.authors ?? [];
-  // D8: an agreeing lookup contributes ISBNs for matching only; its title is never used.
-  const raw = [item.extraction?.isbn, ...(item.lookup?.agrees ? item.lookup.matchIsbns : [])];
+  // D8: an agreeing lookup contributes ISBNs for matching only. A fuzzy agreement (similar, not
+  // equal, title) may be a sibling volume, so its ISBNs would make that sibling the default.
+  const lookup = item.lookup;
+  const qKey = titleKey(title);
+  const exact = lookup !== null && lookup.agrees && lookup.title !== null && qKey !== "" && titleKey(lookup.title) === qKey;
+  const raw = [item.extraction?.isbn, ...(exact ? lookup.matchIsbns : [])];
   const isbns = [...new Set(raw.map(toIsbn13).filter((v): v is string => v !== null))];
   return { title, authors, isbns };
 }

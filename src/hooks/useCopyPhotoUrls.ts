@@ -45,7 +45,8 @@ export function useCopyPhotoUrls(books: BookWithCopies[]): Map<string, string> {
         setUrls(next);
       })
       .catch((err) => {
-        console.error("Failed to load copy photos", err);
+        // A fixed message and the error's name only: the raw error can carry photo paths.
+        console.error("Failed to load copy photos", err instanceof Error ? err.name : "unknown");
       });
     const timer = setTimeout(() => setTick((t) => t + 1), REFRESH_MS);
     return () => {

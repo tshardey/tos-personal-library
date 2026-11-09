@@ -23,7 +23,9 @@ function ownerName(members: HouseholdMember[], ownerUserId: string | null): stri
   return members.find((m) => m.userId === ownerUserId)?.displayName ?? "Former member";
 }
 
-const keyOf = (a: IntakeAction): string => (a.kind === "new_book" ? "new" : `${a.kind}:${a.bookId}`);
+const keyOf = (a: IntakeAction): string =>
+  a.kind === "new_book" ? "new" : a.kind === "discard" ? "discard" : `${a.kind}:${a.bookId}`;
+const DISCARD: IntakeAction = { kind: "discard" };
 
 function statusLine(item: IntakeItem, now: number, lookupHidden: boolean): string | null {
   if (item.status === "pending") return "Waiting to be read";
@@ -57,8 +59,15 @@ export default function IntakeCard(props: Props) {
   const { item, catalog, openItems, members, thumbUrl, lookupPaused } = props;
   const uid = useId();
   const extracted = item.extraction?.title?.trim() || "";
-  const heading = extracted || "Untitled photo";
-  const [choice, setChoice] = useState<string | null>(null);
+  const books = useMemo(() => new Map(catalog.map((b) => [b.id, b])), [catalog]);
+  let heading = extracted || "Untitled photo";
+  if (item.status === "confirmed") {
+    // The book it was added to, as the person named it; the extraction may have had no title.
+    heading = (item.resultBookId ? books.get(item.resultBookId)?.title : undefined) || extracted || "Untitled photo";
+  } else if (item.status === "discarded") {
+    heading = extracted || "Photo removed";
+  }
+  const [choice, setChoice] = useState<IntakeAction | null>(null);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState<string | null>(null);
   const [authorsText, setAuthorsText] = useState<string | null>(null);
@@ -78,14 +87,27 @@ export default function IntakeCard(props: Props) {
     [item, catalog, openItems, title, authorsOverride],
   );
 
-  const books = useMemo(() => new Map(catalog.map((b) => [b.id, b])), [catalog]);
+  const chosenBookId = choice !== null && "bookId" in choice ? choice.bookId : null;
+  // A chosen book that has left the catalog is no longer a choice; the default shows instead.
+  if (chosenBookId !== null && !books.has(chosenBookId)) setChoice(null);
+  // A chosen book still in the catalog stays offered, even if a reload pushed it out of the top 3.
+  const shownBookIds = proposal.candidates.map((c) => c.bookId).filter((id) => books.has(id));
+  if (chosenBookId !== null && books.has(chosenBookId) && !shownBookIds.includes(chosenBookId)) {
+    shownBookIds.push(chosenBookId);
+  }
+  const notABook = item.extraction?.isBook === false;
   const options: IntakeAction[] = [];
-  for (const c of proposal.candidates) {
-    options.push({ kind: "add_copy", bookId: c.bookId });
-    if ((books.get(c.bookId)?.copies.length ?? 0) > 0) options.push({ kind: "already_recorded", bookId: c.bookId });
+  for (const id of shownBookIds) {
+    options.push({ kind: "add_copy", bookId: id });
+    if ((books.get(id)?.copies.length ?? 0) > 0) options.push({ kind: "already_recorded", bookId: id });
   }
   options.push({ kind: "new_book" });
-  const chosenKey = choice !== null && options.some((o) => keyOf(o) === choice) ? choice : keyOf(proposal.defaultAction);
+  if (notABook) options.push(DISCARD);
+  // Not a book: Discard is preselected, never performed until the person presses a button.
+  const defaultAction = notABook ? DISCARD : proposal.defaultAction;
+  const choiceKey = choice === null ? null : keyOf(choice);
+  const chosenKey =
+    choiceKey !== null && options.some((o) => keyOf(o) === choiceKey) ? choiceKey : keyOf(defaultAction);
   const chosen = options.find((o) => keyOf(o) === chosenKey) ?? { kind: "new_book" as const };
 
   if (item.status === "confirmed" || item.status === "discarded") {
@@ -124,14 +146,17 @@ export default function IntakeCard(props: Props) {
   const showDetails = editing || failed || proposal.needsTitle;
   const owner = item.ownerUserId;
   const defaultNote = (item.extraction?.editionClues ?? []).join("; ");
+  const noteShown = (editionNote ?? defaultNote).trim();
+  const writes = chosen.kind === "add_copy" || chosen.kind === "new_book";
 
-  async function onConfirm() {
-    if (busyRef.current || props.stale) return;
+  async function submit(action: IntakeAction) {
+    if (busyRef.current) return;
+    if (props.stale && action.kind !== "discard") return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
-      await props.onConfirm(item, chosen, {
+      await props.onConfirm(item, action, {
         title: effectiveTitle.trim(),
         authors: effectiveAuthors,
         copy: {
@@ -165,7 +190,7 @@ export default function IntakeCard(props: Props) {
       name={radioName}
       aria-label={label}
       checked={keyOf(action) === chosenKey}
-      onChange={() => setChoice(keyOf(action))}
+      onChange={() => setChoice(action)}
       className="mt-1"
     />
   );
@@ -180,6 +205,9 @@ export default function IntakeCard(props: Props) {
             <p className="text-sm text-stone-600">{item.extraction!.authors.join(", ")}</p>
           )}
           {line && <p className="text-sm text-stone-600">{line}</p>}
+          {!showDetails && noteShown !== "" && (
+            <p className="text-sm text-stone-600">{`Edition note: ${noteShown}`}</p>
+          )}
         </div>
       </div>
 
@@ -193,7 +221,10 @@ export default function IntakeCard(props: Props) {
           )}
         </div>
       )}
-      {!failed && proposal.needsTitle && <p className="mb-2 text-sm">No title found. Type it to continue.</p>}
+      {notABook && <p className="mb-2 text-sm">This doesn't look like a book.</p>}
+      {!failed && proposal.needsTitle && !notABook && (
+        <p className="mb-2 text-sm">No title found. Type it to continue.</p>
+      )}
       {proposal.ambiguous && <p className="mb-2 text-sm">More than one book matches. Check which one.</p>}
       {proposal.inBatchTwins.length > 0 && (
         <p className="mb-2 text-sm">Another photo in this batch looks like the same book.</p>
@@ -201,12 +232,12 @@ export default function IntakeCard(props: Props) {
 
       <fieldset className="mb-2">
         <legend className="sr-only">{`Choice for ${heading}`}</legend>
-        {proposal.candidates.map((c) => {
-          const b = books.get(c.bookId);
+        {shownBookIds.map((id) => {
+          const b = books.get(id);
           if (!b) return null;
           const addLabel = `Add a copy to ${b.title}`;
           return (
-            <div key={c.bookId} className="py-1">
+            <div key={b.id} className="py-1">
               <label className="flex items-start gap-2">
                 {radio({ kind: "add_copy", bookId: b.id }, addLabel)}
                 {b.coverUrl ? (
@@ -237,6 +268,12 @@ export default function IntakeCard(props: Props) {
           {radio({ kind: "new_book" }, "Add as a new book")}
           <span>Add as a new book</span>
         </label>
+        {notABook && (
+          <label className="flex items-start gap-2 py-1">
+            {radio(DISCARD, "Discard the photo")}
+            <span>Discard the photo</span>
+          </label>
+        )}
       </fieldset>
 
       {!showDetails && (
@@ -320,14 +357,24 @@ export default function IntakeCard(props: Props) {
           {error}
         </p>
       )}
-      <button
-        type="button"
-        disabled={busy || props.stale || effectiveTitle.trim() === ""}
-        onClick={() => void onConfirm()}
-        className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
-      >
-        Confirm
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy || props.stale || (writes && effectiveTitle.trim() === "")}
+          onClick={() => void submit(chosen)}
+          className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+        >
+          Confirm
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void submit(DISCARD)}
+          className="rounded border px-3 py-2 disabled:opacity-50"
+        >
+          Discard photo
+        </button>
+      </div>
     </article>
   );
 }

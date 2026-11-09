@@ -1,5 +1,5 @@
 interface Props {
-  entries: { id: string; title: string; authors: string[] }[];
+  entries: { id: string; title: string; authors: string[]; editionNote: string }[];
   busy: boolean;
   onConfirm(): void;
   onCancel(): void;
@@ -25,6 +25,9 @@ export default function BulkConfirmSheet({ entries, busy, onConfirm, onCancel }:
             <li key={e.id}>
               <span className="font-medium">{e.title}</span>
               {e.authors.length > 0 && <span className="text-stone-600">{` · ${e.authors.join(", ")}`}</span>}
+              {e.editionNote !== "" && (
+                <span className="block text-sm text-stone-600">{`Edition note: ${e.editionNote}`}</span>
+              )}
             </li>
           ))}
         </ul>

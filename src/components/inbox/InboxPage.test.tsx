@@ -218,8 +218,8 @@ describe("InboxPage", () => {
     render(<InboxPage />);
     const input = await screen.findByLabelText("Choose photos");
     fireEvent.change(input, { target: { files: files(3) } });
-    expect(await screen.findByText("Uploading 3 of 3")).toBeInTheDocument();
-    expect(repo.createIntakeItem).toHaveBeenCalledTimes(3);
+    expect(screen.getByText("Uploading 0 of 3")).toBeInTheDocument();
+    await waitFor(() => expect(repo.createIntakeItem).toHaveBeenCalledTimes(3));
     for (const call of repo.createIntakeItem.mock.calls) {
       expect(call[0]).toMatchObject({ householdId: "h1", ownerUserId: "u1" });
     }
@@ -462,7 +462,9 @@ describe("InboxPage", () => {
     expect(screen.queryByText("Couldn't reach the photo inbox.")).toBeNull();
 
     await act(async () => second.resolve());
-    expect(await screen.findByText("Uploading 2 of 2")).toBeInTheDocument();
+    // All uploaded: the count goes away rather than reading "Uploading" after the fact.
+    await waitFor(() => expect(screen.queryByText("Uploading 1 of 2")).toBeNull());
+    expect(screen.queryByText(/Upload(ing|ed) \d+ of 2/)).toBeNull();
   });
 
   it("holds the bulk button while a refresh has failed", async () => {
@@ -514,5 +516,170 @@ describe("InboxPage", () => {
     expect(screen.getByText("Waiting to be read")).toBeInTheDocument();
     expect(screen.queryByText("Looking it up online…")).toBeNull();
     expect(photo.lookupMetadata).toHaveBeenCalledTimes(1);
+  });
+
+  describe("upload status", () => {
+    it("reads Uploaded {n} of {total} after the batch when something failed", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      repo.createIntakeItem.mockResolvedValueOnce("created").mockRejectedValueOnce(new Error("offline"));
+      render(<InboxPage />);
+      fireEvent.change(await screen.findByLabelText("Choose photos"), { target: { files: files(2) } });
+      expect(await screen.findByText("Uploaded 1 of 2")).toBeInTheDocument();
+      expect(screen.queryByText(/Uploading/)).toBeNull();
+      expect(screen.getByText("Upload failed.")).toBeInTheDocument();
+    });
+  });
+
+  describe("discard", () => {
+    it("never discards a ready or failed card without a press", async () => {
+      h.items = [
+        item({}, { title: "Copper Lantern" }),
+        item({ status: "failed", errorCode: "vision_unreadable", lookup: null }, null),
+      ];
+      render(<InboxPage />);
+      expect(within(await findCard("Untitled photo")).getByRole("button", { name: "Discard photo" })).toBeEnabled();
+      expect(within(await findCard("Copper Lantern")).getByRole("button", { name: "Discard photo" })).toBeEnabled();
+      await act(() => vi.advanceTimersByTimeAsync(30_000));
+      expect(repo.discardItem).not.toHaveBeenCalled();
+      expect(repo.confirmItem).not.toHaveBeenCalled();
+    });
+
+    it("discards once for a double press, purges, and lists it under Done today", async () => {
+      const it1 = item({}, { title: "Copper Lantern" });
+      h.items = [it1];
+      const first = deferred<void>();
+      repo.discardItem.mockImplementationOnce(async (id: string) => {
+        await first.promise;
+        h.items = h.items.map((i) => (i.id === id ? { ...i, status: "discarded" } : i));
+        return true;
+      });
+      render(<InboxPage />);
+      const c = await findCard("Copper Lantern");
+      await act(async () => {});
+      const purgesBefore = repo.purgeIntakePhotos.mock.calls.length;
+      const button = within(c).getByRole("button", { name: "Discard photo" });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      expect(button).toBeDisabled();
+      await act(async () => first.resolve());
+      expect(await screen.findByText("Not added. The photo was removed.")).toBeInTheDocument();
+      expect(repo.discardItem).toHaveBeenCalledTimes(1);
+      expect(repo.discardItem).toHaveBeenCalledWith(it1.id, "discarded");
+      expect(repo.confirmItem).not.toHaveBeenCalled();
+      expect(repo.purgeIntakePhotos.mock.calls.length).toBeGreaterThan(purgesBefore);
+      const done = screen.getByRole("region", { name: "Done today" });
+      expect(within(done).getByRole("article", { name: "Copper Lantern" })).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "To review" })).toBeNull();
+    });
+
+    it("says when a photo isn't a book, preselects Discard, and discards on Confirm", async () => {
+      const notBook = item({ lookup: null }, { isBook: false, title: null, authors: [] });
+      h.items = [notBook, item({}, { title: "Copper Lantern" }), item({}, { title: "Northern Kettle" })];
+      render(<InboxPage />);
+      const c = await findCard("Untitled photo");
+      expect(within(c).getByText("This doesn't look like a book.")).toBeInTheDocument();
+      expect(within(c).getByRole("radio", { name: "Discard the photo" })).toBeChecked();
+      // Never bulk-added: only the two real books are offered.
+      expect(screen.getByRole("button", { name: "Add 2 new books" })).toBeInTheDocument();
+      fireEvent.click(within(c).getByRole("button", { name: "Confirm" }));
+      await waitFor(() => expect(repo.discardItem).toHaveBeenCalledWith(notBook.id, "discarded"));
+      expect(repo.confirmItem).not.toHaveBeenCalled();
+      expect(await screen.findByRole("article", { name: "Photo removed" })).toBeInTheDocument();
+    });
+
+    it("adds a not-a-book photo when the person picks another option", async () => {
+      h.items = [item({}, { isBook: false, title: "Copper Lantern" })];
+      render(<InboxPage />);
+      const c = await findCard("Copper Lantern");
+      fireEvent.click(within(c).getByRole("radio", { name: "Add as a new book" }));
+      fireEvent.click(within(c).getByRole("button", { name: "Confirm" }));
+      await waitFor(() => expect(repo.confirmItem).toHaveBeenCalledTimes(1));
+      expect(repo.discardItem).not.toHaveBeenCalled();
+    });
+  });
+
+  it("shows the prefilled edition note on the collapsed card and in the bulk sheet", async () => {
+    h.items = [
+      item({}, { title: "Copper Lantern", editionClues: ["Book club edition", "Sprayed edges"] }),
+      item({}, { title: "Northern Kettle" }),
+    ];
+    render(<InboxPage />);
+    const c = await findCard("Copper Lantern");
+    expect(within(c).getByText("Edition note: Book club edition; Sprayed edges")).toBeInTheDocument();
+    expect(within(await findCard("Northern Kettle")).queryByText(/Edition note:/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 new books" }));
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).getByText("Edition note: Book club edition; Sprayed edges")).toBeInTheDocument();
+    expect(within(sheet).getAllByText(/Edition note:/)).toHaveLength(1);
+  });
+
+  it("names a confirmed item after its catalog book, and an untitled discard as Photo removed", async () => {
+    h.books = [book("b9", "Paper Moth")];
+    h.items = [
+      item({ status: "confirmed", resultBookId: "b9", updatedAt: NOW, lookup: null }, { title: null, authors: [] }),
+      item({ status: "discarded", updatedAt: NOW, lookup: null }, null),
+    ];
+    render(<InboxPage />);
+    const done = await screen.findByRole("region", { name: "Done today" });
+    expect(within(done).getByRole("article", { name: "Paper Moth" })).toBeInTheDocument();
+    expect(within(done).getByRole("article", { name: "Photo removed" })).toBeInTheDocument();
+    expect(within(done).queryByRole("article", { name: "Untitled photo" })).toBeNull();
+  });
+
+  describe("a chosen candidate", () => {
+    it("stays offered and selected when a reload pushes it out of the top 3", async () => {
+      h.books = [book("b1", "Salt Roads")];
+      const it1 = item();
+      h.items = [it1, item({}, { title: "Copper Lantern" })];
+      render(<InboxPage />);
+      const c = await findCard("Salt Road");
+      fireEvent.click(within(c).getByRole("radio", { name: "Add a copy to Salt Roads" }));
+      // Three exact-title books arrive with the next full load and outrank the chosen one.
+      h.books = [book("b1", "Salt Roads"), book("b2", "Salt Road"), book("b3", "Salt Road"), book("b4", "Salt Road")];
+      fireEvent.click(within(await findCard("Copper Lantern")).getByRole("button", { name: "Confirm" }));
+      await waitFor(() => expect(within(c).getAllByRole("radio", { name: "Add a copy to Salt Road" })).toHaveLength(3));
+      expect(within(c).getByRole("radio", { name: "Add a copy to Salt Roads" })).toBeChecked();
+      fireEvent.click(within(c).getByRole("button", { name: "Confirm" }));
+      await waitFor(() => expect(repo.confirmItem).toHaveBeenCalledWith(it1.id, { bookId: "b1" }, expect.anything()));
+    });
+
+    it("falls back to the default when the chosen book leaves the catalog", async () => {
+      h.books = [book("b1", "Salt Roads"), book("b2", "Salt Road")];
+      h.items = [item(), item({}, { title: "Copper Lantern" })];
+      render(<InboxPage />);
+      const c = await findCard("Salt Road");
+      fireEvent.click(within(c).getByRole("radio", { name: "Add a copy to Salt Roads" }));
+      h.books = [book("b2", "Salt Road")];
+      fireEvent.click(within(await findCard("Copper Lantern")).getByRole("button", { name: "Confirm" }));
+      await waitFor(() => expect(within(c).queryByRole("radio", { name: "Add a copy to Salt Roads" })).toBeNull());
+      expect(within(c).getByRole("radio", { name: "Add a copy to Salt Road" })).toBeChecked();
+    });
+  });
+
+  it("keeps a twin's warning until the catalog holding the new book has loaded", async () => {
+    const a = item({}, { title: "Copper Lantern" });
+    h.items = [a, item({}, { title: "Copper Lantern" })];
+    render(<InboxPage />);
+    const [cardA, cardB] = await screen.findAllByRole("article", { name: "Copper Lantern" });
+    const TWIN = "Another photo in this batch looks like the same book.";
+    expect(within(cardB).getByText(TWIN)).toBeInTheDocument();
+    await act(async () => {});
+    const catalogRead = deferred<BookWithCopies[]>();
+    lib.listBooks.mockImplementationOnce(() => catalogRead.promise);
+    fireEvent.click(within(cardA).getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(repo.confirmItem).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    // Confirmed on the server, but the catalog hasn't caught up: the warning stays.
+    expect(within(cardB).getByText(TWIN)).toBeInTheDocument();
+    expect(screen.queryByText("Added to the library.")).toBeNull();
+    const newId = `book-for-${a.id}`;
+    await act(async () =>
+      catalogRead.resolve([book(newId, "Copper Lantern", { copies: [copy({ bookId: newId, ownerUserId: "u2" })] })]),
+    );
+    expect(await screen.findByText("Added to the library.")).toBeInTheDocument();
+    const review = screen.getByRole("region", { name: "To review" });
+    const left = within(review).getByRole("article", { name: "Copper Lantern" });
+    expect(within(left).queryByText(TWIN)).toBeNull();
+    expect(within(left).getByRole("radio", { name: "Add a copy to Copper Lantern" })).toBeChecked();
   });
 });

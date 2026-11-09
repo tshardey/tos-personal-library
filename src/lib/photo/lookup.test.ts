@@ -125,6 +125,46 @@ describe("lookupMetadata", () => {
     });
   });
 
+  it("adopts the exact-title OpenLibrary doc over an earlier fuzzy one", async () => {
+    const fuzzy = doc({ key: "/works/OL9W", title: "The Glass Orchards", isbn: ["9780000000026"], cover_i: 7 });
+    const exact = doc({ key: "/works/OL1W", isbn: ["9780000000019"], cover_i: 42 });
+    const fetchImpl = router({
+      [OL]: () => reply({ docs: [fuzzy, exact] }),
+      [WORK]: () => reply({ description: "Exact." }),
+    });
+    const r = await lookupMetadata(Q, { fetchImpl, googleBooksKey: null });
+    expect(r).toMatchObject({
+      agrees: true,
+      title: "The Glass Orchard",
+      openlibraryId: "OL1W",
+      matchIsbns: ["9780000000019"],
+      coverUrl: "https://covers.openlibrary.org/b/id/42-L.jpg",
+      synopsis: "Exact.",
+    });
+  });
+
+  it("with no exact title, adopts the most similar agreeing doc", async () => {
+    const far = doc({ key: "/works/OL8W", title: "Glass Orchard Story" }); // agrees at 0.7
+    const near = doc({ key: "/works/OL1W", title: "The Glass Orchards" }); // agrees at 0.81
+    const fetchImpl = router({ [OL]: () => reply({ docs: [far, near] }), [WORK]: () => reply({}) });
+    const r = await lookupMetadata(Q, { fetchImpl, googleBooksKey: null });
+    expect(r.openlibraryId).toBe("OL1W");
+  });
+
+  it("adopts the exact-title Google hit over an earlier fuzzy one", async () => {
+    const vol = (id: string, title: string, isbn: string) => ({
+      id,
+      volumeInfo: { title, authors: ["Ana Vale"], industryIdentifiers: [{ type: "ISBN_13", identifier: isbn }] },
+    });
+    const fetchImpl = router({
+      [OL]: () => reply({ docs: [] }),
+      [GB]: () =>
+        reply({ items: [vol("fuzzy", "The Glass Orchards", "9780000000026"), vol("exact", "The Glass Orchard", "9780000000019")] }),
+    });
+    const r = await lookupMetadata(Q, { fetchImpl, googleBooksKey: "k" });
+    expect(r).toMatchObject({ source: "google", googleBooksId: "exact", matchIsbns: ["9780000000019"] });
+  });
+
   it("returns none when Google has no agreeing hit either", async () => {
     const fetchImpl = router({
       [OL]: () => reply({ docs: [] }),

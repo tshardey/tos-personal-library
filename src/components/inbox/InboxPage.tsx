@@ -72,7 +72,13 @@ export default function InboxPage() {
           const input = { item, catalog, openItems };
           return bulkEligible(input, proposeMatch(input));
         })
-        .map((i) => ({ id: i.id, title: i.extraction?.title ?? "", authors: i.extraction?.authors ?? [] })),
+        .map((i) => ({
+          id: i.id,
+          title: i.extraction?.title ?? "",
+          authors: i.extraction?.authors ?? [],
+          // The note runBulkConfirm writes on the copy, shown before anything is written.
+          editionNote: (i.extraction?.editionClues ?? []).join("; ").trim(),
+        })),
     [groups.review, catalog, openItems],
   );
 

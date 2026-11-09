@@ -218,6 +218,23 @@ describe("performConfirm", () => {
     expect(d.purge).toHaveBeenCalled();
   });
 
+  it("discard only discards, with the discarded reason, then purges", async () => {
+    const d = deps({ catalog: [book("b1", "Salt Road")] });
+    const it1 = item();
+    const result = await performConfirm(
+      it1,
+      { kind: "discard" },
+      { title: "Salt Road", authors: ["Ana Vale"], copy: COPY },
+      d,
+    );
+    expect(result).toEqual({ bookId: null });
+    expect(d.discard).toHaveBeenCalledTimes(1);
+    expect(d.discard).toHaveBeenCalledWith(it1.id, "discarded");
+    expect(d.confirm).not.toHaveBeenCalled();
+    expect(d.patchBook).not.toHaveBeenCalled();
+    expect(d.purge).toHaveBeenCalled();
+  });
+
   it("new_book confirms with the book input and enriches when it has an ISBN", async () => {
     const d = deps();
     const it1 = item({}, { isbn: "123456789X" });

@@ -76,8 +76,8 @@ export async function performConfirm(
   form: ConfirmForm,
   deps: ConfirmDeps,
 ): Promise<{ bookId: string | null }> {
-  if (action.kind === "already_recorded") {
-    await deps.discard(item.id, "already_recorded");
+  if (action.kind === "already_recorded" || action.kind === "discard") {
+    await deps.discard(item.id, action.kind === "discard" ? "discarded" : "already_recorded");
     await quietly("intake purge failed", deps.purge);
     return { bookId: null };
   }

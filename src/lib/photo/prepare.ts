@@ -41,12 +41,18 @@ export const browserImageDeps: ImageDeps = {
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("canvas unavailable");
-    ctx.drawImage(bitmap as unknown as ImageBitmap, 0, 0, width, height);
-    return new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode failed"))), "image/jpeg", quality),
-    );
+    try {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("canvas unavailable");
+      ctx.drawImage(bitmap as unknown as ImageBitmap, 0, 0, width, height);
+      return await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode failed"))), "image/jpeg", quality),
+      );
+    } finally {
+      // Free the backing store now; a 150-photo batch would otherwise wait on the GC for each.
+      canvas.width = 0;
+      canvas.height = 0;
+    }
   },
   async sha256Hex(bytes) {
     const digest = await crypto.subtle.digest("SHA-256", bytes);

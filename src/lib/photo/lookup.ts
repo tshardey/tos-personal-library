@@ -31,6 +31,30 @@ export function agrees(
   return query.authors.length === 0 || authorsOverlap(query.authors, result.authors);
 }
 
+/**
+ * The agreeing result to adopt: an exact titleKey match first, then the highest similarity, then
+ * the earliest. The first agreeing one may be a fuzzy sibling listed ahead of the exact volume.
+ */
+function bestAgreeing<T>(
+  query: { title: string; authors: string[] },
+  list: T[],
+  view: (t: T) => { title: string | null; authors: string[] } | null,
+): T | null {
+  const q = titleKey(query.title);
+  let best: { value: T; exact: boolean; score: number } | null = null;
+  for (const value of list) {
+    const v = view(value);
+    if (v === null || v.title === null || !agrees(query, v)) continue;
+    const r = titleKey(v.title);
+    const exact = r === q;
+    const score = exact ? 1 : trigramSimilarity(q, r);
+    if (best === null || (exact && !best.exact) || (exact === best.exact && score > best.score)) {
+      best = { value, exact, score };
+    }
+  }
+  return best === null ? null : best.value;
+}
+
 const retryableStatus = (s: number) => s === 429 || s >= 500;
 
 async function getJson(url: string, fetchImpl: typeof fetch): Promise<unknown> {
@@ -139,13 +163,19 @@ export async function lookupMetadata(
 
   const data = await getJson(url, fetchImpl);
   const docs = Array.isArray((data as { docs?: unknown } | null)?.docs) ? ((data as { docs: OlDoc[] }).docs) : [];
+  const olView = (d: OlDoc) =>
+    !d || typeof d !== "object"
+      ? null
+      : { title: typeof d.title === "string" ? d.title : null, authors: strings(d.author_name) };
+  const olBest = bestAgreeing(query, docs, olView);
+  if (olBest !== null) return fromOpenLibraryDoc(olBest, olView(olBest)!.title!, fetchImpl);
   let bestMiss: { title: string; authors: string[] } | null = null;
   for (const d of docs) {
-    if (!d || typeof d !== "object") continue;
-    const title = typeof d.title === "string" ? d.title : null;
-    const authors = strings(d.author_name);
-    if (agrees(query, { title, authors }) && title !== null) return fromOpenLibraryDoc(d, title, fetchImpl);
-    if (bestMiss === null && title !== null) bestMiss = { title, authors };
+    const v = olView(d);
+    if (v !== null && v.title !== null) {
+      bestMiss = { title: v.title, authors: v.authors };
+      break;
+    }
   }
 
   if (googleBooksKey !== null) {
@@ -158,23 +188,23 @@ export async function lookupMetadata(
       }
       throw err;
     }
-    for (const h of hits) {
-      if (agrees(query, h) && h.title !== null) {
-        return empty({
-          source: "google",
-          agrees: true,
-          title: h.title,
-          authors: h.authors,
-          matchIsbns: h.isbns.slice(0, MAX_MATCH_ISBNS),
-          coverUrl: h.coverUrl,
-          synopsis: h.synopsis,
-          pageCount: h.pageCount,
-          publishDate: h.publishDate,
-          googleBooksId: h.id,
-        });
-      }
-      if (bestMiss === null && h.title !== null) bestMiss = { title: h.title, authors: h.authors };
+    const h = bestAgreeing(query, hits, (x) => x);
+    if (h !== null && h.title !== null) {
+      return empty({
+        source: "google",
+        agrees: true,
+        title: h.title,
+        authors: h.authors,
+        matchIsbns: h.isbns.slice(0, MAX_MATCH_ISBNS),
+        coverUrl: h.coverUrl,
+        synopsis: h.synopsis,
+        pageCount: h.pageCount,
+        publishDate: h.publishDate,
+        googleBooksId: h.id,
+      });
     }
+    const miss = hits.find((x) => x.title !== null);
+    if (bestMiss === null && miss) bestMiss = { title: miss.title!, authors: miss.authors };
   }
 
   return empty(bestMiss ?? {});
