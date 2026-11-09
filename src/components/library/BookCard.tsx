@@ -2,8 +2,9 @@ import { useState } from "react";
 import type { BookWithCopies } from "@/lib/types";
 import { routeToHash } from "@/lib/router";
 
-export default function BookCard({ book }: { book: BookWithCopies }) {
+export default function BookCard({ book, photoUrl }: { book: BookWithCopies; photoUrl?: string }) {
   const [failed, setFailed] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
   const author = book.authors[0];
   return (
     <a href={routeToHash({ name: "book", id: book.id })} className="block">
@@ -14,6 +15,14 @@ export default function BookCard({ book }: { book: BookWithCopies }) {
             alt={`${book.title} cover`}
             loading="lazy"
             onError={() => setFailed(true)}
+            className="h-full w-full object-cover"
+          />
+        ) : photoUrl && !photoFailed ? (
+          <img
+            src={photoUrl}
+            alt={`${book.title}, photo of our copy`}
+            loading="lazy"
+            onError={() => setPhotoFailed(true)}
             className="h-full w-full object-cover"
           />
         ) : (

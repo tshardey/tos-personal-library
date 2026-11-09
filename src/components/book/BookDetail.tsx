@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
+import { useCopyPhotoUrls } from "@/hooks/useCopyPhotoUrls";
 import { useCatalog } from "@/hooks/useCatalog";
 import { addCopy, deleteBook, updateBook } from "@/lib/library-repo";
 import { diffPatch, markEdited } from "@/lib/edited-fields";
@@ -23,8 +24,9 @@ const EDITABLE: (keyof BookInput)[] = [
   "publishDate",
 ];
 
-function Cover({ book }: { book: BookWithCopies }) {
+function Cover({ book, photoUrl }: { book: BookWithCopies; photoUrl?: string }) {
   const [failed, setFailed] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
   return (
     <div className="mx-auto aspect-[2/3] w-40 overflow-hidden rounded bg-stone-200 shadow-sm">
       {book.coverUrl && !failed ? (
@@ -32,6 +34,13 @@ function Cover({ book }: { book: BookWithCopies }) {
           src={book.coverUrl}
           alt={`${book.title} cover`}
           onError={() => setFailed(true)}
+          className="h-full w-full object-cover"
+        />
+      ) : photoUrl && !photoFailed ? (
+        <img
+          src={photoUrl}
+          alt={`${book.title}, photo of our copy`}
+          onError={() => setPhotoFailed(true)}
           className="h-full w-full object-cover"
         />
       ) : (
@@ -50,6 +59,7 @@ export default function BookDetail({ id }: { id: string }) {
   const { members } = useHousehold();
   const { user } = useAuth();
   const { books, loading, error, reload } = useCatalog();
+  const photoUrls = useCopyPhotoUrls(books);
   const [editing, setEditing] = useState(false);
   const [addingCopy, setAddingCopy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -114,7 +124,7 @@ export default function BookDetail({ id }: { id: string }) {
       <a href="#/" className="underline">
         Back to library
       </a>
-      <Cover key={book.coverUrl ?? ""} book={book} />
+      <Cover key={book.coverUrl ?? ""} book={book} photoUrl={photoUrls.get(book.id)} />
       {editing ? (
         <BookForm
           initial={before}

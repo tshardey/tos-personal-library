@@ -49,4 +49,19 @@ describe("BookCard", () => {
     expect(ph).toHaveTextContent("Slewfoot");
     expect(ph).toHaveTextContent("Brom");
   });
+  it("shows our copy's photo when there is no stock cover", () => {
+    render(<BookCard book={make(null)} photoUrl="http://x/p.jpg" />);
+    expect(screen.getByAltText("Slewfoot, photo of our copy")).toHaveAttribute("src", "http://x/p.jpg");
+    expect(screen.queryByTestId("cover-placeholder")).not.toBeInTheDocument();
+  });
+  it("prefers the stock cover over the photo", () => {
+    render(<BookCard book={make("http://x/c.jpg")} photoUrl="http://x/p.jpg" />);
+    expect(screen.getByAltText("Slewfoot cover")).toBeInTheDocument();
+    expect(screen.queryByAltText("Slewfoot, photo of our copy")).not.toBeInTheDocument();
+  });
+  it("falls back to the photo when the stock cover fails to load", () => {
+    render(<BookCard book={make("http://x/broken.jpg")} photoUrl="http://x/p.jpg" />);
+    fireEvent.error(screen.getByAltText("Slewfoot cover"));
+    expect(screen.getByAltText("Slewfoot, photo of our copy")).toBeInTheDocument();
+  });
 });
