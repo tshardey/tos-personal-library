@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { coverOf, GoogleBooksError, lookupGoogleBooksIsbn, plainText } from "./google-books";
+import { coverOf, GoogleBooksError, lookupGoogleBooksIsbn, plainText, searchGoogleBooks } from "./google-books";
 
 // Synthetic, checksum-valid ISBNs: 978-0-00-000001-? style, not real books.
 const ISBN13 = "9780000000019";
@@ -97,5 +97,65 @@ describe("plainText", () => {
   it("does not run or keep markup from the description", () => {
     expect(plainText('<img src=x onerror="alert(1)">Safe')).toBe("Safe");
     expect(plainText("<style>p{color:red}</style><script>alert(1)</script>Hi")).toBe("Hi");
+  });
+});
+
+describe("searchGoogleBooks", () => {
+  it("builds the intitle/inauthor query with the key and maps hits", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      reply({
+        items: [
+          {
+            id: "gb1",
+            volumeInfo: {
+              title: "Glass Orchard",
+              authors: ["Ana Vale"],
+              description: "<p>Hello</p>",
+              pageCount: 200,
+              publishedDate: "2001",
+              imageLinks: { thumbnail: "http://example.test/c.jpg?edge=curl" },
+              industryIdentifiers: [
+                { type: "ISBN_13", identifier: ISBN13 },
+                { type: "ISBN_10", identifier: ISBN10_SAME },
+                { type: "OTHER", identifier: "zzz" },
+              ],
+            },
+          },
+          { id: "gb2" },
+        ],
+      }),
+    );
+    const hits = await searchGoogleBooks("Glass Orchard", "Ana Vale", KEY, fetchImpl);
+    const url = String(fetchImpl.mock.calls[0][0]);
+    expect(url).toContain("q=intitle:%22Glass%20Orchard%22+inauthor:%22Ana%20Vale%22");
+    expect(url).toContain("maxResults=5");
+    expect(url).toContain(`key=${KEY}`);
+    expect(fetchImpl.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+    expect(hits).toEqual([
+      {
+        id: "gb1",
+        title: "Glass Orchard",
+        authors: ["Ana Vale"],
+        isbns: [ISBN13],
+        coverUrl: "https://example.test/c.jpg",
+        synopsis: "Hello",
+        pageCount: 200,
+        publishDate: "2001",
+      },
+    ]);
+  });
+
+  it("omits inauthor when there is no author, and returns [] with no items", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => reply({ totalItems: 0 }));
+    expect(await searchGoogleBooks("Glass Orchard", null, KEY, fetchImpl)).toEqual([]);
+    expect(String(fetchImpl.mock.calls[0][0])).not.toContain("inauthor");
+  });
+
+  it("throws GoogleBooksError on 429 without the key in the message", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => reply({}, 429));
+    const e = await searchGoogleBooks("x", null, KEY, fetchImpl).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(GoogleBooksError);
+    expect((e as GoogleBooksError).status).toBe(429);
+    expect((e as Error).message).not.toContain(KEY);
   });
 });
