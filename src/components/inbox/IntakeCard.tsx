@@ -253,7 +253,11 @@ export default function IntakeCard(props: Props) {
             <input
               id={`${uid}-title`}
               value={effectiveTitle}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                // Keep the form open once a missing title is being typed.
+                setEditing(true);
+              }}
               className="w-full rounded border px-2 py-1"
             />
           </div>

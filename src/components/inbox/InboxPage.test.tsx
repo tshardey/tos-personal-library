@@ -373,6 +373,22 @@ describe("InboxPage", () => {
     expect(repo.confirmItem.mock.calls[0][1]).toEqual({ book: expect.objectContaining({ title: "Paper Moth" }) });
   });
 
+  it("keeps the details open while a missing title is typed", async () => {
+    const untitled = item({ lookup: null }, { title: null, authors: [] });
+    h.items = [untitled];
+    render(<InboxPage />);
+    const c = await findCard("Untitled photo");
+    expect(within(c).getByText("No title found. Type it to continue.")).toBeInTheDocument();
+    fireEvent.change(within(c).getByLabelText("Title"), { target: { value: "P" } });
+    fireEvent.change(within(c).getByLabelText("Title"), { target: { value: "Paper Moth" } });
+    fireEvent.change(within(c).getByLabelText("Authors"), { target: { value: "Ana Vale" } });
+    fireEvent.click(within(c).getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(repo.confirmItem).toHaveBeenCalledTimes(1));
+    expect(repo.confirmItem.mock.calls[0][1]).toEqual({
+      book: expect.objectContaining({ title: "Paper Moth", authors: ["Ana Vale"] }),
+    });
+  });
+
   it("offers no Try again once attempts are used up", async () => {
     h.items = [item({ status: "failed", errorCode: "attempts_exhausted", attempts: 3, lookup: null }, null)];
     render(<InboxPage />);
