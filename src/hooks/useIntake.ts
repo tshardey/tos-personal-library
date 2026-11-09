@@ -32,9 +32,14 @@ const browserFetch: typeof fetch = (...args) => fetch(...args);
 export interface IntakeState {
   items: IntakeItem[];
   catalog: BookWithCopies[];
+  /** `error` only when the first load fails; later failures set `stale` and keep the page. */
   status: "loading" | "ready" | "error";
+  /** A refresh failed since the last full load: items or catalog may be out of date. */
+  stale: boolean;
   stop: DrainStop;
   lookupPaused: boolean;
+  /** Items whose lookup failed this session; they show no "Looking it up" line until retried. */
+  lookupFailed: Set<string>;
   /** True while any photo is being read; the page keeps the screen on for it. */
   reading: boolean;
   thumbs: Map<string, string>;
@@ -58,6 +63,8 @@ export function useIntake(): IntakeState {
   const [items, setItemsState] = useState<IntakeItem[]>([]);
   const [catalog, setCatalogState] = useState<BookWithCopies[]>([]);
   const [status, setStatus] = useState<IntakeState["status"]>("loading");
+  const [stale, setStale] = useState(false);
+  const [lookupFailed, setLookupFailedState] = useState<Set<string>>(new Set());
   const [stop, setStopState] = useState<DrainStop>(null);
   const [lookupPaused, setLookupPaused] = useState(false);
   const [inFlightCount, setInFlightCount] = useState(0);
@@ -74,6 +81,35 @@ export function useIntake(): IntakeState {
   const thumbRequested = useRef(new Set<string>());
   const enrichChain = useRef<Promise<unknown>>(Promise.resolve());
   const mounted = useRef(true);
+  const loadedOnce = useRef(false);
+  const staleRef = useRef(false);
+  const failedLookups = useRef(new Set<string>());
+
+  const markStale = useCallback((value: boolean) => {
+    staleRef.current = value;
+    setStale(value);
+  }, []);
+  const failLookup = useCallback((id: string) => {
+    failedLookups.current.add(id);
+    setLookupFailedState(new Set(failedLookups.current));
+  }, []);
+  /** Lets lookups that failed this session run again. */
+  const clearFailedLookups = useCallback(() => {
+    if (failedLookups.current.size === 0) return;
+    for (const id of failedLookups.current) lookedUp.current.delete(id);
+    failedLookups.current = new Set();
+    setLookupFailedState(new Set());
+  }, []);
+
+  /** After the first load, a failed read keeps what's on screen and marks it stale. */
+  const onReadFailure = useCallback(
+    (e: unknown) => {
+      console.error("Failed to load the photo inbox", errName(e));
+      if (loadedOnce.current) markStale(true);
+      else setStatus("error");
+    },
+    [markStale],
+  );
 
   const setItems = useCallback((next: IntakeItem[]) => {
     itemsRef.current = next;
@@ -90,7 +126,7 @@ export function useIntake(): IntakeState {
     setStopState(s);
   }, []);
 
-  /** Re-reads both; rejects (and shows the inbox error) if either read fails. */
+  /** Re-reads both and clears `stale`; rejects if either read fails. */
   const load = useCallback(async () => {
     if (!householdId) return;
     try {
@@ -98,24 +134,26 @@ export function useIntake(): IntakeState {
       catalogRef.current = nextCatalog;
       setCatalogState(nextCatalog);
       setItems(nextItems);
+      loadedOnce.current = true;
+      markStale(false);
       setStatus("ready");
     } catch (e) {
-      console.error("Failed to load the photo inbox", errName(e));
-      setStatus("error");
+      onReadFailure(e);
       throw e;
     }
-  }, [householdId, setItems]);
+  }, [householdId, setItems, markStale, onReadFailure]);
 
+  /** Items only. While stale, a full load instead, so the catalog heals too. */
   const loadItems = useCallback(async () => {
     if (!householdId) return;
+    if (staleRef.current) return load();
     try {
       setItems(await listIntakeItems(householdId));
     } catch (e) {
-      console.error("Failed to refresh the photo inbox", errName(e));
-      setStatus("error");
+      onReadFailure(e);
       throw e;
     }
-  }, [householdId, setItems]);
+  }, [householdId, setItems, load, onReadFailure]);
 
   const onOutcome = useCallback(
     (_id: string, outcome: ProcessOutcome | "error") => {
@@ -196,25 +234,29 @@ export function useIntake(): IntakeState {
             break;
           }
           console.error("Lookup failed", errName(e));
+          failLookup(next.id);
           continue;
         }
         try {
           await saveLookup(next.id, result);
         } catch (e) {
+          // A later poll would bring back lookup: null, so don't promise a lookup that's done.
           console.error("Failed to save a lookup", errName(e));
+          failLookup(next.id);
         }
         patchItem(next.id, { lookup: result });
       }
     } finally {
       lookupBusy.current = false;
     }
-  }, [patchItem]);
+  }, [patchItem, failLookup]);
 
   const resumeLookups = useCallback(() => {
     pausedRef.current = false;
     setLookupPaused(false);
+    clearFailedLookups();
     void runLookups();
-  }, [runLookups]);
+  }, [runLookups, clearFailedLookups]);
 
   // First load: purge what's no longer needed (D11), then load and drain.
   useEffect(() => {
@@ -239,6 +281,7 @@ export function useIntake(): IntakeState {
     }, POLL_MS);
     return () => clearInterval(timer);
   }, [hasActive, status, loadItems, drain]);
+  // Polling keeps running while stale (status stays "ready"), and each tick tries a full load.
 
   // Lookups and thumbnails follow the item list; neither touches the catalog.
   useEffect(() => {
@@ -334,16 +377,19 @@ export function useIntake(): IntakeState {
   );
 
   const reload = useCallback(async () => {
+    clearFailedLookups();
     await load();
     await drain();
-  }, [load, drain]);
+  }, [load, drain, clearFailedLookups]);
 
   return {
     items,
     catalog,
     status,
+    stale,
     stop,
     lookupPaused,
+    lookupFailed,
     reading: inFlightCount > 0,
     thumbs,
     reload,

@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   items: [] as IntakeItem[],
   books: [] as unknown[],
   failBooks: false,
+  failItems: false,
 }));
 
 const repo = vi.hoisted(() => ({
@@ -57,6 +58,7 @@ vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { id: "u1", email: "robin@example.test" }, loading: false }),
 }));
 
+import { LookupError } from "@/lib/photo/lookup";
 import { PhotoError } from "@/lib/photo/prepare";
 import InboxPage from "./InboxPage";
 
@@ -165,10 +167,14 @@ beforeEach(() => {
   h.items = [];
   h.books = [];
   h.failBooks = false;
+  h.failItems = false;
   vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
   localStorage.clear();
   for (const fn of [...Object.values(repo), ...Object.values(lib), ...Object.values(photo)]) fn.mockReset();
-  repo.listIntakeItems.mockImplementation(async () => h.items.map((i) => ({ ...i })));
+  repo.listIntakeItems.mockImplementation(async () => {
+    if (h.failItems) throw new Error("offline");
+    return h.items.map((i) => ({ ...i }));
+  });
   lib.listBooks.mockImplementation(async () => {
     if (h.failBooks) throw new Error("offline");
     return h.books;
@@ -407,5 +413,90 @@ describe("InboxPage", () => {
       expect.anything(),
     );
     expect(repo.saveLookup.mock.calls[0][0]).toBe(it1.id);
+  });
+
+  it("keeps uploads going when a later refresh fails, and holds Confirm until a good read", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    h.items = [item({}, { title: "Copper Lantern" }), item({ status: "pending", extraction: null, lookup: null })];
+    const second = deferred<void>();
+    repo.uploadPhoto.mockResolvedValueOnce(undefined).mockImplementationOnce(() => second.promise);
+    render(<InboxPage />);
+    const c = await findCard("Copper Lantern");
+    const confirm = within(c).getByRole("button", { name: "Confirm" });
+    expect(confirm).toBeEnabled();
+
+    fireEvent.change(screen.getByLabelText("Choose photos"), { target: { files: files(2) } });
+    expect(await screen.findByText("Uploading 1 of 2")).toBeInTheDocument();
+    await waitFor(() => expect(repo.processItem).toHaveBeenCalled());
+
+    h.failItems = true;
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(await screen.findByText("Couldn't reach the photo inbox.")).toBeInTheDocument();
+    expect(screen.getByText("Uploading 1 of 2")).toBeInTheDocument();
+    expect(screen.getByText("photo-1.jpg")).toBeInTheDocument();
+    expect(screen.getByLabelText("Choose photos")).toBeInTheDocument();
+    const leave = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(leave);
+    expect(leave.defaultPrevented).toBe(true);
+    expect(confirm).toBeDisabled();
+
+    h.failItems = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(confirm).toBeEnabled());
+    expect(screen.queryByText("Couldn't reach the photo inbox.")).toBeNull();
+
+    await act(async () => second.resolve());
+    expect(await screen.findByText("Uploading 2 of 2")).toBeInTheDocument();
+  });
+
+  it("holds the bulk button while a refresh has failed", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    h.items = [
+      item({}, { title: "Copper Lantern" }),
+      item({}, { title: "Northern Kettle" }),
+      item({ status: "pending", extraction: null, lookup: null }),
+    ];
+    render(<InboxPage />);
+    const bulk = await screen.findByRole("button", { name: "Add 2 new books" });
+    expect(bulk).toBeEnabled();
+    h.failBooks = true;
+    h.failItems = true;
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    await waitFor(() => expect(bulk).toBeDisabled());
+  });
+
+  it("drops the lookup line after a failed lookup, and retries it from the lookup Retry", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const a = item({ lookup: null }, { title: "Copper Lantern" });
+    const b = item({ lookup: null }, { title: "Northern Kettle" });
+    h.items = [a, b];
+    photo.lookupMetadata
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockRejectedValueOnce(new LookupError("OpenLibrary answered 429", true));
+    render(<InboxPage />);
+    expect(await screen.findByText("Online lookup paused.")).toBeInTheDocument();
+    expect(screen.queryByText("Looking it up online…")).toBeNull();
+    expect(photo.lookupMetadata).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(repo.saveLookup).toHaveBeenCalledTimes(2));
+    expect(repo.saveLookup.mock.calls.map((call) => call[0]).sort()).toEqual([a.id, b.id].sort());
+  });
+
+  it("drops the lookup line when saving the lookup fails and a poll brings back none", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    h.items = [item({ lookup: null }, { title: "Copper Lantern" }), item({ status: "pending", extraction: null, lookup: null })];
+    repo.saveLookup.mockRejectedValue(new Error("offline"));
+    render(<InboxPage />);
+    await findCard("Copper Lantern");
+    await waitFor(() => expect(repo.saveLookup).toHaveBeenCalledTimes(1));
+    // Let the post-drain refresh settle, then count only the poll's read.
+    await act(async () => {});
+    const before = repo.listIntakeItems.mock.calls.length;
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    await waitFor(() => expect(repo.listIntakeItems.mock.calls.length).toBeGreaterThan(before));
+    await act(async () => {});
+    expect(screen.getByText("Waiting to be read")).toBeInTheDocument();
+    expect(screen.queryByText("Looking it up online…")).toBeNull();
+    expect(photo.lookupMetadata).toHaveBeenCalledTimes(1);
   });
 });

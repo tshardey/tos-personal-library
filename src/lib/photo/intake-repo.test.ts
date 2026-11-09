@@ -54,7 +54,8 @@ import {
   titlePagePath,
   uploadPhoto,
 } from "./intake-repo";
-import { parseExtraction, toIntakeItem } from "./types";
+import { lookupAsBookInput } from "./confirm";
+import { parseExtraction, toIntakeItem, type LookupResult } from "./types";
 
 const EXTRACTION = {
   isBook: true,
@@ -278,6 +279,37 @@ describe("confirmItem", () => {
     expect(args.p_book_id).toBeNull();
     expect(args.p_book).toMatchObject({ title: "Sample Title", page_count: 12, isbn13: ["9780000000002"] });
     expect(args.p_book).not.toHaveProperty("pageCount");
+  });
+
+  const LOOKUP: LookupResult = {
+    source: "google",
+    agrees: true,
+    title: "Sample Title",
+    authors: ["Wren Halloway"],
+    matchIsbns: [],
+    coverUrl: null,
+    synopsis: null,
+    pageCount: null,
+    publishDate: null,
+    openlibraryId: "OL1W",
+    googleBooksId: "gb-synthetic-1",
+  };
+
+  it("sends the lookup's ids in p_book only when the lookup agrees", async () => {
+    const extraction = parseExtraction(EXTRACTION);
+    h.rpcResults.push({ data: [{ book_id: "b3", copy_id: "c3" }], error: null });
+    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], extraction, LOOKUP) }, copy);
+    expect(h.rpcCalls[0][1]).toMatchObject({
+      p_book: { openlibrary_id: "OL1W", google_books_id: "gb-synthetic-1" },
+    });
+
+    h.rpcResults.push({ data: [{ book_id: "b4", copy_id: "c4" }], error: null });
+    const miss = { ...LOOKUP, agrees: false };
+    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], extraction, miss) }, copy);
+    const pBook = (h.rpcCalls[1][1] as Record<string, Record<string, unknown>>).p_book;
+    expect(pBook).not.toHaveProperty("openlibrary_id");
+    expect(pBook).not.toHaveProperty("google_books_id");
+    expect(pBook).not.toHaveProperty("openlibraryId");
   });
 
   it("rejects on rpc error", async () => {

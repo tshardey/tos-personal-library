@@ -97,6 +97,9 @@ export default function InboxPage() {
       </div>
     );
   }
+  // After a later failed read the page stays (uploads keep going), but nothing is confirmed
+  // against data that may be stale: a failed read must never look like "no matches".
+  const { stale } = intake;
 
   async function runBulk() {
     setBulkBusy(true);
@@ -121,6 +124,8 @@ export default function InboxPage() {
         members={members}
         thumbUrl={item.coverPath ? thumbs.get(item.coverPath) : undefined}
         lookupPaused={intake.lookupPaused}
+        lookupFailed={intake.lookupFailed.has(item.id)}
+        stale={stale}
         onConfirm={intake.confirm}
         onRetry={intake.retry}
         onOwner={intake.setOwner}
@@ -149,6 +154,18 @@ export default function InboxPage() {
         onUploadingChange={onUploadingChange}
       />
 
+      {stale && (
+        <div role="alert" className="mb-3 flex items-center gap-2 rounded border border-red-300 bg-red-50 p-2 text-sm">
+          <span className="text-red-700">Couldn't reach the photo inbox.</span>
+          <button
+            type="button"
+            onClick={() => void intake.reload().catch(() => {})}
+            className="rounded border px-2 py-1"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       {intake.stop && (
         <p role="status" className="mb-3 rounded border border-amber-400 bg-amber-50 p-2 text-sm">
           {STOP_TEXT[intake.stop]}
@@ -166,11 +183,12 @@ export default function InboxPage() {
       {eligible.length >= 2 && (
         <button
           type="button"
+          disabled={stale}
           onClick={() => {
             setBulkResult(null);
             setSheetOpen(true);
           }}
-          className="mb-3 rounded bg-stone-800 px-3 py-2 text-white"
+          className="mb-3 rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
         >
           {`Add ${eligible.length} new books`}
         </button>
@@ -183,7 +201,7 @@ export default function InboxPage() {
       {sheetOpen && (
         <BulkConfirmSheet
           entries={eligible}
-          busy={bulkBusy}
+          busy={bulkBusy || stale}
           onConfirm={() => void runBulk()}
           onCancel={() => setSheetOpen(false)}
         />

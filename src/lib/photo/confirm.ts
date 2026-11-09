@@ -1,8 +1,8 @@
 import type { ImportStore } from "../libib/apply";
 import { fillPatch } from "../libib/fill-patch";
 import { canonicalIsbns, isbn10To13, normalizeIsbn10, normalizeIsbn13 } from "../libib/isbn";
-import type { BookInput, BookWithCopies, CopyInput } from "../types";
-import type { confirmItem, discardItem } from "./intake-repo";
+import type { BookWithCopies, CopyInput } from "../types";
+import type { confirmItem, discardItem, NewBookInput } from "./intake-repo";
 import { bulkEligible, proposeMatch, type IntakeAction } from "./propose";
 import type { Extraction, IntakeItem, LookupResult } from "./types";
 
@@ -32,15 +32,15 @@ function photoIsbns(raw: string | null | undefined): { isbn13: string[]; isbn10:
 
 /**
  * D8: title and authors as the person left them; ISBNs only from the photo; stock details only
- * from a lookup that agrees, and never its ISBNs (a title search returns every edition's).
- * BookInput carries no OpenLibrary or Google ids, so those aren't stored here.
+ * from a lookup that agrees, and never its ISBNs (a title search returns every edition's). The
+ * OpenLibrary id is the work id (`OL…W`, without `/works/`), as lookup.ts stores it.
  */
 export function lookupAsBookInput(
   title: string,
   authors: string[],
   extraction: Extraction | null,
   lookup: LookupResult | null,
-): BookInput {
+): NewBookInput {
   const ok = lookup?.agrees === true ? lookup : null;
   return {
     title,
@@ -51,6 +51,8 @@ export function lookupAsBookInput(
     pageCount: ok?.pageCount ?? null,
     publisher: extraction?.publisher ?? null,
     publishDate: ok?.publishDate ?? null,
+    openlibraryId: ok?.openlibraryId ?? null,
+    googleBooksId: ok?.googleBooksId ?? null,
   };
 }
 
@@ -101,8 +103,8 @@ export async function performConfirm(
         ...input,
         id: bookId,
         householdId: item.householdId,
-        openlibraryId: null,
-        googleBooksId: null,
+        openlibraryId: input.openlibraryId ?? null,
+        googleBooksId: input.googleBooksId ?? null,
         userEditedFields: [],
         createdAt: now,
         updatedAt: now,

@@ -134,21 +134,33 @@ export async function discardItem(
   return data === true;
 }
 
+/** A new book from a photo: BookInput plus the ids an agreeing lookup supplies (D8). */
+export type NewBookInput = BookInput & { openlibraryId?: string | null; googleBooksId?: string | null };
+
 export async function confirmItem(
   itemId: string,
-  target: { bookId: string } | { book: BookInput },
+  target: { bookId: string } | { book: NewBookInput },
   copy: CopyInput,
 ): Promise<{ bookId: string; copyId: string }> {
   const { data, error } = await supabase.rpc("confirm_intake_item", {
     p_item: itemId,
     p_book_id: "bookId" in target ? target.bookId : null,
-    p_book: "book" in target ? fromBookPatch(normalizeBookInput(target.book)) : null,
+    p_book: "book" in target ? newBookPayload(target.book) : null,
     p_copy: fromCopyPatch(normalizeCopyInput(copy)),
   });
   if (error) throw error;
   const row = (Array.isArray(data) ? data[0] : data) as { book_id: string; copy_id: string } | undefined;
   if (!row) throw new Error("confirm_intake_item returned no row");
   return { bookId: row.book_id, copyId: row.copy_id };
+}
+
+function newBookPayload(book: NewBookInput) {
+  const text = (v: string | null | undefined) => v?.trim() || undefined;
+  return fromBookPatch({
+    ...normalizeBookInput(book),
+    openlibraryId: text(book.openlibraryId),
+    googleBooksId: text(book.googleBooksId),
+  });
 }
 
 export async function signedPhotoUrls(paths: string[]): Promise<Map<string, string>> {

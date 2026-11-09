@@ -25,13 +25,13 @@ function ownerName(members: HouseholdMember[], ownerUserId: string | null): stri
 
 const keyOf = (a: IntakeAction): string => (a.kind === "new_book" ? "new" : `${a.kind}:${a.bookId}`);
 
-function statusLine(item: IntakeItem, now: number, lookupPaused: boolean): string | null {
+function statusLine(item: IntakeItem, now: number, lookupHidden: boolean): string | null {
   if (item.status === "pending") return "Waiting to be read";
   if (item.status === "processing") {
     const stale = item.claimedAt !== null && now - new Date(item.claimedAt).getTime() > LEASE_MS;
     return stale ? "Taking longer than expected. It will be retried." : "Reading the cover…";
   }
-  if (item.status === "ready" && item.lookup === null && (item.extraction?.title ?? "").trim() !== "" && !lookupPaused) {
+  if (item.status === "ready" && item.lookup === null && (item.extraction?.title ?? "").trim() !== "" && !lookupHidden) {
     return "Looking it up online…";
   }
   return null;
@@ -44,6 +44,10 @@ interface Props {
   members: HouseholdMember[];
   thumbUrl: string | undefined;
   lookupPaused: boolean;
+  /** This item's lookup failed this session, so no lookup is under way. */
+  lookupFailed: boolean;
+  /** A refresh failed: the proposal may rest on stale data, so Confirm waits for a good read. */
+  stale: boolean;
   onConfirm(item: IntakeItem, action: IntakeAction, form: ConfirmForm): Promise<void>;
   onRetry(itemId: string): Promise<void>;
   onOwner(itemId: string, ownerUserId: string | null): void;
@@ -95,7 +99,7 @@ export default function IntakeCard(props: Props) {
     );
   }
 
-  const line = statusLine(item, Date.now(), lookupPaused);
+  const line = statusLine(item, Date.now(), lookupPaused || props.lookupFailed);
   const thumb = thumbUrl ? (
     <img src={thumbUrl} alt={`Photo of ${heading}`} className="h-24 w-16 shrink-0 rounded object-cover" />
   ) : (
@@ -122,7 +126,7 @@ export default function IntakeCard(props: Props) {
   const defaultNote = (item.extraction?.editionClues ?? []).join("; ");
 
   async function onConfirm() {
-    if (busyRef.current) return;
+    if (busyRef.current || props.stale) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
@@ -314,7 +318,7 @@ export default function IntakeCard(props: Props) {
       )}
       <button
         type="button"
-        disabled={busy || effectiveTitle.trim() === ""}
+        disabled={busy || props.stale || effectiveTitle.trim() === ""}
         onClick={() => void onConfirm()}
         className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
       >

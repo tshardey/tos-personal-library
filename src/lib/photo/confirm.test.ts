@@ -115,6 +115,8 @@ describe("lookupAsBookInput", () => {
       pageCount: null,
       publisher: null,
       publishDate: null,
+      openlibraryId: null,
+      googleBooksId: null,
     });
   });
 
@@ -124,6 +126,8 @@ describe("lookupAsBookInput", () => {
     expect(input.synopsis).toBe("A synthetic synopsis.");
     expect(input.pageCount).toBe(321);
     expect(input.publishDate).toBe("1999");
+    expect(input.openlibraryId).toBe("OL1W");
+    expect(input.googleBooksId).toBeNull();
     expect(input.isbn13).toEqual([]);
     expect(input.isbn10).toEqual([]);
   });
