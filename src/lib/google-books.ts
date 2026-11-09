@@ -85,6 +85,23 @@ function synopsisOf(info: VolumeInfo): string | null {
   return text === "" ? null : text;
 }
 
+/** GET a Google Books URL as JSON. Errors never carry the URL, so never the key. */
+async function getJson(url: string, fetchImpl: typeof fetch): Promise<unknown> {
+  let res: Response;
+  try {
+    res = await fetchImpl(url, { signal: AbortSignal.timeout(60_000) });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "Error";
+    throw new GoogleBooksError(null, `Google Books request failed (${name})`);
+  }
+  if (!res.ok) throw new GoogleBooksError(res.status, `Google Books answered ${res.status}`);
+  try {
+    return await res.json();
+  } catch {
+    throw new GoogleBooksError(res.status, "Google Books sent a reply that isn't JSON");
+  }
+}
+
 /**
  * Looks up one ISBN-13. Returns the first volume that lists this ISBN (13 or 10), or null when
  * none does. Throws GoogleBooksError on an HTTP error or a network failure (including the 60 s
@@ -98,20 +115,7 @@ export async function lookupGoogleBooksIsbn(
   const url =
     `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn13)}` +
     `&key=${encodeURIComponent(key)}`;
-  let res: Response;
-  try {
-    res = await fetchImpl(url, { signal: AbortSignal.timeout(60_000) });
-  } catch (err) {
-    const name = err instanceof Error ? err.name : "Error";
-    throw new GoogleBooksError(null, `Google Books request failed (${name})`);
-  }
-  if (!res.ok) throw new GoogleBooksError(res.status, `Google Books answered ${res.status}`);
-  let data: unknown;
-  try {
-    data = await res.json();
-  } catch {
-    throw new GoogleBooksError(res.status, "Google Books sent a reply that isn't JSON");
-  }
+  const data = await getJson(url, fetchImpl);
   const items = (data as { items?: unknown } | null)?.items;
   if (!Array.isArray(items)) return null;
   for (const item of items) {
@@ -121,4 +125,67 @@ export async function lookupGoogleBooksIsbn(
     return { coverUrl: coverOf(info as VolumeInfo), synopsis: synopsisOf(info as VolumeInfo) };
   }
   return null;
+}
+
+export interface GoogleBooksSearchHit {
+  id: string;
+  title: string | null;
+  authors: string[];
+  isbns: string[];
+  coverUrl: string | null;
+  synopsis: string | null;
+  pageCount: number | null;
+  publishDate: string | null;
+}
+
+const strOrNull = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v : null);
+
+/**
+ * Title (and optional author) search, up to 5 hits. Throws GoogleBooksError on an HTTP error or a
+ * network failure; [] when Google has no items.
+ */
+export async function searchGoogleBooks(
+  title: string,
+  author: string | null,
+  key: string,
+  fetchImpl: typeof fetch,
+): Promise<GoogleBooksSearchHit[]> {
+  let q = `intitle:${encodeURIComponent(`"${title}"`)}`;
+  if (author !== null && author.trim() !== "") q += `+inauthor:${encodeURIComponent(`"${author}"`)}`;
+  const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5&key=${encodeURIComponent(key)}`;
+  const data = await getJson(url, fetchImpl);
+  const items = (data as { items?: unknown } | null)?.items;
+  if (!Array.isArray(items)) return [];
+  const hits: GoogleBooksSearchHit[] = [];
+  for (const item of items) {
+    const id = (item as { id?: unknown } | null)?.id;
+    const info = (item as { volumeInfo?: unknown } | null)?.volumeInfo;
+    if (typeof id !== "string" || !info || typeof info !== "object") continue;
+    const v = info as VolumeInfo & { title?: unknown; authors?: unknown; pageCount?: unknown; publishedDate?: unknown };
+    const isbns = new Set<string>();
+    if (Array.isArray(v.industryIdentifiers)) {
+      for (const ident of v.industryIdentifiers) {
+        const raw = (ident as { identifier?: unknown } | null)?.identifier;
+        if (typeof raw !== "string") continue;
+        const as13 = normalizeIsbn13(raw);
+        if (as13 !== null) {
+          isbns.add(as13);
+          continue;
+        }
+        const as10 = normalizeIsbn10(raw);
+        if (as10 !== null) isbns.add(isbn10To13(as10));
+      }
+    }
+    hits.push({
+      id,
+      title: strOrNull(v.title),
+      authors: Array.isArray(v.authors) ? v.authors.filter((a): a is string => typeof a === "string") : [],
+      isbns: [...isbns],
+      coverUrl: coverOf(v),
+      synopsis: synopsisOf(v),
+      pageCount: typeof v.pageCount === "number" && v.pageCount > 0 ? v.pageCount : null,
+      publishDate: strOrNull(v.publishedDate),
+    });
+  }
+  return hits;
 }

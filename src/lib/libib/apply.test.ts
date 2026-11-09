@@ -26,6 +26,7 @@ function seededCopy(over: Partial<Copy> & { id: string; bookId: string }): Copy 
     origin: "libib",
     libibId: null,
     photoPath: null,
+    intakeItemId: null,
     userEditedFields: [],
     createdAt: OLD,
     updatedAt: OLD,

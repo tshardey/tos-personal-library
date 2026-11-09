@@ -7,6 +7,7 @@ import LibraryPage from "@/components/library/LibraryPage";
 import BookDetail from "@/components/book/BookDetail";
 import AddBook from "@/components/book/AddBook";
 import ImportPage from "@/components/import/ImportPage";
+import InboxPage from "@/components/inbox/InboxPage";
 import { useRoute } from "@/lib/router";
 
 function SignedIn() {
@@ -36,6 +37,9 @@ function SignedIn() {
       <header className="flex items-center justify-between border-b p-4">
         <h1 className="text-xl font-semibold">Our Library</h1>
         <div className="flex items-center gap-3">
+          <a href="#/inbox" className="underline">
+            Photos
+          </a>
           <a href="#/import" className="underline">
             Import
           </a>
@@ -54,6 +58,8 @@ function SignedIn() {
         <AddBook />
       ) : route.name === "import" ? (
         <ImportPage />
+      ) : route.name === "inbox" ? (
+        <InboxPage />
       ) : (
         <LibraryPage />
       )}

@@ -19,4 +19,9 @@ describe("parseHash", () => {
     expect(parseHash("#/import")).toEqual({ name: "import" });
     expect(parseHash(routeToHash({ name: "import" }))).toEqual({ name: "import" });
   });
+  it("parses inbox and round-trips it", () => {
+    expect(parseHash("#/inbox")).toEqual({ name: "inbox" });
+    expect(routeToHash({ name: "inbox" })).toBe("#/inbox");
+    expect(parseHash(routeToHash({ name: "inbox" }))).toEqual({ name: "inbox" });
+  });
 });

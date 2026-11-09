@@ -16,7 +16,7 @@ import {
 const PAGE_SIZE = 1000;
 
 /** Every row across pages; any page's error rejects, so a partial list is never returned. */
-async function readAllPages<T>(
+export async function readAllPages<T>(
   readPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
 ): Promise<T[]> {
   const rows: T[] = [];
