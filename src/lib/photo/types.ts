@@ -52,6 +52,8 @@ export interface IntakeItem {
   errorCode: IntakeErrorCode | null;
   resultBookId: string | null;
   createdAt: string;
+  /** When the row last changed; places confirmed and discarded items under "Done today". */
+  updatedAt?: string;
 }
 
 export const INTAKE_BUCKET = "library-intake";
@@ -110,5 +112,6 @@ export function toIntakeItem(row: Row): IntakeItem {
     errorCode: row.error_code ?? null,
     resultBookId: row.result_book_id ?? null,
     createdAt: row.created_at,
+    ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
   };
 }

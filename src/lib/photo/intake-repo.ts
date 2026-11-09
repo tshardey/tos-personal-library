@@ -8,7 +8,7 @@ import { INTAKE_BUCKET, toIntakeItem, type IntakeItem, type LookupResult } from 
 const ITEM_COLUMNS =
   "id, household_id, uploaded_by, batch_id, owner_user_id, cover_path, title_page_path, " +
   "source_hash, status, attempts, claimed_at, retry_at, extraction, lookup, error_code, " +
-  "result_book_id, created_at";
+  "result_book_id, created_at, updated_at";
 
 const RETENTION_MS = 7 * 24 * 3600_000;
 const CHUNK = 100;
