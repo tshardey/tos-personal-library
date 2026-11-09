@@ -45,7 +45,7 @@ Transient means a 429, 500, 529, connection error or timeout: the item goes back
 
 **D3. The function's source lives in ToS** at `supabase/functions/library-intake/`. The migration it depends on, `config.toml`, `functions serve`, `secrets set` and `functions deploy` all run from the same linked ToS workdir. The migration and the function land together in one ToS PR. The library repo has no `supabase/` directory, and adding one just for functions would need a second `config.toml` and a second linked workdir.
 
-**D4. No elevated credentials.** The function uses `withSupabase({ auth: "user" })` from `npm:@supabase/server`, with the platform's default `verify_jwt = true`. It reads photos and calls RPCs with the caller's RLS-scoped client. Membership is enforced three ways: storage policies, RLS on `intake_items`, and an explicit `library.is_member` check inside every security-definer RPC (they bypass RLS, so each checks membership itself). A non-member's claim raises `42501` before any counter moves, so nobody outside the household can spend the key. The daily counter table `library.intake_usage` has no write grant; only the claim RPC changes it.
+**D4. No elevated credentials.** The function uses `withSupabase({ auth: "user" })` from `npm:@supabase/server` (major 1), with the platform's default `verify_jwt = true`. *Verified 2026-11-08 against Supabase's current docs:* `docs/guides/functions/auth` shows exactly this pattern (`import { withSupabase } from 'npm:@supabase/server@1'`, `auth: 'user'` gives a `ctx.supabase` scoped to the caller's RLS) and says to leave the default `verify_jwt = true` on for user-facing functions; `docs/guides/functions/auth-headers` says the platform check validates both legacy HS256 JWTs and JWTs signed with the new asymmetric signing keys, and that publishable and secret keys belong on `apikey`, with `Authorization` reserved for user tokens. Because the platform check also lets an API key in `Authorization` through for migration compatibility, `withSupabase({ auth: "user" })` is the check that actually requires a user JWT; both stay on, so a call without a valid user JWT gets 401. It reads photos and calls RPCs with the caller's RLS-scoped client. Membership is enforced three ways: storage policies, RLS on `intake_items`, and an explicit `library.is_member` check inside every security-definer RPC (they bypass RLS, so each checks membership itself). A non-member's claim raises `42501` before any counter moves, so nobody outside the household can spend the key. The daily counter table `library.intake_usage` has no write grant; only the claim RPC changes it.
 
 **D5. The function does vision only. Metadata lookup and matching run in the browser.** This departs from spec §6.4, which puts steps 2 and 3 in the function. Reasons:
 - The Google Books key is referrer-restricted to the browser, and anonymous server calls got 429 in Plan 2.
@@ -213,7 +213,7 @@ Rules, D2 and D11 to D14 restated as SQL behavior:
 - **`mark_intake_purged`:** nulls each matching path column on that household's items and returns the count.
 - **Grants and RLS:**
   - `intake_items`: RLS on, with `select`, `insert` and `update` policies `to authenticated` using `library.is_member(household_id)`. Insert also checks `uploaded_by = auth.uid()` and `status = 'pending'`.
-  - `revoke all` from `public`, `anon` and `authenticated`, then `grant select` and column-level `grant insert (id, household_id, batch_id, owner_user_id, cover_path, title_page_path, source_hash)` and `grant update (lookup, owner_user_id)`. **No delete.**
+  - `revoke all` from `public`, `anon` and `authenticated`, then a **column-level `grant select`** on every column except `claim_token`, and column-level `grant insert (id, household_id, batch_id, owner_user_id, cover_path, title_page_path, source_hash)` and `grant update (lookup, owner_user_id)`. **No delete.** `claim_token` is never readable by a client: the function gets it only from `claim_intake_item`'s return value. With a table-wide select grant, a member could read a live claim and call `release_intake_item(item, token, null, null)` to refund an attempt and a daily call the function had already been billed for.
   - `intake_usage`: RLS with a member `select` policy, and `grant select` only.
 - **Storage policies** on `storage.objects` `to authenticated`: `select`, `insert` and `delete` with `bucket_id = 'library-intake' and library.can_access_intake_object(name)`. **No update policy,** so nothing can be overwritten.
 - Idempotent, like the earlier library migrations: `if not exists`, `drop policy if exists`, `create or replace`.
@@ -223,6 +223,7 @@ Rules, D2 and D11 to D14 restated as SQL behavior:
   - **Insert:** A inserts an item with valid paths (`lives_ok`). Setting `status` or `attempts` on insert throws `42501` (column grant). A path outside `<household>/<id>/` throws `23514`. A second pending item with the same `source_hash` throws `23505`; after the first is discarded, the same hash inserts.
   - **Isolation:** B selects A's items (`is_empty`), inserts into A's household (`42501`), and gets `42501` from `claim_intake_item`, `confirm_intake_item` and `discard_intake_item` on A's item. After B's failed claim, `intake_usage` for A's household is unchanged.
   - **Anon:** `select` on `intake_items` and executing `claim_intake_item` are both permission denied.
+  - **Claim token hidden:** as A (authenticated, a member), `select claim_token from library.intake_items` throws `42501`, while selecting the other columns works.
   - **Storage:** A inserts `<A-hh>/<id>/cover.jpg` (`lives_ok`). B can't select or insert under A's prefix. A non-UUID first segment gives false, not an error. An `update` of an object changes 0 rows.
   - **Claim:** A claims a pending item and gets `claimed`, attempts 1, `vision_calls` 1. Claiming again gets `busy` with counters unchanged. Moving `claimed_at` back 8 minutes then claiming gets `claimed`, attempts 2. Same again: attempts 3. A fourth stale claim gets `failed` with `attempts_exhausted`, and `vision_calls` stays at 3. `attempts = 4` via a direct `update` as `postgres` throws `23514`.
   - **Daily cap:** setting `vision_calls = 500` as `postgres`, A's claim on a fresh item gets `daily_cap` with the item still `pending` and attempts 0. Yesterday's row at 500 doesn't block today.
@@ -302,10 +303,11 @@ purgeIntakePhotos(householdId: string): Promise<number>          // intake_purge
 `confirmItem` maps `book` through `normalizeBookInput` and `fromBookPatch`, and `copy` through `normalizeCopyInput` and `fromCopyPatch`. Errors from `processItem`: a non-2xx response or network failure rejects, so the drain treats it as a transient retry. Copy: an item with `uploadedBy` null still lists.
 
 - [ ] **Step 1: Write the failing tests**, mocking `@/lib/supabase` in the style of `library-repo.test.ts`:
+  - `listIntakeItems` selects an explicit column list that doesn't include `claim_token` (a `select("*")` would fail under Task 1's column grant), and `toIntakeItem` reads no `claim_token`.
   - `toIntakeItem` maps snake_case and keeps a valid extraction. An extraction missing `title`, or with a non-array `authors` or an unknown `confidence`, gives `extraction: null`.
   - `coverPath("h","i")` is `"h/i/cover.jpg"`.
   - `uploadPhoto` passes `{ contentType: "image/jpeg", upsert: false }`, resolves on a "The resource already exists" / 409 error, and rejects on any other error.
-  - `createIntakeItem` sends exactly the seven columns (no `status`, no `attempts`) and returns `"duplicate"` on code `23505`.
+  - `createIntakeItem` sends exactly the seven columns (no `status`, no `attempts`) and returns `"duplicate"` on code `23505`. It asks for no returned row (no `.select()` after the insert), since `returning *` would need `claim_token`.
   - `processItem` resolves each `outcome` from the body and rejects on an invoke error.
   - `confirmItem` with `{ bookId }` sends `p_book_id` and `p_book: null`; with `{ book }` it sends `p_book_id: null` and snake_case keys. It returns camelCase ids.
   - `purgeIntakePhotos` with 250 paths calls `remove` 3 times and `mark_intake_purged` with all 250. A failing `remove` rejects and doesn't mark anything.
@@ -730,11 +732,11 @@ Nothing else depends on this task (D12).
 6. Merge the library PR; the Pages deploy runs.
 7. Smoke test on the phone: photograph 3 books, including one already in the library from libib. Expected: 3 cards; the libib book proposes that book with `Already recorded` preselected when the owner matches. Nothing is written until you tap.
 
-## Open questions
+## Open questions (resolved 2026-11-08)
 
-None block execution. For the user to weigh in review:
+The user answered all four: keep each default as written below.
 
-1. **Default for a match whose owner already has a copy (D7):** `Already recorded`, on the reasoning that the partner re-photographing a book libib scanned is more common than owning two copies. If genuine second copies are common, flip the default to `Add a copy`.
-2. **Keeping cover photos after confirm (D11):** about 90 MB for the partner's backlog, and they show the owned edition on the wall (D12). Say if you'd rather delete every photo on confirm.
-3. **HEIC (D9):** no decoder is bundled. If the partner's phone saves HEIC and they'd rather not change the camera setting, a WASM decoder of about 1 MB can be added later.
-4. **The 500-a-day cap and the 3-attempt limit (D2)** are constants in the migration. Raising either is a one-line ToS migration.
+1. **Resolved, keep `Already recorded`.** Default for a match whose owner already has a copy (D7): `Already recorded`, on the reasoning that the partner re-photographing a book libib scanned is more common than owning two copies. If genuine second copies are common, flip the default to `Add a copy`.
+2. **Resolved, keep cover photos.** Keeping cover photos after confirm (D11): about 90 MB for the partner's backlog, and they show the owned edition on the wall (D12). Say if you'd rather delete every photo on confirm.
+3. **Resolved, no HEIC decoder.** HEIC (D9): no decoder is bundled. If the partner's phone saves HEIC and they'd rather not change the camera setting, a WASM decoder of about 1 MB can be added later.
+4. **Resolved, keep 500 a day and 3 attempts.** The 500-a-day cap and the 3-attempt limit (D2) are constants in the migration. Raising either is a one-line ToS migration.
