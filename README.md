@@ -71,6 +71,22 @@ The Import screen needs the `library.libib_import_rows` table from the Tome of S
 
 **If an import stops partway,** what was saved stays. `Run it again` adds only what's missing, without duplicates.
 
+## Photos
+
+The Inbox turns photos of book covers into catalog entries. Nothing is written to the library until a person taps Confirm.
+
+1. **Choose an owner** (a household member or Shared). It is remembered on the device and can be changed on any card.
+2. **Add photos.** Batch mode: `Choose photos` takes many cover photos at once, one book per photo, and uploads them one at a time. Keep the page open until uploads finish; the screen is held awake meanwhile. Single mode: `Take a photo` for the cover, then `Add title page` for an optional second photo, or `Done`. Title pages are single mode only, so a batch never pairs one book's title page with another's cover.
+3. **Wait for the cards.** Each photo is read and looked up online (OpenLibrary, then Google Books if a key is set). A lookup that doesn't match the photo's title and author is ignored.
+4. **Review each card.** Confirm adds one book. A card that matches a book already in the library proposes `Add a copy` or `Already recorded` (preselected when the same owner already has a copy, for example from libib); a near match or series sibling is never the default, so it becomes a visible separate book rather than a silent merge. `Already recorded` writes nothing and removes the photo.
+5. **Bulk confirm.** `Add N new books` appears when some cards are safe to add together: each is read with high confidence, has a title, matches nothing in the library and has no twin in the same batch. It only creates new books. It never adds copies, links, or discards. The sheet lists every title first, and any card that stops qualifying during the run is skipped and left for review.
+
+**Limits.** 500 photo reads per household per day, and 3 tries per photo. A photo that can't be read after 3 tries asks for the title to be typed. Photos that are too small or not JPEG-readable (HEIC) are refused with a message; set the camera to JPEG ("Most compatible").
+
+**Privacy.** The photo bucket is private and only household members can read it. Photos are resized in the browser to 1280 px and re-encoded, which drops EXIF including location. On Confirm the cover is kept as that copy's photo (shown when the book has no stock cover) and the title page is deleted. On discard both are deleted. Photos uploaded but never turned into a card are removed after 24 hours.
+
+**Requires** the Tome of Secrets `library-photo-intake` migration and `library-intake` Edge Function. Without them the page says `Couldn't reach the photo inbox.`
+
 ## Deploy (GitHub Pages)
 
 Pushes to `main` run `.github/workflows/deploy.yml`. Add these repository secrets (Settings > Secrets and variables > Actions):
