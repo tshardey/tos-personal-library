@@ -53,6 +53,19 @@ export async function uploadPhoto(path: string, blob: Blob): Promise<void> {
   if (!exists) throw error;
 }
 
+/** True when this household already has a live (not discarded) item for the photo hash. */
+export async function sourceHashExists(householdId: string, sourceHash: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("intake_items")
+    .select("id")
+    .eq("household_id", householdId)
+    .eq("source_hash", sourceHash)
+    .neq("status", "discarded")
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
 export async function createIntakeItem(row: {
   id: string;
   householdId: string;

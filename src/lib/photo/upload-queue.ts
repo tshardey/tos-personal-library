@@ -1,4 +1,4 @@
-import { coverPath, createIntakeItem, titlePagePath, uploadPhoto } from "./intake-repo";
+import { coverPath, createIntakeItem, sourceHashExists, titlePagePath, uploadPhoto } from "./intake-repo";
 import { PhotoError, preparePhoto, type PhotoErrorCode } from "./prepare";
 
 export type UploadState = "queued" | "preparing" | "uploading" | "done" | "duplicate" | "unreadable" | "failed";
@@ -16,6 +16,7 @@ export interface UploadDeps {
   prepare: typeof preparePhoto;
   upload: typeof uploadPhoto;
   create: typeof createIntakeItem;
+  exists: typeof sourceHashExists;
   newId(): string;
   sleep(ms: number): Promise<void>;
   onItemCreated(itemId: string): void;
@@ -25,6 +26,7 @@ export const browserUploadDeps: UploadDeps = {
   prepare: preparePhoto,
   upload: uploadPhoto,
   create: createIntakeItem,
+  exists: sourceHashExists,
   newId: () => crypto.randomUUID(),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   onItemCreated: () => {},
@@ -77,10 +79,16 @@ export async function runUploadBatch(
         set(entry, "duplicate");
         continue;
       }
+      // A prior run (or killed tab) may already have stored this photo; skip the upload entirely.
+      // If the lookup itself fails the entry is marked failed, and a re-run retries it.
+      if (await deps.exists(opts.householdId, cover.sourceHash)) {
+        seen.add(cover.sourceHash);
+        set(entry, "duplicate");
+        continue;
+      }
       const title = opts.titlePage ? await deps.prepare(opts.titlePage) : null;
 
       const id = deps.newId();
-      entry.itemId = id;
       set(entry, "uploading");
       const coverKey = coverPath(opts.householdId, id);
       await withRetry(() => deps.upload(coverKey, cover.blob), deps.sleep);
@@ -104,15 +112,21 @@ export async function runUploadBatch(
       if (result === "duplicate") {
         set(entry, "duplicate");
       } else {
+        entry.itemId = id;
         set(entry, "done");
-        deps.onItemCreated(id);
+        try {
+          deps.onItemCreated(id);
+        } catch (e) {
+          console.error("onItemCreated failed", (e as Error | undefined)?.name);
+        }
       }
     } catch (e) {
       if (e instanceof PhotoError) {
         entry.errorCode = e.code;
         set(entry, "unreadable");
       } else {
-        console.error("photo upload failed", e);
+        const code = (e as { code?: unknown; status?: unknown } | null) ?? {};
+        console.error("photo upload failed", (e as Error | null)?.name, code.code ?? code.status);
         set(entry, "failed");
       }
     }

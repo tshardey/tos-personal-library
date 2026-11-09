@@ -23,7 +23,7 @@ vi.mock("@/lib/supabase", () => ({
           else reject(new Error("no result queued"));
         },
       };
-      for (const method of ["select", "eq", "or", "order", "range", "insert", "update"]) {
+      for (const method of ["select", "eq", "or", "order", "range", "insert", "update", "neq", "limit"]) {
         builder[method] = (...args: unknown[]) => {
           query.steps.push([method, args]);
           return builder;
@@ -50,6 +50,7 @@ import {
   processItem,
   purgeIntakePhotos,
   signedPhotoUrls,
+  sourceHashExists,
   titlePagePath,
   uploadPhoto,
 } from "./intake-repo";
@@ -201,6 +202,28 @@ describe("createIntakeItem", () => {
     await expect(createIntakeItem(row)).resolves.toBe("duplicate");
     h.results.push({ data: null, error: { code: "42501" } });
     await expect(createIntakeItem(row)).rejects.toMatchObject({ code: "42501" });
+  });
+});
+
+describe("sourceHashExists", () => {
+  it("queries explicit id column, household, hash, not discarded, limit 1", async () => {
+    h.results.push({ data: [{ id: "x" }], error: null });
+    await expect(sourceHashExists("hh", "abc")).resolves.toBe(true);
+    expect(h.queries[0].table).toBe("intake_items");
+    expect(h.queries[0].steps).toEqual([
+      ["select", ["id"]],
+      ["eq", ["household_id", "hh"]],
+      ["eq", ["source_hash", "abc"]],
+      ["neq", ["status", "discarded"]],
+      ["limit", [1]],
+    ]);
+  });
+
+  it("is false for no rows and rejects on error", async () => {
+    h.results.push({ data: [], error: null });
+    await expect(sourceHashExists("hh", "abc")).resolves.toBe(false);
+    h.results.push({ data: null, error: { code: "42501" } });
+    await expect(sourceHashExists("hh", "abc")).rejects.toMatchObject({ code: "42501" });
   });
 });
 

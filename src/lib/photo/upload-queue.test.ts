@@ -14,6 +14,8 @@ function setup(
     prepareErrors?: Record<string, Error>;
     uploadFail?: (path: string, call: number) => boolean;
     createResult?: (call: number) => "created" | "duplicate" | Error;
+    exists?: (hash: string) => boolean | Error;
+    onCreatedThrows?: boolean;
   } = {},
 ) {
   const log: string[] = [];
@@ -42,12 +44,18 @@ function setup(
       if (r instanceof Error) throw r;
       return r;
     }) as unknown as UploadDeps["create"],
+    exists: vi.fn(async (_hh: string, hash: string) => {
+      const r = opts.exists?.(hash) ?? false;
+      if (r instanceof Error) throw r;
+      return r;
+    }),
     newId: () => `id${++n}`,
     sleep: vi.fn(async (ms: number) => {
       sleeps.push(ms);
     }),
     onItemCreated: vi.fn((id: string) => {
       log.push(`created:${id}`);
+      if (opts.onCreatedThrows) throw new Error("ui");
     }),
   };
   return { deps, log, creates, sleeps };
@@ -134,5 +142,41 @@ describe("runUploadBatch", () => {
     const seen: string[] = [];
     await runUploadBatch([file("a")], { ...base, onChange: (es: UploadEntry[]) => seen.push(es[0].state) }, deps);
     expect(seen).toEqual(["queued", "preparing", "uploading", "done"]);
+  });
+
+  it("skips already-stored photos by hash with no upload or create", async () => {
+    const { deps } = setup({ exists: (h) => h === "hash-a" });
+    const res = await runUploadBatch([file("a"), file("b")], { ...base, onChange: () => {} }, deps);
+    expect(res.map((e) => e.state)).toEqual(["duplicate", "done"]);
+    expect(res[0].itemId).toBeNull();
+    expect(deps.upload).toHaveBeenCalledTimes(1);
+    expect(deps.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks the entry failed when the exists check rejects, and continues", async () => {
+    const { deps } = setup({ exists: (h) => (h === "hash-a" ? new Error("net") : false) });
+    const res = await runUploadBatch([file("a"), file("b")], { ...base, onChange: () => {} }, deps);
+    expect(res.map((e) => e.state)).toEqual(["failed", "done"]);
+    expect(deps.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves itemId null when the upload fails", async () => {
+    const { deps } = setup({ uploadFail: () => true });
+    const res = await runUploadBatch([file("a")], { ...base, onChange: () => {} }, deps);
+    expect(res[0].itemId).toBeNull();
+  });
+
+  it("keeps a created entry done when onItemCreated throws", async () => {
+    const { deps } = setup({ onCreatedThrows: true });
+    const res = await runUploadBatch([file("a"), file("b")], { ...base, onChange: () => {} }, deps);
+    expect(res.map((e) => e.state)).toEqual(["done", "done"]);
+  });
+
+  it("logs no error object or message", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { deps } = setup({ createResult: () => new Error("Key (household_id, source_hash)=(x) path") });
+    await runUploadBatch([file("a")], { ...base, onChange: () => {} }, deps);
+    expect(JSON.stringify(spy.mock.calls)).not.toContain("household_id");
+    spy.mockRestore();
   });
 });
