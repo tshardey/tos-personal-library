@@ -174,8 +174,10 @@ export async function createScanItem(args: ScanItemArgs): Promise<"created" | "e
     throw new ScanSaveError(null, null);
   }
   if (res.error) {
-    const code = (res.error as { code?: string }).code;
-    throw new ScanSaveError(code ?? null, typeof res.status === "number" ? res.status : null);
+    // postgrest-js resolves a dead network as { error: { code: "" }, status: 0 }.
+    const code = (res.error as { code?: string }).code?.trim() || null;
+    const status = typeof res.status === "number" && res.status > 0 ? res.status : null;
+    throw new ScanSaveError(code, status);
   }
   return res.data === "exists" ? "exists" : "created";
 }

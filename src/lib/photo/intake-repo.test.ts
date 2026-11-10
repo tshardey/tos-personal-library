@@ -489,6 +489,13 @@ describe("createScanItem", () => {
     expect(err).toMatchObject({ code: "23514", status: 400 });
   });
 
+  it("treats postgrest-js's resolved network failure as null code and status", async () => {
+    h.rpcResults.push({ data: null, error: { code: "", message: "TypeError: fetch failed" }, status: 0 });
+    const err = await createScanItem(args).catch((e) => e);
+    expect(err).toBeInstanceOf(ScanSaveError);
+    expect(err).toMatchObject({ code: null, status: null });
+  });
+
   it("gives null code and status when the request throws", async () => {
     h.rpcThrow = new TypeError("Failed to fetch");
     const err = await createScanItem(args).catch((e) => e);
