@@ -4,7 +4,8 @@ const h = vi.hoisted(() => ({
   queries: [] as { table: string; steps: [string, unknown[]][] }[],
   results: [] as { data: unknown; error: unknown }[],
   rpcCalls: [] as [string, unknown][],
-  rpcResults: [] as { data: unknown; error: unknown }[],
+  rpcResults: [] as { data: unknown; error: unknown; status?: number }[],
+  rpcThrow: null as Error | null,
   upload: vi.fn(),
   remove: vi.fn(),
   createSignedUrls: vi.fn(),
@@ -23,7 +24,7 @@ vi.mock("@/lib/supabase", () => ({
           else reject(new Error("no result queued"));
         },
       };
-      for (const method of ["select", "eq", "or", "order", "range", "insert", "update", "neq", "limit"]) {
+      for (const method of ["select", "eq", "or", "order", "range", "insert", "update", "neq", "limit", "in", "not"]) {
         builder[method] = (...args: unknown[]) => {
           query.steps.push([method, args]);
           return builder;
@@ -33,6 +34,7 @@ vi.mock("@/lib/supabase", () => ({
     },
     rpc(name: string, args: unknown) {
       h.rpcCalls.push([name, args]);
+      if (h.rpcThrow) return Promise.reject(h.rpcThrow);
       return Promise.resolve(h.rpcResults.shift() ?? { data: null, error: null });
     },
     storage: {
@@ -46,6 +48,11 @@ import {
   confirmItem,
   coverPath,
   createIntakeItem,
+  createScanItem,
+  discardItem,
+  listOpenEditionLabels,
+  ScanSaveError,
+  setItemEdition,
   listIntakeItems,
   processItem,
   purgeIntakePhotos,
@@ -73,6 +80,7 @@ beforeEach(() => {
   h.results.length = 0;
   h.rpcCalls.length = 0;
   h.rpcResults.length = 0;
+  h.rpcThrow = null;
   h.upload.mockReset();
   h.remove.mockReset();
   h.createSignedUrls.mockReset();
@@ -244,7 +252,7 @@ describe("processItem", () => {
 });
 
 describe("confirmItem", () => {
-  const copy = { ownerUserId: null, editionNote: " first printing ", location: null };
+  const copy = { ownerUserId: null, editionNote: " first printing ", copyNote: null, location: null };
 
   it("sends p_book_id and a null p_book for an existing book", async () => {
     h.rpcResults.push({ data: [{ book_id: "b1", copy_id: "c1" }], error: null });
@@ -252,7 +260,12 @@ describe("confirmItem", () => {
     const [name, args] = h.rpcCalls[0] as [string, Record<string, unknown>];
     expect(name).toBe("confirm_intake_item");
     expect(args).toMatchObject({ p_item: "i", p_book_id: "b1", p_book: null });
-    expect(args.p_copy).toEqual({ owner_user_id: null, edition_note: "first printing", location: null });
+    expect(args.p_copy).toEqual({
+      owner_user_id: null,
+      edition_note: "first printing",
+      copy_note: null,
+      location: null,
+    });
     expect(out).toEqual({ bookId: "b1", copyId: "c1" });
   });
 
@@ -296,16 +309,16 @@ describe("confirmItem", () => {
   };
 
   it("sends the lookup's ids in p_book only when the lookup agrees", async () => {
-    const extraction = parseExtraction(EXTRACTION);
+    const withLookup = (lookup: LookupResult) => toIntakeItem({ id: "i", extraction: EXTRACTION, lookup });
     h.rpcResults.push({ data: [{ book_id: "b3", copy_id: "c3" }], error: null });
-    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], extraction, LOOKUP) }, copy);
+    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], withLookup(LOOKUP)) }, copy);
     expect(h.rpcCalls[0][1]).toMatchObject({
       p_book: { openlibrary_id: "OL1W", google_books_id: "gb-synthetic-1" },
     });
 
     h.rpcResults.push({ data: [{ book_id: "b4", copy_id: "c4" }], error: null });
     const miss = { ...LOOKUP, agrees: false };
-    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], extraction, miss) }, copy);
+    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], withLookup(miss)) }, copy);
     const pBook = (h.rpcCalls[1][1] as Record<string, Record<string, unknown>>).p_book;
     expect(pBook).not.toHaveProperty("openlibrary_id");
     expect(pBook).not.toHaveProperty("google_books_id");
@@ -360,5 +373,141 @@ describe("signedPhotoUrls", () => {
     expect(h.createSignedUrls).toHaveBeenCalledTimes(2);
     expect(h.createSignedUrls.mock.calls[0][1]).toBe(3600);
     expect(out.get("p149")).toBe("https://signed.example/p149");
+  });
+});
+
+describe("scan intake columns", () => {
+  it("toIntakeItem maps the new columns and defaults old rows", () => {
+    const item = toIntakeItem({
+      id: "i",
+      source: "scan",
+      scanned_isbn: "9780000000002",
+      edition_label: "Hardcover",
+      extra_copy: true,
+      source_hash: null,
+      discard_reason: "replaced_by_photo",
+    });
+    expect(item).toMatchObject({
+      source: "scan",
+      scannedIsbn: "9780000000002",
+      editionLabel: "Hardcover",
+      extraCopy: true,
+      sourceHash: null,
+      discardReason: "replaced_by_photo",
+    });
+    const old = toIntakeItem({ id: "i", source_hash: "a".repeat(64) });
+    expect(old).toMatchObject({ source: "photo", extraCopy: false, scannedIsbn: null, editionLabel: null, discardReason: null });
+  });
+
+  it("listIntakeItems selects the new columns but not claim_token", async () => {
+    h.results.push({ data: [], error: null });
+    await listIntakeItems("h1");
+    const select = h.queries[0].steps.find(([m]) => m === "select")![1][0] as string;
+    for (const c of ["scanned_isbn", "edition_label", "discard_reason", "extra_copy"]) expect(select).toContain(c);
+    expect(select).not.toContain("claim_token");
+  });
+
+  it("createIntakeItem sends nine columns when scan fields are given", async () => {
+    h.results.push({ data: null, error: null });
+    await createIntakeItem({
+      id: "i",
+      householdId: "h",
+      batchId: "b",
+      ownerUserId: null,
+      coverPath: "c",
+      titlePagePath: null,
+      sourceHash: "a".repeat(64),
+      scannedIsbn: "9780000000002",
+      editionLabel: "Hardcover",
+    });
+    const payload = h.queries[0].steps.find(([m]) => m === "insert")![1][0] as Record<string, unknown>;
+    expect(Object.keys(payload)).toHaveLength(9);
+    expect(payload).toMatchObject({ scanned_isbn: "9780000000002", edition_label: "Hardcover" });
+  });
+
+  it("setItemEdition trims and turns blank into null", async () => {
+    h.results.push({ data: null, error: null }, { data: null, error: null });
+    await setItemEdition("i", "  ");
+    expect(h.queries[0].steps).toContainEqual(["update", [{ edition_label: null }]]);
+    await setItemEdition("i", " Paperback ");
+    expect(h.queries[1].steps).toContainEqual(["update", [{ edition_label: "Paperback" }]]);
+  });
+
+  it("discardItem passes the replaced_by_photo reason", async () => {
+    h.rpcResults.push({ data: true, error: null });
+    await expect(discardItem("i", "replaced_by_photo")).resolves.toBe(true);
+    expect(h.rpcCalls[0]).toEqual(["discard_intake_item", { p_item: "i", p_reason: "replaced_by_photo" }]);
+  });
+
+  it("listOpenEditionLabels returns the non-null labels of open items", async () => {
+    h.results.push(
+      { data: [{ edition_label: "A" }, { edition_label: "B" }], error: null },
+      { data: [], error: null },
+    );
+    await expect(listOpenEditionLabels("h")).resolves.toEqual(["A", "B"]);
+    const steps = h.queries[0].steps;
+    expect(steps).toContainEqual(["select", ["edition_label"]]);
+    expect(steps).toContainEqual(["not", ["edition_label", "is", null]]);
+    expect(steps.find(([m]) => m === "in")![1][1]).not.toContain("confirmed");
+  });
+});
+
+describe("createScanItem", () => {
+  const args = {
+    id: "i",
+    householdId: "h",
+    batchId: "b",
+    ownerUserId: null,
+    isbn: "9780000000002",
+    editionLabel: "Hardcover",
+    extraCopy: false,
+  };
+
+  it("calls the rpc with the D2 argument names and resolves exists", async () => {
+    h.rpcResults.push({ data: "exists", error: null });
+    await expect(createScanItem(args)).resolves.toBe("exists");
+    expect(h.rpcCalls[0]).toEqual([
+      "create_scan_item",
+      {
+        p_item: "i",
+        p_household: "h",
+        p_batch: "b",
+        p_owner: null,
+        p_isbn: "9780000000002",
+        p_edition: "Hardcover",
+        p_extra_copy: false,
+      },
+    ]);
+    h.rpcResults.push({ data: "created", error: null });
+    await expect(createScanItem(args)).resolves.toBe("created");
+  });
+
+  it("rejects with a ScanSaveError carrying code and status", async () => {
+    h.rpcResults.push({ data: null, error: { code: "23514" }, status: 400 });
+    const err = await createScanItem(args).catch((e) => e);
+    expect(err).toBeInstanceOf(ScanSaveError);
+    expect(err).toMatchObject({ code: "23514", status: 400 });
+  });
+
+  it("treats postgrest-js's resolved network failure as null code and status", async () => {
+    h.rpcResults.push({ data: null, error: { code: "", message: "TypeError: fetch failed" }, status: 0 });
+    const err = await createScanItem(args).catch((e) => e);
+    expect(err).toBeInstanceOf(ScanSaveError);
+    expect(err).toMatchObject({ code: null, status: null });
+  });
+
+  it("gives null code and status when the request throws", async () => {
+    h.rpcThrow = new TypeError("Failed to fetch");
+    const err = await createScanItem(args).catch((e) => e);
+    expect(err).toBeInstanceOf(ScanSaveError);
+    expect(err).toMatchObject({ code: null, status: null });
+  });
+});
+
+describe("copy notes", () => {
+  it("confirmItem sends the trimmed copy_note", async () => {
+    h.rpcResults.push({ data: [{ book_id: "b1", copy_id: "c1" }], error: null });
+    await confirmItem("i", { bookId: "b1" }, { ownerUserId: null, editionNote: null, copyNote: " Signed ", location: null });
+    expect((h.rpcCalls[0][1] as { p_copy: Record<string, unknown> }).p_copy.copy_note).toBe("Signed");
   });
 });

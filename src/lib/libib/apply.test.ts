@@ -22,6 +22,7 @@ function seededCopy(over: Partial<Copy> & { id: string; bookId: string }): Copy 
   return {
     ownerUserId: "u1",
     editionNote: null,
+    copyNote: null,
     location: null,
     origin: "libib",
     libibId: null,

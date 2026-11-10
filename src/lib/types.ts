@@ -31,7 +31,7 @@ export interface Book {
   updatedAt: string;
 }
 
-export type CopyOrigin = "libib" | "photo" | "manual";
+export type CopyOrigin = "libib" | "photo" | "manual" | "scan";
 
 export interface Copy {
   id: string;
@@ -39,6 +39,7 @@ export interface Copy {
   /** null = shared household copy */
   ownerUserId: string | null;
   editionNote: string | null;
+  copyNote: string | null;
   location: string | null;
   origin: CopyOrigin;
   libibId: string | null;
@@ -100,6 +101,7 @@ export function toCopy(row: Row): Copy {
     bookId: row.book_id,
     ownerUserId: row.owner_user_id ?? null,
     editionNote: row.edition_note ?? null,
+    copyNote: row.copy_note ?? null,
     location: row.location ?? null,
     origin: row.origin,
     libibId: row.libib_id ?? null,
@@ -153,12 +155,14 @@ export interface BookInput {
 export interface CopyInput {
   ownerUserId: string | null;
   editionNote: string | null;
+  copyNote: string | null;
   location: string | null;
 }
 
 const COPY_COLUMNS = {
   ownerUserId: "owner_user_id",
   editionNote: "edition_note",
+  copyNote: "copy_note",
   location: "location",
 } as const satisfies Record<keyof CopyInput, string>;
 

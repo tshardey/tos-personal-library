@@ -179,4 +179,20 @@ describe("runUploadBatch", () => {
     expect(JSON.stringify(spy.mock.calls)).not.toContain("household_id");
     spy.mockRestore();
   });
+
+  it("passes the batch edition and a scanned ISBN through to create", async () => {
+    const { deps, creates } = setup();
+    await runUploadBatch(
+      [file("a")],
+      { ...base, editionLabel: "Invented Box", scannedIsbn: "9780000000002", onChange: () => {} },
+      deps,
+    );
+    expect(creates[0]).toMatchObject({ editionLabel: "Invented Box", scannedIsbn: "9780000000002" });
+  });
+
+  it("creates with no edition and no scanned ISBN by default", async () => {
+    const { deps, creates } = setup();
+    await runUploadBatch([file("a")], { ...base, onChange: () => {} }, deps);
+    expect(creates[0]).toMatchObject({ editionLabel: null, scannedIsbn: null });
+  });
 });

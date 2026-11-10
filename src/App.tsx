@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { HouseholdProvider, useHousehold } from "@/contexts/HouseholdContext";
 import SignIn from "@/components/auth/SignIn";
@@ -8,7 +9,11 @@ import BookDetail from "@/components/book/BookDetail";
 import AddBook from "@/components/book/AddBook";
 import ImportPage from "@/components/import/ImportPage";
 import InboxPage from "@/components/inbox/InboxPage";
+import ChunkErrorBoundary from "@/components/common/ChunkErrorBoundary";
 import { useRoute } from "@/lib/router";
+
+// Its own chunk: the scanner, and through it the barcode decoder, load only on #/scan (D1).
+const ScanPage = lazy(() => import("@/components/scan/ScanPage"));
 
 function SignedIn() {
   const { user, signOut } = useAuth();
@@ -37,6 +42,9 @@ function SignedIn() {
       <header className="flex items-center justify-between border-b p-4">
         <h1 className="text-xl font-semibold">Our Library</h1>
         <div className="flex items-center gap-3">
+          <a href="#/scan" className="underline">
+            Scan
+          </a>
           <a href="#/inbox" className="underline">
             Photos
           </a>
@@ -60,6 +68,12 @@ function SignedIn() {
         <ImportPage />
       ) : route.name === "inbox" ? (
         <InboxPage />
+      ) : route.name === "scan" ? (
+        <ChunkErrorBoundary>
+          <Suspense fallback={<p className="p-6">Loading…</p>}>
+            <ScanPage />
+          </Suspense>
+        </ChunkErrorBoundary>
       ) : (
         <LibraryPage />
       )}

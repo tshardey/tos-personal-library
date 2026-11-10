@@ -8,7 +8,7 @@ vi.mock("@/lib/library-repo", () => ({
   deleteBook: vi.fn().mockResolvedValue(undefined),
   updateCopy: vi.fn().mockResolvedValue(undefined),
 }));
-import { deleteBook, deleteCopy } from "@/lib/library-repo";
+import { deleteBook, deleteCopy, updateCopy } from "@/lib/library-repo";
 
 const members: HouseholdMember[] = [
   { householdId: "h", userId: "u1", displayName: "Tierra", createdAt: "" },
@@ -19,6 +19,7 @@ function copy(id: string, ownerUserId: string | null): Copy {
     bookId: "b1",
     ownerUserId,
     editionNote: null,
+    copyNote: null,
     location: null,
     origin: "manual",
     libibId: null,
@@ -38,7 +39,7 @@ describe("CopyList", () => {
 
   function renderList(copies: Copy[]) {
     render(
-      <CopyList copies={copies} members={members} onChanged={onChanged} onBookDeleted={onBookDeleted} />,
+      <CopyList copies={copies} members={members} labels={["Invented Box"]} onChanged={onChanged} onBookDeleted={onBookDeleted} />,
     );
   }
 
@@ -74,5 +75,26 @@ describe("CopyList", () => {
     await waitFor(() => expect(deleteCopy).toHaveBeenCalledWith("c1"));
     expect(deleteBook).not.toHaveBeenCalled();
     expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("edits the edition and copy note together", async () => {
+    renderList([copy("c1", "u1")]);
+    fireEvent.click(screen.getByText("Edit copy"));
+    fireEvent.click(screen.getByRole("button", { name: "Edition: none" }));
+    fireEvent.click(screen.getByRole("button", { name: "Invented Box" }));
+    fireEvent.change(screen.getByLabelText("Copy note"), { target: { value: "Signed" } });
+    fireEvent.click(screen.getByText("Save copy"));
+    await waitFor(() =>
+      expect(updateCopy).toHaveBeenCalledWith(
+        "c1",
+        { editionNote: "Invented Box", copyNote: "Signed" },
+        ["copyNote", "editionNote"],
+      ),
+    );
+  });
+
+  it("shows the copy note under the edition", () => {
+    renderList([{ ...copy("c1", "u1"), editionNote: "Invented Box", copyNote: "Sprayed edges" }]);
+    expect(screen.getByText("Sprayed edges")).toBeInTheDocument();
   });
 });

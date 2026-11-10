@@ -149,3 +149,4 @@ Conceptual model (exact columns left to the builder, but these concepts must exi
 - Batch-friendly photo intake UX (multi-select, progress, confirming many proposals quickly) — needed for the partner's ~300 unscanned books.
 - **Future idea, not in scope:** identifying several books from one photo of a shelf of spines, which would suit the partner's backlog even better.
 - Phasing. Suggested order: schema + auth + browse → libib import → photo pipeline → ToS integration → location (stretch).
+- **Phasing update (2026-11-10):** after the photo pipeline came barcode scanning and an edition picker (`2026-11-10-barcode-scanner-and-editions-design.md`), then ToS integration (Plan 4) and an agent cover finder (Plan 5, see that document §8).

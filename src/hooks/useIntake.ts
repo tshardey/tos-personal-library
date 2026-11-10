@@ -1,32 +1,75 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { googleBooksApiKey } from "@/lib/google-books";
+import { editionLabels } from "@/lib/editions";
 import { enrichMissing } from "@/lib/libib/enrich";
 import { libibStore, listBooks } from "@/lib/library-repo";
 import { performConfirm, runBulkConfirm, type ConfirmForm } from "@/lib/photo/confirm";
 import { drainIntake, type DrainStop } from "@/lib/photo/drain";
 import {
   confirmItem,
+  createScanItem,
   discardItem,
   listIntakeItems,
   processItem,
   purgeIntakePhotos,
   retryItem,
   saveLookup,
+  setItemEdition,
   setItemOwner,
   signedPhotoUrls,
   type ProcessOutcome,
 } from "@/lib/photo/intake-repo";
-import { LookupError, lookupMetadata } from "@/lib/photo/lookup";
+import { LookupError, lookupForItem, needsLookup } from "@/lib/photo/lookup";
 import type { IntakeAction } from "@/lib/photo/propose";
-import type { IntakeItem } from "@/lib/photo/types";
+import type { IntakeItem, LookupResult } from "@/lib/photo/types";
 import type { BookWithCopies } from "@/lib/types";
+import { appendOutbox, flushOutbox, isRejection, readOutbox, type OutboxEntry } from "@/lib/scan/outbox";
 
 export const POLL_MS = 10_000;
+/** D6: a paused lookup queue starts again by itself after this long. */
+export const LOOKUP_RESUME_MS = 60_000;
 const ACTIVE = new Set(["pending", "processing"]);
 const OPEN = new Set(["pending", "processing", "ready", "failed"]);
 
 const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
+const browserOnline = () => typeof navigator === "undefined" || navigator.onLine !== false;
+const sleepMs = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Outbox entries a flush has sent, by id. Module-level on purpose: a flush joined by another
+ * caller hands `onSaved` to that caller's deps (latest wins), so every caller must be able to
+ * turn any saved id back into its scan.
+ */
+const sentScans = new Map<string, OutboxEntry>();
+
+/** D6: what create_scan_item has just stored, as the item a reload would bring back. */
+export function scanItemFromEntry(e: OutboxEntry): IntakeItem {
+  return {
+    id: e.id,
+    householdId: e.householdId,
+    uploadedBy: null,
+    batchId: e.batchId,
+    ownerUserId: e.ownerUserId,
+    coverPath: null,
+    titlePagePath: null,
+    sourceHash: null,
+    source: "scan",
+    scannedIsbn: e.isbn,
+    editionLabel: e.editionLabel,
+    extraCopy: e.extraCopy,
+    discardReason: null,
+    status: "ready",
+    attempts: 0,
+    claimedAt: null,
+    retryAt: null,
+    extraction: null,
+    lookup: null,
+    errorCode: null,
+    resultBookId: null,
+    createdAt: e.createdAt,
+  };
+}
 const browserFetch: typeof fetch = (...args) => fetch(...args);
 
 export interface IntakeState {
@@ -38,16 +81,32 @@ export interface IntakeState {
   stale: boolean;
   stop: DrainStop;
   lookupPaused: boolean;
+  /** D6: when a paused lookup queue resumes by itself (epoch ms), or null when not paused. */
+  lookupPausedUntil: number | null;
   /** Items whose lookup failed this session; they show no "Looking it up" line until retried. */
   lookupFailed: Set<string>;
   /** True while any photo is being read; the page keeps the screen on for it. */
   reading: boolean;
   thumbs: Map<string, string>;
+  /** D12: the household's edition labels, from the catalog's copies and the open items. */
+  labels: string[];
   reload(): Promise<void>;
   processNew(itemId: string): void;
   retry(itemId: string): Promise<void>;
   resumeLookups(): void;
   setOwner(itemId: string, ownerUserId: string | null): void;
+  /** Shows the label at once and saves it on the item; a failed save shows on the next load. */
+  setEdition(itemId: string, label: string | null): void;
+  /** Adds or replaces an item without a reload (the scanner's newly created scans). */
+  upsertLocal(item: IntakeItem): void;
+  /** D6: this household's scan outbox (unsent and rejected entries), as last read. */
+  scanOutbox: OutboxEntry[];
+  /** The last scan save failed in a way that retries (network, 5xx, 408, 429). */
+  scanSaveFailing: boolean;
+  /** Writes the scan to the outbox before any network call, then flushes. */
+  queueScan(entry: OutboxEntry): void;
+  /** Sends the outbox now; a backoff wait in progress is cut short. */
+  flushScans(): void;
   confirm(item: IntakeItem, action: IntakeAction, form: ConfirmForm): Promise<void>;
   bulkConfirm(itemIds: string[]): Promise<{ confirmed: number; skipped: number }>;
 }
@@ -66,9 +125,16 @@ export function useIntake(): IntakeState {
   const [stale, setStale] = useState(false);
   const [lookupFailed, setLookupFailedState] = useState<Set<string>>(new Set());
   const [stop, setStopState] = useState<DrainStop>(null);
-  const [lookupPaused, setLookupPaused] = useState(false);
+  const [lookupPausedUntil, setLookupPausedUntil] = useState<number | null>(null);
   const [inFlightCount, setInFlightCount] = useState(0);
   const [thumbs, setThumbs] = useState<Map<string, string>>(new Map());
+  const [scanOutbox, setScanOutbox] = useState<OutboxEntry[]>(() => (householdId ? readOutbox(householdId) : []));
+  const [scanSaveFailing, setScanSaveFailing] = useState(false);
+  const flushCtl = useRef<AbortController | null>(null);
+  /** Scans saved this session that a read may not include yet (it started before the save). */
+  const savedScans = useRef(new Map<string, IntakeItem>());
+  /** Lookups saved this session, kept over a read that started before the save landed. */
+  const savedLookups = useRef(new Map<string, LookupResult>());
 
   const itemsRef = useRef<IntakeItem[]>([]);
   const catalogRef = useRef<BookWithCopies[]>([]);
@@ -84,6 +150,10 @@ export function useIntake(): IntakeState {
   const loadedOnce = useRef(false);
   const staleRef = useRef(false);
   const failedLookups = useRef(new Set<string>());
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoResume = useRef<() => void>(() => {});
+  /** Edition saves still in flight; a bulk confirm waits for them so it writes the label shown. */
+  const editionWrites = useRef(new Set<Promise<unknown>>());
 
   const markStale = useCallback((value: boolean) => {
     staleRef.current = value;
@@ -115,6 +185,32 @@ export function useIntake(): IntakeState {
     itemsRef.current = next;
     setItemsState(next);
   }, []);
+  /** A server read, plus any scan saved after that read began; the read wins once it has it. */
+  const setLoadedItems = useCallback(
+    (loaded: IntakeItem[]) => {
+      // A lookup is only ever set once, so a null one in the read means the read predates the save.
+      if (savedLookups.current.size > 0) {
+        loaded = loaded.map((i) => {
+          const saved = savedLookups.current.get(i.id);
+          if (saved === undefined) return i;
+          if (i.lookup !== null) {
+            savedLookups.current.delete(i.id);
+            return i;
+          }
+          return { ...i, lookup: saved };
+        });
+      }
+      const ids = new Set(loaded.map((i) => i.id));
+      const missing: IntakeItem[] = [];
+      for (const [id, item] of savedScans.current) {
+        if (ids.has(id)) savedScans.current.delete(id);
+        // The on-screen copy may have its lookup by now.
+        else missing.push(itemsRef.current.find((i) => i.id === id) ?? item);
+      }
+      setItems(missing.length === 0 ? loaded : [...loaded, ...missing]);
+    },
+    [setItems],
+  );
   const patchItem = useCallback(
     (id: string, patch: Partial<IntakeItem>) =>
       setItems(itemsRef.current.map((i) => (i.id === id ? { ...i, ...patch } : i))),
@@ -133,7 +229,7 @@ export function useIntake(): IntakeState {
       const [nextItems, nextCatalog] = await Promise.all([listIntakeItems(householdId), listBooks(householdId)]);
       catalogRef.current = nextCatalog;
       setCatalogState(nextCatalog);
-      setItems(nextItems);
+      setLoadedItems(nextItems);
       loadedOnce.current = true;
       markStale(false);
       setStatus("ready");
@@ -141,19 +237,19 @@ export function useIntake(): IntakeState {
       onReadFailure(e);
       throw e;
     }
-  }, [householdId, setItems, markStale, onReadFailure]);
+  }, [householdId, setLoadedItems, markStale, onReadFailure]);
 
   /** Items only. While stale, a full load instead, so the catalog heals too. */
   const loadItems = useCallback(async () => {
     if (!householdId) return;
     if (staleRef.current) return load();
     try {
-      setItems(await listIntakeItems(householdId));
+      setLoadedItems(await listIntakeItems(householdId));
     } catch (e) {
       onReadFailure(e);
       throw e;
     }
-  }, [householdId, setItems, load, onReadFailure]);
+  }, [householdId, setLoadedItems, load, onReadFailure]);
 
   const onOutcome = useCallback(
     (_id: string, outcome: ProcessOutcome | "error") => {
@@ -205,32 +301,42 @@ export function useIntake(): IntakeState {
     if (mounted.current) await loadItems().catch(() => {});
   }, [tracked, onOutcome, setStop, loadItems]);
 
+  const clearResumeTimer = useCallback(() => {
+    if (resumeTimer.current !== null) clearTimeout(resumeTimer.current);
+    resumeTimer.current = null;
+  }, []);
+
+  /** D6: a retryable failure pauses the queue, which resumes by itself after LOOKUP_RESUME_MS. */
+  const pauseLookups = useCallback(() => {
+    pausedRef.current = true;
+    setLookupPausedUntil(Date.now() + LOOKUP_RESUME_MS);
+    clearResumeTimer();
+    resumeTimer.current = setTimeout(() => {
+      resumeTimer.current = null;
+      if (mounted.current) autoResume.current();
+    }, LOOKUP_RESUME_MS);
+  }, [clearResumeTimer]);
+
   const runLookups = useCallback(async () => {
     if (lookupBusy.current || pausedRef.current) return;
     lookupBusy.current = true;
     try {
       for (;;) {
         if (!mounted.current || pausedRef.current) break;
-        const next = itemsRef.current.find(
-          (i) =>
-            i.status === "ready" &&
-            i.lookup === null &&
-            (i.extraction?.title ?? "").trim() !== "" &&
-            !lookedUp.current.has(i.id),
-        );
+        // D6: one at a time, oldest first.
+        const next = itemsRef.current
+          .filter((i) => needsLookup(i) && !lookedUp.current.has(i.id))
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))[0];
         if (!next) break;
         lookedUp.current.add(next.id);
         let result;
         try {
-          result = await lookupMetadata(
-            { title: next.extraction!.title!, authors: next.extraction!.authors },
-            { fetchImpl: browserFetch, googleBooksKey: googleBooksApiKey() },
-          );
+          result = await lookupForItem(next, { fetchImpl: browserFetch, googleBooksKey: googleBooksApiKey() });
         } catch (e) {
-          if (e instanceof LookupError) {
+          if (e instanceof LookupError && e.retryable) {
+            // D6: 429, 5xx or the network: pause everything, and resume by itself.
             lookedUp.current.delete(next.id);
-            pausedRef.current = true;
-            setLookupPaused(true);
+            pauseLookups();
             break;
           }
           console.error("Lookup failed", errName(e));
@@ -239,6 +345,7 @@ export function useIntake(): IntakeState {
         }
         try {
           await saveLookup(next.id, result);
+          savedLookups.current.set(next.id, result);
         } catch (e) {
           // A later poll would bring back lookup: null, so don't promise a lookup that's done.
           console.error("Failed to save a lookup", errName(e));
@@ -249,14 +356,35 @@ export function useIntake(): IntakeState {
     } finally {
       lookupBusy.current = false;
     }
-  }, [patchItem, failLookup]);
+  }, [patchItem, failLookup, pauseLookups]);
 
-  const resumeLookups = useCallback(() => {
-    pausedRef.current = false;
-    setLookupPaused(false);
-    clearFailedLookups();
-    void runLookups();
-  }, [runLookups, clearFailedLookups]);
+  /** Starts paused lookups again. `clearFailed` (the Retry button) also retries failed items. */
+  const unpause = useCallback(
+    (clearFailed: boolean) => {
+      clearResumeTimer();
+      pausedRef.current = false;
+      setLookupPausedUntil(null);
+      if (clearFailed) clearFailedLookups();
+      void runLookups();
+    },
+    [runLookups, clearFailedLookups, clearResumeTimer],
+  );
+
+  useEffect(() => {
+    autoResume.current = () => unpause(false);
+  }, [unpause]);
+
+  const resumeLookups = useCallback(() => unpause(true), [unpause]);
+
+  // D6: coming back online resumes a paused queue at once.
+  useEffect(() => {
+    const onOnline = () => {
+      if (pausedRef.current) unpause(false);
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [unpause]);
+  useEffect(() => clearResumeTimer, [clearResumeTimer]);
 
   // First load: purge what's no longer needed (D11), then load and drain.
   useEffect(() => {
@@ -318,6 +446,100 @@ export function useIntake(): IntakeState {
     [patchItem],
   );
 
+  const setEdition = useCallback(
+    (itemId: string, label: string | null) => {
+      patchItem(itemId, { editionLabel: label });
+      const write: Promise<unknown> = setItemEdition(itemId, label)
+        .catch((e) => console.error("Failed to save the edition", errName(e)))
+        .finally(() => editionWrites.current.delete(write));
+      editionWrites.current.add(write);
+    },
+    [patchItem],
+  );
+
+  const upsertLocal = useCallback(
+    (next: IntakeItem) => {
+      const exists = itemsRef.current.some((i) => i.id === next.id);
+      setItems(exists ? itemsRef.current.map((i) => (i.id === next.id ? next : i)) : [...itemsRef.current, next]);
+    },
+    [setItems],
+  );
+
+  const refreshOutbox = useCallback(() => {
+    if (householdId && mounted.current) setScanOutbox(readOutbox(householdId));
+  }, [householdId]);
+
+  /**
+   * D6. Each call aborts this hook's previous flush deps (cutting a backoff wait short) and joins or
+   * starts the household's single flight. Either this hook's deps or another caller's may end up
+   * running any entry; both end in the same upsert of a ready scan item.
+   */
+  const flushScans = useCallback(() => {
+    if (!householdId) return;
+    const hh = householdId;
+    flushCtl.current?.abort();
+    const ctl = new AbortController();
+    flushCtl.current = ctl;
+    void flushOutbox(hh, {
+      create: async (args) => {
+        const entry = readOutbox(hh).find((e) => e.id === args.id);
+        if (entry) sentScans.set(args.id, entry);
+        try {
+          const result = await createScanItem(args);
+          if (mounted.current) setScanSaveFailing(false);
+          return result;
+        } catch (e) {
+          const err = (e ?? {}) as { code?: string | null; status?: number | null };
+          if (mounted.current && !isRejection({ code: err.code ?? null, status: err.status ?? null })) {
+            setScanSaveFailing(true);
+          }
+          throw e;
+        }
+      },
+      sleep: sleepMs,
+      online: browserOnline,
+      onSaved: (id) => {
+        const entry = sentScans.get(id);
+        sentScans.delete(id);
+        refreshOutbox();
+        if (!entry || !mounted.current) return;
+        // A resend that answers "exists" may find the item already loaded, lookup and all.
+        if (itemsRef.current.some((i) => i.id === id)) return;
+        const item = scanItemFromEntry(entry);
+        savedScans.current.set(id, item);
+        upsertLocal(item);
+      },
+      onRejected: (id) => {
+        sentScans.delete(id);
+        refreshOutbox();
+      },
+      signal: ctl.signal,
+    }).catch((e) => console.error("Scan upload stopped", errName(e)));
+  }, [householdId, refreshOutbox, upsertLocal]);
+
+  const queueScan = useCallback(
+    (entry: OutboxEntry) => {
+      appendOutbox(entry);
+      refreshOutbox();
+      flushScans();
+    },
+    [refreshOutbox, flushScans],
+  );
+
+  // D6: on mount, scans left by an offline Done upload; and again whenever the network is back.
+  useEffect(() => {
+    if (!householdId) return;
+    refreshOutbox();
+    flushScans();
+    const onOnline = () => flushScans();
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      flushCtl.current?.abort();
+      flushCtl.current = null;
+    };
+  }, [householdId, refreshOutbox, flushScans]);
+
   const enrich = useCallback(
     (books: BookWithCopies[]) => {
       const ids = new Set(books.map((b) => b.id));
@@ -367,6 +589,8 @@ export function useIntake(): IntakeState {
 
   const bulkConfirm = useCallback(
     async (itemIds: string[]) => {
+      // D12: an edition just set for the selection is saved before the reloads bulk confirm reads.
+      await Promise.allSettled([...editionWrites.current]);
       try {
         // Bulk items have no twins (D7), and runBulkConfirm reloads before each next write.
         return await runBulkConfirm(
@@ -387,21 +611,38 @@ export function useIntake(): IntakeState {
     await drain();
   }, [load, drain, clearFailedLookups]);
 
+  const labels = useMemo(
+    () =>
+      editionLabels(
+        catalog,
+        items.filter((i) => OPEN.has(i.status) && i.editionLabel !== null).map((i) => i.editionLabel!),
+      ),
+    [catalog, items],
+  );
+
   return {
     items,
     catalog,
     status,
     stale,
     stop,
-    lookupPaused,
+    lookupPaused: lookupPausedUntil !== null,
+    lookupPausedUntil,
     lookupFailed,
     reading: inFlightCount > 0,
     thumbs,
+    labels,
     reload,
     processNew,
     retry,
     resumeLookups,
     setOwner,
+    setEdition,
+    upsertLocal,
+    scanOutbox,
+    scanSaveFailing,
+    queueScan,
+    flushScans,
     confirm,
     bulkConfirm,
   };

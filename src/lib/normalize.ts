@@ -31,6 +31,7 @@ export function normalizeCopyInput(i: CopyInput): CopyInput {
   return {
     ownerUserId: i.ownerUserId || null,
     editionNote: text(i.editionNote),
+    copyNote: text(i.copyNote),
     location: text(i.location),
   };
 }

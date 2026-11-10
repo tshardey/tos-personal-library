@@ -140,6 +140,38 @@ export interface GoogleBooksSearchHit {
 
 const strOrNull = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v : null);
 
+/** Maps one Google Books volume item to a hit; null when it is off-shape. */
+function hitOf(item: unknown): GoogleBooksSearchHit | null {
+  const id = (item as { id?: unknown } | null)?.id;
+  const info = (item as { volumeInfo?: unknown } | null)?.volumeInfo;
+  if (typeof id !== "string" || !info || typeof info !== "object") return null;
+  const v = info as VolumeInfo & { title?: unknown; authors?: unknown; pageCount?: unknown; publishedDate?: unknown };
+  const isbns = new Set<string>();
+  if (Array.isArray(v.industryIdentifiers)) {
+    for (const ident of v.industryIdentifiers) {
+      const raw = (ident as { identifier?: unknown } | null)?.identifier;
+      if (typeof raw !== "string") continue;
+      const as13 = normalizeIsbn13(raw);
+      if (as13 !== null) {
+        isbns.add(as13);
+        continue;
+      }
+      const as10 = normalizeIsbn10(raw);
+      if (as10 !== null) isbns.add(isbn10To13(as10));
+    }
+  }
+  return {
+    id,
+    title: strOrNull(v.title),
+    authors: Array.isArray(v.authors) ? v.authors.filter((a): a is string => typeof a === "string") : [],
+    isbns: [...isbns],
+    coverUrl: coverOf(v),
+    synopsis: synopsisOf(v),
+    pageCount: typeof v.pageCount === "number" && v.pageCount > 0 ? v.pageCount : null,
+    publishDate: strOrNull(v.publishedDate),
+  };
+}
+
 /**
  * Title (and optional author) search, up to 5 hits. Throws GoogleBooksError on an HTTP error or a
  * network failure; [] when Google has no items.
@@ -158,34 +190,30 @@ export async function searchGoogleBooks(
   if (!Array.isArray(items)) return [];
   const hits: GoogleBooksSearchHit[] = [];
   for (const item of items) {
-    const id = (item as { id?: unknown } | null)?.id;
-    const info = (item as { volumeInfo?: unknown } | null)?.volumeInfo;
-    if (typeof id !== "string" || !info || typeof info !== "object") continue;
-    const v = info as VolumeInfo & { title?: unknown; authors?: unknown; pageCount?: unknown; publishedDate?: unknown };
-    const isbns = new Set<string>();
-    if (Array.isArray(v.industryIdentifiers)) {
-      for (const ident of v.industryIdentifiers) {
-        const raw = (ident as { identifier?: unknown } | null)?.identifier;
-        if (typeof raw !== "string") continue;
-        const as13 = normalizeIsbn13(raw);
-        if (as13 !== null) {
-          isbns.add(as13);
-          continue;
-        }
-        const as10 = normalizeIsbn10(raw);
-        if (as10 !== null) isbns.add(isbn10To13(as10));
-      }
-    }
-    hits.push({
-      id,
-      title: strOrNull(v.title),
-      authors: Array.isArray(v.authors) ? v.authors.filter((a): a is string => typeof a === "string") : [],
-      isbns: [...isbns],
-      coverUrl: coverOf(v),
-      synopsis: synopsisOf(v),
-      pageCount: typeof v.pageCount === "number" && v.pageCount > 0 ? v.pageCount : null,
-      publishDate: strOrNull(v.publishedDate),
-    });
+    const hit = hitOf(item);
+    if (hit !== null) hits.push(hit);
   }
   return hits;
+}
+
+/**
+ * Searches by ISBN-13 (q=isbn:). Returns the first hit that lists this ISBN (13 or 10), or null when
+ * none does. Throws GoogleBooksError on an HTTP error or network failure.
+ */
+export async function searchGoogleBooksIsbn(
+  isbn13: string,
+  key: string,
+  fetchImpl: typeof fetch,
+): Promise<GoogleBooksSearchHit | null> {
+  const url =
+    `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn13)}&maxResults=5` +
+    `&key=${encodeURIComponent(key)}`;
+  const data = await getJson(url, fetchImpl);
+  const items = (data as { items?: unknown } | null)?.items;
+  if (!Array.isArray(items)) return null;
+  for (const item of items) {
+    const hit = hitOf(item);
+    if (hit !== null && hit.isbns.includes(isbn13)) return hit;
+  }
+  return null;
 }

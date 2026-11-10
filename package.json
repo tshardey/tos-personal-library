@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e": "playwright test",
+    "check:bundle": "node scripts/check-bundle.mjs",
     "db:start": "supabase start --workdir \"$TOS_REPO_DIR\"",
     "db:stop": "supabase stop --workdir \"$TOS_REPO_DIR\"",
     "db:reset": "supabase db reset --workdir \"$TOS_REPO_DIR\"",
@@ -19,10 +21,12 @@
     "@supabase/supabase-js": "^2.47.0",
     "papaparse": "^5.7.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zxing-wasm": "3.1.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/vite": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

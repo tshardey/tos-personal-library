@@ -5,7 +5,7 @@ import { normalizeCopyInput } from "@/lib/normalize";
 import type { Copy, CopyInput, HouseholdMember } from "@/lib/types";
 import CopyForm from "./CopyForm";
 
-const EDITABLE: (keyof CopyInput)[] = ["ownerUserId", "editionNote", "location"];
+const EDITABLE: (keyof CopyInput)[] = ["ownerUserId", "editionNote", "copyNote", "location"];
 
 function ownerLabel(ownerUserId: string | null, members: HouseholdMember[]): string {
   if (ownerUserId === null) return "Shared";
@@ -15,11 +15,13 @@ function ownerLabel(ownerUserId: string | null, members: HouseholdMember[]): str
 export default function CopyList({
   copies,
   members,
+  labels,
   onChanged,
   onBookDeleted,
 }: {
   copies: Copy[];
   members: HouseholdMember[];
+  labels: string[];
   onChanged(): void | Promise<void>;
   onBookDeleted(): void;
 }) {
@@ -46,6 +48,7 @@ export default function CopyList({
     const before: CopyInput = normalizeCopyInput({
       ownerUserId: copy.ownerUserId,
       editionNote: copy.editionNote,
+      copyNote: copy.copyNote,
       location: copy.location,
     });
     const { changed, patch } = diffPatch(before, next, EDITABLE);
@@ -68,6 +71,7 @@ export default function CopyList({
               <CopyForm
                 initial={copy}
                 members={members}
+                labels={labels}
                 submitLabel="Save copy"
                 onSubmit={(v) => save(copy, v)}
                 onCancel={() => setEditingId(null)}
@@ -76,6 +80,7 @@ export default function CopyList({
               <>
                 <p className="font-medium">{ownerLabel(copy.ownerUserId, members)}</p>
                 {copy.editionNote && <p className="text-sm">{copy.editionNote}</p>}
+                {copy.copyNote && <p className="text-sm text-stone-700">{copy.copyNote}</p>}
                 {copy.location && <p className="text-sm">Location: {copy.location}</p>}
                 <p className="text-xs text-stone-600">Origin: {copy.origin}</p>
                 <div className="mt-2 flex gap-3 text-sm">

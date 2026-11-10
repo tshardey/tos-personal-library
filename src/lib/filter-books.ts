@@ -9,8 +9,9 @@ function fold(s: string): string {
 
 export function filterBooks(
   books: BookWithCopies[],
-  opts: { query: string; owner: OwnerFilter },
+  opts: { query: string; owner: OwnerFilter; edition?: string | null },
 ): BookWithCopies[] {
+  const edition = opts.edition ? opts.edition.trim().toLowerCase() : null;
   const q = fold(opts.query.trim());
   return books.filter((b) => {
     if (opts.owner === "shared") {
@@ -18,7 +19,9 @@ export function filterBooks(
     } else if (opts.owner !== "all") {
       if (!b.copies.some((c) => c.ownerUserId === opts.owner)) return false;
     }
+    if (edition && !b.copies.some((c) => c.editionNote?.trim().toLowerCase() === edition)) return false;
     if (!q) return true;
-    return [b.title, ...b.authors].some((s) => fold(s).includes(q));
+    const notes = b.copies.flatMap((c) => (c.editionNote ? [c.editionNote] : []));
+    return [b.title, ...b.authors, ...notes].some((s) => fold(s).includes(q));
   });
 }

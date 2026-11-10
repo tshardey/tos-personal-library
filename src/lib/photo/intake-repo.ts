@@ -2,13 +2,13 @@ import { readAllPages } from "@/lib/library-repo";
 import { normalizeBookInput, normalizeCopyInput } from "@/lib/normalize";
 import { supabase } from "@/lib/supabase";
 import { fromBookPatch, fromCopyPatch, type BookInput, type CopyInput } from "@/lib/types";
-import { INTAKE_BUCKET, toIntakeItem, type IntakeItem, type LookupResult } from "./types";
+import { INTAKE_BUCKET, toIntakeItem, type DiscardReason, type IntakeItem, type LookupResult } from "./types";
 
 // Every column except claim_token, which clients have no select grant on.
 const ITEM_COLUMNS =
   "id, household_id, uploaded_by, batch_id, owner_user_id, cover_path, title_page_path, " +
   "source_hash, status, attempts, claimed_at, retry_at, extraction, lookup, error_code, " +
-  "result_book_id, created_at, updated_at";
+  "result_book_id, created_at, updated_at, source, scanned_isbn, edition_label, extra_copy, discard_reason";
 
 const RETENTION_MS = 7 * 24 * 3600_000;
 const CHUNK = 100;
@@ -74,6 +74,8 @@ export async function createIntakeItem(row: {
   coverPath: string;
   titlePagePath: string | null;
   sourceHash: string;
+  scannedIsbn?: string | null;
+  editionLabel?: string | null;
 }): Promise<"created" | "duplicate"> {
   // No .select() after the insert: `returning *` would need claim_token.
   const { error } = await supabase.from("intake_items").insert({
@@ -84,6 +86,8 @@ export async function createIntakeItem(row: {
     cover_path: row.coverPath,
     title_page_path: row.titlePagePath,
     source_hash: row.sourceHash,
+    ...(row.scannedIsbn != null ? { scanned_isbn: row.scannedIsbn } : {}),
+    ...(row.editionLabel != null ? { edition_label: row.editionLabel } : {}),
   });
   if (!error) return "created";
   if ((error as { code?: string }).code === "23505") return "duplicate";
@@ -125,13 +129,82 @@ export async function retryItem(itemId: string): Promise<boolean> {
   return data === true;
 }
 
-export async function discardItem(
-  itemId: string,
-  reason: "discarded" | "already_recorded",
-): Promise<boolean> {
+export async function discardItem(itemId: string, reason: DiscardReason): Promise<boolean> {
   const { data, error } = await supabase.rpc("discard_intake_item", { p_item: itemId, p_reason: reason });
   if (error) throw error;
   return data === true;
+}
+
+export interface ScanItemArgs {
+  id: string;
+  householdId: string;
+  batchId: string;
+  ownerUserId: string | null;
+  isbn: string;
+  editionLabel: string | null;
+  extraCopy: boolean;
+}
+
+/** A failed scan save: `status` is the HTTP status, null when the request never got an answer. */
+export class ScanSaveError extends Error {
+  code: string | null;
+  status: number | null;
+  constructor(code: string | null, status: number | null) {
+    super(code ? `scan save failed (${code})` : "scan save failed");
+    this.name = "ScanSaveError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+/** Idempotent on the id: a resend after a lost response answers "exists". */
+export async function createScanItem(args: ScanItemArgs): Promise<"created" | "exists"> {
+  let res: { data: unknown; error: unknown; status?: number };
+  try {
+    res = await supabase.rpc("create_scan_item", {
+      p_item: args.id,
+      p_household: args.householdId,
+      p_batch: args.batchId,
+      p_owner: args.ownerUserId,
+      p_isbn: args.isbn,
+      p_edition: args.editionLabel,
+      p_extra_copy: args.extraCopy,
+    });
+  } catch {
+    throw new ScanSaveError(null, null);
+  }
+  if (res.error) {
+    // postgrest-js resolves a dead network as { error: { code: "" }, status: 0 }.
+    const code = (res.error as { code?: string }).code?.trim() || null;
+    const status = typeof res.status === "number" && res.status > 0 ? res.status : null;
+    throw new ScanSaveError(code, status);
+  }
+  return res.data === "exists" ? "exists" : "created";
+}
+
+/** Trims; a blank label clears the edition. */
+export async function setItemEdition(itemId: string, label: string | null): Promise<void> {
+  const { error } = await supabase
+    .from("intake_items")
+    .update({ edition_label: label?.trim() || null })
+    .eq("id", itemId);
+  if (error) throw error;
+}
+
+/** Edition labels on open items, for the picker's list. */
+export async function listOpenEditionLabels(householdId: string): Promise<string[]> {
+  const rows = await readAllPages<RawRow>(
+    (from, to) =>
+      supabase
+        .from("intake_items")
+        .select("edition_label")
+        .eq("household_id", householdId)
+        .in("status", ["pending", "processing", "ready", "failed"])
+        .not("edition_label", "is", null)
+        .order("id")
+        .range(from, to) as unknown as PromiseLike<{ data: RawRow[] | null; error: unknown }>,
+  );
+  return rows.map((r) => r.edition_label as string);
 }
 
 /** A new book from a photo: BookInput plus the ids an agreeing lookup supplies (D8). */

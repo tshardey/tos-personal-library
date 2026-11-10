@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCopyPhotoUrls } from "@/hooks/useCopyPhotoUrls";
 import { useCatalog } from "@/hooks/useCatalog";
 import { addCopy, deleteBook, updateBook } from "@/lib/library-repo";
 import { diffPatch, markEdited } from "@/lib/edited-fields";
+import { editionLabels } from "@/lib/editions";
+import { listOpenEditionLabels } from "@/lib/photo/intake-repo";
 import { normalizeBookInput } from "@/lib/normalize";
 import { navigate } from "@/lib/router";
 import type { BookInput, BookWithCopies } from "@/lib/types";
@@ -56,13 +58,31 @@ function Cover({ book, photoUrl }: { book: BookWithCopies; photoUrl?: string }) 
 }
 
 export default function BookDetail({ id }: { id: string }) {
-  const { members } = useHousehold();
+  const { household, members } = useHousehold();
   const { user } = useAuth();
   const { books, loading, error, reload } = useCatalog();
   const photoUrls = useCopyPhotoUrls(books);
   const [editing, setEditing] = useState(false);
   const [addingCopy, setAddingCopy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [openLabels, setOpenLabels] = useState<string[]>([]);
+  const householdId = household?.id;
+  useEffect(() => {
+    if (!householdId) return;
+    let cancelled = false;
+    listOpenEditionLabels(householdId).then(
+      (l) => {
+        if (!cancelled) setOpenLabels(l);
+      },
+      (err: unknown) => {
+        console.error("Failed to load open edition labels", err instanceof Error ? err.name : "unknown");
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [householdId]);
+  const labels = useMemo(() => editionLabels(books, openLabels), [books, openLabels]);
 
   if (loading) return <p className="p-6">Loading…</p>;
   if (error) {
@@ -162,6 +182,7 @@ export default function BookDetail({ id }: { id: string }) {
         <CopyList
           copies={book.copies}
           members={members}
+          labels={labels}
           onChanged={reload}
           onBookDeleted={() => {
             void reload();
@@ -171,8 +192,9 @@ export default function BookDetail({ id }: { id: string }) {
         {addingCopy ? (
           <div className="mt-3">
             <CopyForm
-              initial={{ ownerUserId: user?.id ?? null, editionNote: null, location: null }}
+              initial={{ ownerUserId: user?.id ?? null, editionNote: null, copyNote: null, location: null }}
               members={members}
+              labels={labels}
               submitLabel="Add copy"
               onCancel={() => setAddingCopy(false)}
               onSubmit={async (copy) => {

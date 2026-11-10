@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import EditionPicker from "@/components/edition/EditionPicker";
 import { browserUploadDeps, runUploadBatch, type UploadEntry } from "@/lib/photo/upload-queue";
 import type { HouseholdMember } from "@/lib/types";
 
@@ -54,6 +55,8 @@ interface Row {
   file: File;
   batchId: string;
   titlePage?: File;
+  /** The batch edition when the row was queued, so a retry keeps it. */
+  editionLabel: string | null;
   entry: UploadEntry;
 }
 
@@ -63,11 +66,22 @@ interface Props {
   userId: string;
   onItemCreated(itemId: string): void;
   onUploadingChange(uploading: boolean): void;
+  /** D12: the household's edition labels for the batch picker. */
+  labels: string[];
 }
 
 /** D10: one file at a time, covers only in batch mode; the title page only in single (camera) mode. */
-export default function UploadPanel({ householdId, members, userId, onItemCreated, onUploadingChange }: Props) {
+export default function UploadPanel({
+  householdId,
+  members,
+  userId,
+  onItemCreated,
+  onUploadingChange,
+  labels,
+}: Props) {
   const [owner, setOwner] = useState(() => loadOwner(members, userId));
+  // D10: component state only; it resets to none on reload, and each item stores its own label.
+  const [edition, setEdition] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [cover, setCover] = useState<File | null>(null);
   const [active, setActive] = useState(0);
@@ -90,7 +104,12 @@ export default function UploadPanel({ householdId, members, userId, onItemCreate
     return () => window.removeEventListener("beforeunload", warn);
   }, [uploading, onUploadingChange]);
 
-  function enqueue(files: File[], titlePage?: File, batchId: string = crypto.randomUUID()) {
+  function enqueue(
+    files: File[],
+    titlePage?: File,
+    batchId: string = crypto.randomUUID(),
+    editionLabel: string | null = edition,
+  ) {
     if (files.length === 0) return;
     const run = ++runSeq.current;
     const added: Row[] = files.map((file, i) => ({
@@ -98,6 +117,7 @@ export default function UploadPanel({ householdId, members, userId, onItemCreate
       file,
       batchId,
       titlePage,
+      editionLabel,
       entry: { key: `r${run}-f${i}`, fileName: file.name, state: "queued", itemId: null },
     }));
     const keys = added.map((r) => r.key);
@@ -114,6 +134,7 @@ export default function UploadPanel({ householdId, members, userId, onItemCreate
             ownerUserId,
             batchId,
             titlePage,
+            editionLabel,
             onChange: (entries) =>
               setRows((prev) =>
                 prev.map((r) => {
@@ -142,6 +163,7 @@ export default function UploadPanel({ householdId, members, userId, onItemCreate
         group.map((r) => r.file),
         group[0].titlePage,
         batchId,
+        group[0].editionLabel,
       );
     }
   }
@@ -176,6 +198,9 @@ export default function UploadPanel({ householdId, members, userId, onItemCreate
         ))}
         <option value={SHARED}>Shared</option>
       </select>
+      <div className="mb-3">
+        <EditionPicker value={edition} labels={labels} label="Edition for this batch" onChange={setEdition} />
+      </div>
 
       {cover ? (
         <div className="mb-3">
@@ -239,6 +264,9 @@ export default function UploadPanel({ householdId, members, userId, onItemCreate
               }}
             />
           </label>
+          <a href="#/scan" className="rounded border px-3 py-2">
+            Scan barcodes
+          </a>
         </div>
       )}
 

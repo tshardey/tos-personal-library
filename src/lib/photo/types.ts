@@ -8,6 +8,9 @@ export type IntakeErrorCode =
   | "vision_unavailable"
   | "attempts_exhausted";
 
+export type IntakeSource = "photo" | "scan";
+export type DiscardReason = "discarded" | "already_recorded" | "replaced_by_photo";
+
 export interface Extraction {
   isBook: boolean;
   title: string | null;
@@ -32,6 +35,8 @@ export interface LookupResult {
   publishDate: string | null;
   openlibraryId: string | null;
   googleBooksId: string | null;
+  /** True when the lookup was by scanned ISBN rather than by title; an old row reads as false. */
+  byIsbn?: boolean;
 }
 
 export interface IntakeItem {
@@ -42,7 +47,12 @@ export interface IntakeItem {
   ownerUserId: string | null;
   coverPath: string | null;
   titlePagePath: string | null;
-  sourceHash: string;
+  sourceHash: string | null;
+  source: IntakeSource;
+  scannedIsbn: string | null;
+  editionLabel: string | null;
+  extraCopy: boolean;
+  discardReason: DiscardReason | null;
   status: IntakeStatus;
   attempts: number;
   claimedAt: string | null;
@@ -102,7 +112,12 @@ export function toIntakeItem(row: Row): IntakeItem {
     ownerUserId: row.owner_user_id ?? null,
     coverPath: row.cover_path ?? null,
     titlePagePath: row.title_page_path ?? null,
-    sourceHash: row.source_hash,
+    sourceHash: row.source_hash ?? null,
+    source: row.source ?? "photo",
+    scannedIsbn: row.scanned_isbn ?? null,
+    editionLabel: row.edition_label ?? null,
+    extraCopy: row.extra_copy ?? false,
+    discardReason: row.discard_reason ?? null,
     status: row.status,
     attempts: row.attempts ?? 0,
     claimedAt: row.claimed_at ?? null,

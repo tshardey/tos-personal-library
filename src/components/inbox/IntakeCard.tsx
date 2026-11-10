@@ -1,6 +1,8 @@
 import { useId, useMemo, useRef, useState } from "react";
+import EditionPicker from "@/components/edition/EditionPicker";
 import { splitAuthors } from "@/lib/normalize";
 import type { ConfirmForm } from "@/lib/photo/confirm";
+import { needsLookup } from "@/lib/photo/lookup";
 import { proposeMatch, type IntakeAction } from "@/lib/photo/propose";
 import { LEASE_MS, MAX_ATTEMPTS, type IntakeErrorCode, type IntakeItem } from "@/lib/photo/types";
 import type { BookWithCopies, HouseholdMember } from "@/lib/types";
@@ -33,7 +35,7 @@ function statusLine(item: IntakeItem, now: number, lookupHidden: boolean): strin
     const stale = item.claimedAt !== null && now - new Date(item.claimedAt).getTime() > LEASE_MS;
     return stale ? "Taking longer than expected. It will be retried." : "Reading the cover…";
   }
-  if (item.status === "ready" && item.lookup === null && (item.extraction?.title ?? "").trim() !== "" && !lookupHidden) {
+  if (needsLookup(item) && !lookupHidden) {
     return "Looking it up online…";
   }
   return null;
@@ -53,25 +55,42 @@ interface Props {
   onConfirm(item: IntakeItem, action: IntakeAction, form: ConfirmForm): Promise<void>;
   onRetry(itemId: string): Promise<void>;
   onOwner(itemId: string, ownerUserId: string | null): void;
+  /** D12: the household's edition labels for the picker. */
+  labels: string[];
+  /** Saves the item's edition label as soon as it is picked. */
+  onEdition(itemId: string, label: string | null): void;
+}
+
+/** D9: what a found ISBN lookup says the book is; a not-found one (agrees false) says nothing. */
+function foundByIsbn(item: IntakeItem) {
+  const l = item.lookup;
+  return l !== null && l.byIsbn === true && l.agrees && l.title?.trim() ? l : null;
 }
 
 export default function IntakeCard(props: Props) {
   const { item, catalog, openItems, members, thumbUrl, lookupPaused } = props;
   const uid = useId();
-  const extracted = item.extraction?.title?.trim() || "";
+  const isScan = item.source === "scan";
+  const found = foundByIsbn(item);
+  // D9: what the item stands for untouched: Claude's reading, else what its scanned ISBN found.
+  const extracted = item.extraction?.title?.trim() || found?.title?.trim() || "";
+  const ownAuthors =
+    item.extraction && item.extraction.authors.length > 0 ? item.extraction.authors : (found?.authors ?? []);
   const books = useMemo(() => new Map(catalog.map((b) => [b.id, b])), [catalog]);
-  let heading = extracted || "Untitled photo";
+  // While a scan's lookup is due its lookup is null; after it, a scan with no title wasn't found.
+  const untitled = isScan ? (item.lookup === null ? "Scanned book" : "Not found online") : "Untitled photo";
+  let heading = extracted || untitled;
   if (item.status === "confirmed") {
     // The book it was added to, as the person named it; the extraction may have had no title.
-    heading = (item.resultBookId ? books.get(item.resultBookId)?.title : undefined) || extracted || "Untitled photo";
+    heading = (item.resultBookId ? books.get(item.resultBookId)?.title : undefined) || extracted || untitled;
   } else if (item.status === "discarded") {
-    heading = extracted || "Photo removed";
+    heading = extracted || (isScan ? "Scan removed" : "Photo removed");
   }
   const [choice, setChoice] = useState<IntakeAction | null>(null);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState<string | null>(null);
   const [authorsText, setAuthorsText] = useState<string | null>(null);
-  const [editionNote, setEditionNote] = useState<string | null>(null);
+  const [copyNote, setCopyNote] = useState("");
   const [location, setLocation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,15 +134,25 @@ export default function IntakeCard(props: Props) {
       <article aria-label={heading} className="flex gap-3 rounded border p-3 text-sm">
         <p className="font-medium">{heading}</p>
         <p className="text-stone-600">
-          {item.status === "confirmed" ? "Added to the library." : "Not added. The photo was removed."}
+          {item.status === "confirmed"
+            ? "Added to the library."
+            : isScan
+              ? "Not added."
+              : "Not added. The photo was removed."}
         </p>
       </article>
     );
   }
 
   const line = statusLine(item, Date.now(), lookupPaused || props.lookupFailed);
-  const thumb = thumbUrl ? (
-    <img src={thumbUrl} alt={`Photo of ${heading}`} className="h-24 w-16 shrink-0 rounded object-cover" />
+  // A scan has no photo: its thumbnail is the lookup's cover.
+  const thumbSrc = isScan ? (item.lookup?.coverUrl ?? undefined) : thumbUrl;
+  const thumb = thumbSrc ? (
+    <img
+      src={thumbSrc}
+      alt={isScan ? `Cover of ${heading}` : `Photo of ${heading}`}
+      className="h-24 w-16 shrink-0 rounded object-cover"
+    />
   ) : (
     <div aria-hidden className="h-24 w-16 shrink-0 rounded bg-stone-200" />
   );
@@ -142,11 +171,10 @@ export default function IntakeCard(props: Props) {
 
   const failed = item.status === "failed";
   const effectiveTitle = title ?? extracted;
-  const effectiveAuthors = authorsOverride ?? item.extraction?.authors ?? [];
+  const effectiveAuthors = authorsOverride ?? ownAuthors;
   const showDetails = editing || failed || proposal.needsTitle;
   const owner = item.ownerUserId;
-  const defaultNote = (item.extraction?.editionClues ?? []).join("; ");
-  const noteShown = (editionNote ?? defaultNote).trim();
+  const clues = isScan ? [] : (item.extraction?.editionClues ?? []).filter((c) => c.trim() !== "");
   const writes = chosen.kind === "add_copy" || chosen.kind === "new_book";
 
   async function submit(action: IntakeAction) {
@@ -161,7 +189,9 @@ export default function IntakeCard(props: Props) {
         authors: effectiveAuthors,
         copy: {
           ownerUserId: owner,
-          editionNote: (editionNote ?? defaultNote) || null,
+          // D12: the picked label only; Claude's clues never prefill it.
+          editionNote: item.editionLabel,
+          copyNote: copyNote.trim() || null,
           location: location || null,
         },
       });
@@ -200,15 +230,20 @@ export default function IntakeCard(props: Props) {
       <div className="mb-2 flex gap-3">
         {thumb}
         <div className="min-w-0">
-          <p className="font-medium">{extracted || "No title read"}</p>
-          {(item.extraction?.authors.length ?? 0) > 0 && (
-            <p className="text-sm text-stone-600">{item.extraction!.authors.join(", ")}</p>
-          )}
+          <p className="font-medium">{extracted || (isScan ? heading : "No title read")}</p>
+          {ownAuthors.length > 0 && <p className="text-sm text-stone-600">{ownAuthors.join(", ")}</p>}
+          {item.scannedIsbn && <p className="text-sm text-stone-600">{`Scanned ISBN ${item.scannedIsbn}`}</p>}
           {line && <p className="text-sm text-stone-600">{line}</p>}
-          {!showDetails && noteShown !== "" && (
-            <p className="text-sm text-stone-600">{`Edition note: ${noteShown}`}</p>
-          )}
+          {clues.length > 0 && <p className="text-sm text-stone-600">{`Claude saw: ${clues.join(", ")}`}</p>}
         </div>
+      </div>
+      <div className="mb-2">
+        <EditionPicker
+          value={item.editionLabel}
+          labels={props.labels}
+          disabled={busy}
+          onChange={(label) => props.onEdition(item.id, label)}
+        />
       </div>
 
       {failed && (
@@ -222,12 +257,19 @@ export default function IntakeCard(props: Props) {
         </div>
       )}
       {notABook && <p className="mb-2 text-sm">This doesn't look like a book.</p>}
-      {!failed && proposal.needsTitle && !notABook && (
+      {!failed && proposal.needsTitle && !notABook && line === null && (
         <p className="mb-2 text-sm">No title found. Type it to continue.</p>
       )}
       {proposal.ambiguous && <p className="mb-2 text-sm">More than one book matches. Check which one.</p>}
+      {proposal.isbnConflict && (
+        <p className="mb-2 text-sm">The photo and the barcode don't match. Check which book this is.</p>
+      )}
       {proposal.inBatchTwins.length > 0 && (
-        <p className="mb-2 text-sm">Another photo in this batch looks like the same book.</p>
+        <p className="mb-2 text-sm">
+          {proposal.repeatScan
+            ? "You scanned this book more than once in this session."
+            : "Another photo in this batch looks like the same book."}
+        </p>
       )}
 
       <fieldset className="mb-2">
@@ -304,19 +346,20 @@ export default function IntakeCard(props: Props) {
             </label>
             <input
               id={`${uid}-authors`}
-              value={authorsText ?? (item.extraction?.authors ?? []).join(", ")}
+              value={authorsText ?? ownAuthors.join(", ")}
               onChange={(e) => setAuthorsText(e.target.value)}
               className="w-full rounded border px-2 py-1"
             />
           </div>
           <div>
-            <label htmlFor={`${uid}-edition`} className="block">
-              Edition note
+            <label htmlFor={`${uid}-copy-note`} className="block">
+              Copy note
             </label>
-            <input
-              id={`${uid}-edition`}
-              value={editionNote ?? defaultNote}
-              onChange={(e) => setEditionNote(e.target.value)}
+            <textarea
+              id={`${uid}-copy-note`}
+              value={copyNote}
+              maxLength={2000}
+              onChange={(e) => setCopyNote(e.target.value)}
               className="w-full rounded border px-2 py-1"
             />
           </div>
@@ -372,7 +415,7 @@ export default function IntakeCard(props: Props) {
           onClick={() => void submit(DISCARD)}
           className="rounded border px-3 py-2 disabled:opacity-50"
         >
-          Discard photo
+          {isScan ? "Discard scan" : "Discard photo"}
         </button>
       </div>
     </article>

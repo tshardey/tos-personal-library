@@ -5,13 +5,15 @@ export type Route =
   | { name: "book"; id: string }
   | { name: "add" }
   | { name: "import" }
-  | { name: "inbox" };
+  | { name: "inbox" }
+  | { name: "scan" };
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, "");
   if (path === "/add") return { name: "add" };
   if (path === "/import") return { name: "import" };
   if (path === "/inbox") return { name: "inbox" };
+  if (path === "/scan") return { name: "scan" };
   const m = /^\/book\/(.+)$/.exec(path);
   if (m) {
     try {
@@ -31,6 +33,8 @@ export function routeToHash(route: Route): string {
       return "#/import";
     case "inbox":
       return "#/inbox";
+    case "scan":
+      return "#/scan";
     case "book":
       return `#/book/${encodeURIComponent(route.id)}`;
     default:

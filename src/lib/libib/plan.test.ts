@@ -25,6 +25,7 @@ function copy(over: Partial<Copy> = {}): Copy {
     bookId: "b1",
     ownerUserId: "u1",
     editionNote: null,
+    copyNote: null,
     location: null,
     origin: "libib",
     libibId: null,
