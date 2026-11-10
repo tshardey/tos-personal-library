@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { agrees, LookupError, lookupMetadata } from "./lookup";
+import type { IntakeItem } from "./types";
+import { agrees, LookupError, lookupForItem, lookupIsbn, lookupMetadata, needsLookup } from "./lookup";
 
 const reply = (body: unknown, status = 200) =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
@@ -221,5 +222,159 @@ describe("lookupMetadata", () => {
     const f2 = router({ [OL]: () => reply({ docs: [] }) });
     await lookupMetadata(Q, { fetchImpl: f2, googleBooksKey: null });
     expect(String(f2.mock.calls[0][0])).toContain("author=Ana%20Vale");
+  });
+});
+
+const ISBN = "9780000000002";
+const isbnDoc = (editionCover?: number, workCover = 7) => ({
+  key: "/works/OL1W",
+  title: "The Glass Orchard",
+  author_name: ["Ana Vale"],
+  isbn: [ISBN, "9780000000019"],
+  cover_i: workCover,
+  editions: { docs: [editionCover === undefined ? {} : { cover_i: editionCover }] },
+});
+
+describe("lookupIsbn", () => {
+  it("queries by isbn with the edition fields and prefers the edition cover", async () => {
+    const fetchImpl = router({
+      [OL]: () => reply({ docs: [isbnDoc(42)] }),
+      [WORK]: () => reply({ description: "A tale." }),
+    });
+    const r = await lookupIsbn(ISBN, { fetchImpl, googleBooksKey: null });
+    const url = String(fetchImpl.mock.calls[0][0]);
+    expect(url).toContain(`search.json?isbn=${ISBN}&limit=1&fields=`);
+    expect(url).toContain("editions,editions.cover_i");
+    expect(r.coverUrl).toBe("https://covers.openlibrary.org/b/id/42-L.jpg");
+    expect(r).toMatchObject({ source: "openlibrary", byIsbn: true, agrees: true, synopsis: "A tale." });
+    expect(r.matchIsbns).toContain(ISBN);
+  });
+
+  it("falls back to the work cover when the edition has none", async () => {
+    const fetchImpl = router({ [OL]: () => reply({ docs: [isbnDoc()] }), [WORK]: () => reply({}) });
+    const r = await lookupIsbn(ISBN, { fetchImpl, googleBooksKey: null });
+    expect(r.coverUrl).toBe("https://covers.openlibrary.org/b/id/7-L.jpg");
+  });
+
+  it("uses Google Books on an OpenLibrary miss, taking the hit that lists the ISBN", async () => {
+    const hit = (id: string, isbn: string) => ({
+      id,
+      volumeInfo: { title: `T${id}`, industryIdentifiers: [{ type: "ISBN_13", identifier: isbn }] },
+    });
+    const fetchImpl = router({
+      [OL]: () => reply({ docs: [] }),
+      [GB]: () => reply({ items: [hit("a", "9780000000019"), hit("b", ISBN)] }),
+    });
+    const r = await lookupIsbn(ISBN, { fetchImpl, googleBooksKey: "K" });
+    expect(String(fetchImpl.mock.calls[1][0])).toContain(`q=isbn:${ISBN}`);
+    expect(r).toMatchObject({ source: "google", byIsbn: true, googleBooksId: "b", title: "Tb" });
+    expect(r.matchIsbns).toContain(ISBN);
+  });
+
+  it("ignores Google hits that don't list the ISBN", async () => {
+    const fetchImpl = router({
+      [OL]: () => reply({ docs: [] }),
+      [GB]: () =>
+        reply({ items: [{ id: "a", volumeInfo: { title: "X", industryIdentifiers: [{ identifier: "9780000000019" }] } }] }),
+    });
+    const r = await lookupIsbn(ISBN, { fetchImpl, googleBooksKey: "K" });
+    expect(r.source).toBe("none");
+  });
+
+  it("gives none with no doc and no key", async () => {
+    const fetchImpl = router({ [OL]: () => reply({ docs: [] }) });
+    expect(await lookupIsbn(ISBN, { fetchImpl, googleBooksKey: null })).toMatchObject({
+      source: "none",
+      agrees: false,
+    });
+  });
+
+  it("throws a retryable LookupError on 429", async () => {
+    const fetchImpl = router({ [OL]: () => reply({}, 429) });
+    const e = await lookupIsbn(ISBN, { fetchImpl, googleBooksKey: null }).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(LookupError);
+    expect((e as LookupError).retryable).toBe(true);
+  });
+});
+
+const item = (over: Partial<IntakeItem> = {}): IntakeItem => ({
+  id: "i1",
+  householdId: "h",
+  uploadedBy: null,
+  batchId: "b",
+  ownerUserId: null,
+  coverPath: null,
+  titlePagePath: null,
+  sourceHash: null,
+  source: "scan",
+  scannedIsbn: ISBN,
+  editionLabel: null,
+  extraCopy: false,
+  discardReason: null,
+  status: "ready",
+  attempts: 0,
+  claimedAt: null,
+  retryAt: null,
+  extraction: null,
+  lookup: null,
+  errorCode: null,
+  resultBookId: null,
+  createdAt: "2026-01-01T00:00:00Z",
+  ...over,
+});
+const extraction = (title: string | null) => ({
+  isBook: true,
+  title,
+  subtitle: null,
+  authors: ["Ana Vale"],
+  editionClues: [],
+  publisher: null,
+  isbn: null,
+  confidence: "high" as const,
+});
+
+describe("lookupForItem", () => {
+  it("looks a scan up by ISBN only", async () => {
+    const fetchImpl = router({ [OL]: () => reply({ docs: [isbnDoc(42)] }), [WORK]: () => reply({}) });
+    const r = await lookupForItem(item(), { fetchImpl, googleBooksKey: null });
+    expect(r.byIsbn).toBe(true);
+    expect(fetchImpl.mock.calls.every((c) => String(c[0]).includes("isbn=") || String(c[0]).includes("/works/"))).toBe(true);
+  });
+
+  it("falls back to the title when a photo's ISBN finds nothing", async () => {
+    const fetchImpl = router({
+      [`${OL}?isbn=`]: () => reply({ docs: [] }),
+      [`${OL}?title=`]: () => reply({ docs: [doc()] }),
+      [WORK]: () => reply({}),
+    });
+    const r = await lookupForItem(
+      item({ source: "photo", extraction: extraction("The Glass Orchard") }),
+      { fetchImpl, googleBooksKey: null },
+    );
+    expect(r.source).toBe("openlibrary");
+    expect(r.byIsbn).toBeFalsy();
+  });
+
+  it("uses only the title path for a photo without a scanned ISBN", async () => {
+    const fetchImpl = router({ [`${OL}?title=`]: () => reply({ docs: [doc()] }), [WORK]: () => reply({}) });
+    await lookupForItem(
+      item({ source: "photo", scannedIsbn: null, extraction: extraction("The Glass Orchard") }),
+      { fetchImpl, googleBooksKey: null },
+    );
+    expect(fetchImpl.mock.calls.some((c) => String(c[0]).includes("isbn="))).toBe(false);
+  });
+});
+
+describe("needsLookup", () => {
+  it("is true for a ready scan without a lookup, false once set", () => {
+    expect(needsLookup(item())).toBe(true);
+    expect(
+      needsLookup(
+        item({ lookup: { source: "none", agrees: false, title: null, authors: [], matchIsbns: [], coverUrl: null, synopsis: null, pageCount: null, publishDate: null, openlibraryId: null, googleBooksId: null } }),
+      ),
+    ).toBe(false);
+  });
+  it("is false for a ready photo with a blank title and no scanned ISBN", () => {
+    expect(needsLookup(item({ source: "photo", scannedIsbn: null, extraction: extraction("  ") }))).toBe(false);
   });
 });

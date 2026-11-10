@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { coverOf, GoogleBooksError, lookupGoogleBooksIsbn, plainText, searchGoogleBooks } from "./google-books";
+import { coverOf, GoogleBooksError, lookupGoogleBooksIsbn, plainText, searchGoogleBooks, searchGoogleBooksIsbn } from "./google-books";
 
 // Synthetic, checksum-valid ISBNs: 978-0-00-000001-? style, not real books.
 const ISBN13 = "9780000000019";
@@ -156,6 +156,29 @@ describe("searchGoogleBooks", () => {
     const e = await searchGoogleBooks("x", null, KEY, fetchImpl).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(GoogleBooksError);
     expect((e as GoogleBooksError).status).toBe(429);
+    expect((e as Error).message).not.toContain(KEY);
+  });
+});
+
+describe("searchGoogleBooksIsbn", () => {
+  it("queries by isbn and maps the first hit", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      reply({ items: [{ id: "g1", volumeInfo: { title: "Glass Orchard", industryIdentifiers: [{ identifier: ISBN13 }] } }] }),
+    );
+    const hit = await searchGoogleBooksIsbn(ISBN13, KEY, fetchImpl);
+    expect(String(fetchImpl.mock.calls[0][0])).toContain(`q=isbn:${ISBN13}`);
+    expect(hit).toMatchObject({ id: "g1", title: "Glass Orchard", isbns: [ISBN13] });
+  });
+
+  it("returns null with no items", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => reply({ totalItems: 0 }));
+    expect(await searchGoogleBooksIsbn(ISBN13, KEY, fetchImpl)).toBeNull();
+  });
+
+  it("never puts the key in an error message", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => reply({}, 429));
+    const e = await searchGoogleBooksIsbn(ISBN13, KEY, fetchImpl).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(GoogleBooksError);
     expect((e as Error).message).not.toContain(KEY);
   });
 });

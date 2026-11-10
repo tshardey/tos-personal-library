@@ -1,7 +1,7 @@
-import { GoogleBooksError, plainText, searchGoogleBooks } from "../google-books";
+import { GoogleBooksError, plainText, searchGoogleBooks, searchGoogleBooksIsbn } from "../google-books";
 import { isbn10To13, normalizeIsbn10, normalizeIsbn13 } from "../libib/isbn";
 import { authorsOverlap, titleKey } from "../libib/match-keys";
-import type { LookupResult } from "./types";
+import type { IntakeItem, LookupResult } from "./types";
 import { trigramSimilarity } from "./similarity";
 
 /** A lookup that couldn't complete. The caller pauses lookups on any of these. */
@@ -124,7 +124,15 @@ interface OlDoc {
   first_publish_year?: unknown;
 }
 
-async function fromOpenLibraryDoc(d: OlDoc, title: string, fetchImpl: typeof fetch): Promise<LookupResult> {
+const coverUrlOf = (id: unknown): string | null =>
+  typeof id === "number" && id > 0 ? `https://covers.openlibrary.org/b/id/${id}-L.jpg` : null;
+
+async function fromOpenLibraryDoc(
+  d: OlDoc,
+  title: string,
+  fetchImpl: typeof fetch,
+  coverId: unknown = d.cover_i,
+): Promise<LookupResult> {
   const workKey = typeof d.key === "string" && d.key.startsWith("/works/") ? d.key : null;
   let synopsis: string | null = null;
   if (workKey !== null) {
@@ -143,7 +151,7 @@ async function fromOpenLibraryDoc(d: OlDoc, title: string, fetchImpl: typeof fet
     title,
     authors: strings(d.author_name),
     matchIsbns: matchIsbnsOf(d.isbn),
-    coverUrl: typeof d.cover_i === "number" && d.cover_i > 0 ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : null,
+    coverUrl: coverUrlOf(coverId),
     synopsis,
     pageCount: typeof d.number_of_pages_median === "number" && d.number_of_pages_median > 0 ? d.number_of_pages_median : null,
     publishDate: typeof d.first_publish_year === "number" ? String(d.first_publish_year) : null,
@@ -208,4 +216,71 @@ export async function lookupMetadata(
   }
 
   return empty(bestMiss ?? {});
+}
+
+type LookupOpts = { fetchImpl: typeof fetch; googleBooksKey: string | null };
+
+/** D7: OpenLibrary by ISBN (the matching edition's cover first), then Google Books by ISBN. */
+export async function lookupIsbn(isbn13: string, opts: LookupOpts): Promise<LookupResult> {
+  const { fetchImpl, googleBooksKey } = opts;
+  const url =
+    `https://openlibrary.org/search.json?isbn=${encodeURIComponent(isbn13)}&limit=1` +
+    "&fields=key,title,author_name,isbn,cover_i,number_of_pages_median,first_publish_year,editions,editions.cover_i";
+  const data = await getJson(url, fetchImpl);
+  const docs = Array.isArray((data as { docs?: unknown } | null)?.docs) ? (data as { docs: unknown[] }).docs : [];
+  const d = docs[0] as (OlDoc & { editions?: { docs?: unknown } }) | undefined;
+  if (d && typeof d === "object" && typeof d.title === "string") {
+    const edition = Array.isArray(d.editions?.docs) ? (d.editions.docs[0] as { cover_i?: unknown } | undefined) : undefined;
+    const editionCover = typeof edition?.cover_i === "number" && edition.cover_i > 0 ? edition.cover_i : null;
+    const r = await fromOpenLibraryDoc(d, d.title, fetchImpl, editionCover ?? d.cover_i);
+    return { ...r, matchIsbns: [...new Set([isbn13, ...r.matchIsbns])].slice(0, MAX_MATCH_ISBNS), byIsbn: true };
+  }
+
+  if (googleBooksKey !== null) {
+    let hit;
+    try {
+      hit = await searchGoogleBooksIsbn(isbn13, googleBooksKey, fetchImpl);
+    } catch (err) {
+      if (err instanceof GoogleBooksError) {
+        throw new LookupError(err.message, err.status === null || retryableStatus(err.status));
+      }
+      throw err;
+    }
+    if (hit !== null && hit.title !== null) {
+      return empty({
+        source: "google",
+        agrees: true,
+        byIsbn: true,
+        title: hit.title,
+        authors: hit.authors,
+        matchIsbns: [...new Set([isbn13, ...hit.isbns])].slice(0, MAX_MATCH_ISBNS),
+        coverUrl: hit.coverUrl,
+        synopsis: hit.synopsis,
+        pageCount: hit.pageCount,
+        publishDate: hit.publishDate,
+        googleBooksId: hit.id,
+      });
+    }
+  }
+  return empty();
+}
+
+/** D7: a scan looks up by ISBN; a photo with a scanned ISBN tries the ISBN, then the title. */
+export async function lookupForItem(item: IntakeItem, opts: LookupOpts): Promise<LookupResult> {
+  const title = item.extraction?.title?.trim() ?? "";
+  if (item.source === "scan" || item.scannedIsbn !== null) {
+    if (item.scannedIsbn !== null) {
+      const r = await lookupIsbn(item.scannedIsbn, opts);
+      if (r.source !== "none" || item.source === "scan" || title === "") return r;
+    } else {
+      return empty();
+    }
+  }
+  return lookupMetadata({ title, authors: item.extraction?.authors ?? [] }, opts);
+}
+
+/** D7: ready, not yet looked up, and there is an ISBN or a title to look up. */
+export function needsLookup(item: IntakeItem): boolean {
+  if (item.status !== "ready" || item.lookup !== null) return false;
+  return item.scannedIsbn !== null || (item.extraction?.title?.trim() ?? "") !== "";
 }
