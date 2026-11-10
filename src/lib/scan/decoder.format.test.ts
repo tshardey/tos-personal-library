@@ -32,7 +32,6 @@ describe("zxing-wasm 3.1.6 with READER_OPTIONS (D1)", () => {
     const results = await writeAndRead(isbn, "EAN13");
     expect(results).toHaveLength(1);
     const [r] = results;
-    console.info(`zxing format for ${isbn}: ${r.format}`);
     expect(r.isValid).toBe(true);
     expect(r.text).toBe(isbn);
     expect(["EAN13", "ISBN"]).toContain(r.format);
@@ -42,7 +41,6 @@ describe("zxing-wasm 3.1.6 with READER_OPTIONS (D1)", () => {
   it("reads a written UPC-A, which isbnFromBarcode rejects", async () => {
     const results = await writeAndRead("012345678905", "UPCA");
     expect(results).toHaveLength(1);
-    console.info(`zxing format for UPC-A: ${results[0].format} text ${results[0].text}`);
     expect(results[0].isValid).toBe(true);
     expect(isbnFromBarcode(results[0].text)).toEqual({ kind: "not_isbn" });
   });
