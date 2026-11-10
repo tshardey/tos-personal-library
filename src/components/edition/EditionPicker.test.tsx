@@ -66,4 +66,36 @@ describe("EditionPicker", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+  it("Enter in the filter picks instead of submitting the surrounding form", () => {
+    const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    const onChange = vi.fn();
+    render(
+      <form onSubmit={onSubmit}>
+        <EditionPicker value={null} labels={labels} onChange={onChange} />
+      </form>,
+    );
+    open();
+    const field = screen.getByLabelText("Filter editions");
+    fireEvent.change(field, { target: { value: "Fresh Box" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(onChange).toHaveBeenLastCalledWith("Fresh Box");
+    open();
+    fireEvent.change(screen.getByLabelText("Filter editions"), { target: { value: "other" } });
+    fireEvent.keyDown(screen.getByLabelText("Filter editions"), { key: "Enter" });
+    expect(onChange).toHaveBeenLastCalledWith("Other Box");
+    open();
+    fireEvent.change(screen.getByLabelText("Filter editions"), { target: { value: "  " } });
+    fireEvent.keyDown(screen.getByLabelText("Filter editions"), { key: "Enter" });
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+  it("returns focus to the trigger after Escape and after a pick", () => {
+    setup();
+    open();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.getByRole("button", { name: /^Edition:/ })).toHaveFocus();
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Other Box" }));
+    expect(screen.getByRole("button", { name: /^Edition:/ })).toHaveFocus();
+  });
 });

@@ -14,6 +14,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const filterRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open) filterRef.current?.focus();
@@ -22,6 +23,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
   function close() {
     setOpen(false);
     setTyped("");
+    triggerRef.current?.focus();
   }
   function pick(next: string | null) {
     onChange(next);
@@ -40,6 +42,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
@@ -67,6 +70,14 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
               value={typed}
               maxLength={MAX_LABEL}
               onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                const exact = labels.find((l) => l.toLowerCase() === needle);
+                if (exact) pick(exact);
+                else if (shown.length === 1) pick(shown[0]);
+                else if (showAdd) pick(canonical);
+              }}
               aria-label="Filter editions"
               placeholder="Filter or add an edition"
               className="mb-2 block w-full rounded border p-2"
