@@ -89,6 +89,9 @@ const CAMERA_TEXT: Record<CameraErrorCode | "decoder", string> = {
 
 const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
 const isOnline = () => typeof navigator === "undefined" || navigator.onLine !== false;
+/** How long after the page is back in front a picker with no `change` counts as closed. */
+const PHOTO_RETURN_MS = 1000;
+
 const isVisible = () => typeof document === "undefined" || document.visibilityState !== "hidden";
 
 function loadOwner(storage: Storage, members: HouseholdMember[], fallback: string): string {
@@ -349,7 +352,9 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
 
   // ---------------------------------------------------------------- camera lifecycle (D11)
 
-  const cameraWanted = running && visible && !idle && prompt === null && !photoOpen && cameraError === null;
+  // The Type ISBN sheet stops the camera too: no decoding behind it, and no prompt hidden under it.
+  const cameraWanted =
+    running && visible && !idle && prompt === null && !photoOpen && !typing && cameraError === null;
 
   useEffect(() => {
     if (!cameraWanted) return;
@@ -523,6 +528,28 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
     photoInputRef.current?.click();
   };
 
+  /**
+   * Some pickers fire neither `change` nor `cancel`. Once the page is back in front with no file,
+   * the picker is gone, so the camera comes back. Waits a moment first: `focus` can land before
+   * a real `change`, which still uploads (photoFor is kept).
+   */
+  useEffect(() => {
+    if (!photoOpen) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const back = () => {
+      if (!isVisible()) return;
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => setPhotoOpen(false), PHOTO_RETURN_MS);
+    };
+    document.addEventListener("visibilitychange", back);
+    window.addEventListener("focus", back);
+    return () => {
+      document.removeEventListener("visibilitychange", back);
+      window.removeEventListener("focus", back);
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [photoOpen]);
+
   const onPhotoPicked = (file: File | undefined) => {
     setPhotoOpen(false);
     lastActivity.current = d.now();
@@ -645,6 +672,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
     lastActivity.current = d.now();
     setCameraError(null);
     setIdle(false);
+    setPhotoOpen(false);
   };
 
   const done = () => {
@@ -821,6 +849,14 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         {idle && cameraError === null && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-white">
             <p>Camera paused to save battery.</p>
+            <button type="button" onClick={resume} className="rounded bg-white px-3 py-2 text-stone-900">
+              Resume camera
+            </button>
+          </div>
+        )}
+        {photoOpen && !idle && cameraError === null && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-white">
+            <p>Camera paused for the photo.</p>
             <button type="button" onClick={resume} className="rounded bg-white px-3 py-2 text-stone-900">
               Resume camera
             </button>

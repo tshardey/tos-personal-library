@@ -528,6 +528,52 @@ describe("ScanPage", () => {
     expect(up.runUploadBatch).not.toHaveBeenCalled();
   });
 
+  it("offers Resume camera while the photo picker is open, and restarts on tap", async () => {
+    await startScanning();
+    vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    fireEvent.click(screen.getByRole("button", { name: "Take a photo" }));
+    expect(cam.handles[0].stop).toHaveBeenCalled();
+    await advance(0);
+    expect(deps.startCamera).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Resume camera" }));
+    await advance(0);
+    expect(deps.startCamera).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: "Resume camera" })).toBeNull();
+  });
+
+  it("restarts the camera when the page is back in front and the picker sent nothing", async () => {
+    await startScanning();
+    vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    fireEvent.click(screen.getByRole("button", { name: "Take a photo" }));
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await advance(500);
+    expect(deps.startCamera).toHaveBeenCalledTimes(1);
+    await advance(600);
+    expect(deps.startCamera).toHaveBeenCalledTimes(2);
+    expect(up.runUploadBatch).not.toHaveBeenCalled();
+
+    // A late change still uploads the photo.
+    fireEvent.change(screen.getByLabelText("Book photo"), {
+      target: { files: [new File(["x"], "shot.jpg", { type: "image/jpeg" })] },
+    });
+    await advance(0);
+    expect(up.runUploadBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the camera while the Type ISBN sheet is open and restarts it after", async () => {
+    await startScanning();
+    fireEvent.click(screen.getByRole("button", { name: "Type ISBN" }));
+    await advance(0);
+    expect(cam.handles[0].stop).toHaveBeenCalled();
+    expect(deps.startCamera).toHaveBeenCalledTimes(1);
+    const sheet = screen.getByRole("dialog", { name: "Type ISBN" });
+    fireEvent.click(within(sheet).getByRole("button", { name: /cancel|close/i }));
+    await advance(0);
+    expect(deps.startCamera).toHaveBeenCalledTimes(2);
+  });
+
   describe("replaced scans stay gone (I4)", () => {
     const resume = () =>
       localStorage.setItem(
