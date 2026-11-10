@@ -427,6 +427,21 @@ describe("ScanPage", () => {
     expect(screen.queryByText(OFFLINE)).toBeNull();
   });
 
+  it("says when online lookups are paused, and Retry starts them again (D6)", async () => {
+    const { LookupError } = await import("@/lib/photo/lookup");
+    look.lookupForItem.mockRejectedValueOnce(new LookupError("OpenLibrary answered 429", true));
+    await startScanning();
+    await feed(A);
+    const paused = await screen.findByText("Online lookup paused. It will retry.");
+    expect(within(rowFor(A)).getByText("Looking up…")).toBeInTheDocument();
+    expect(look.lookupForItem).toHaveBeenCalledTimes(1);
+
+    look.lookupForItem.mockResolvedValueOnce({ ...NOT_FOUND, source: "openlibrary", agrees: true, title: "Invented Title" });
+    fireEvent.click(within(paused.parentElement as HTMLElement).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(within(rowFor(A)).getByText("Invented Title")).toBeInTheDocument());
+    expect(screen.queryByText("Online lookup paused. It will retry.")).toBeNull();
+  });
+
   it("restores the session after a reload: items, unsent scans, edition and owner", async () => {
     h.books = [book()];
     repo.createScanItem.mockImplementation(async (args: { id: string; batchId: string; isbn: string }) => {

@@ -709,6 +709,16 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
     />
   );
 
+  // D6: a rate limit or a dropped network pauses lookups; rows would otherwise sit at "Looking up…".
+  const lookupPausedBanner = intake.lookupPaused && (
+    <div className="mb-3 flex items-center gap-2 rounded border p-2 text-sm">
+      <span>Online lookup paused. It will retry.</span>
+      <button type="button" onClick={intake.resumeLookups} className="rounded border px-2 py-1">
+        Retry
+      </button>
+    </div>
+  );
+
   const list = (
     <ScanList
       rows={rows}
@@ -761,6 +771,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
           Start scanning
         </button>
         {photoInput}
+        {lookupPausedBanner}
         {list}
       </div>
     );
@@ -860,6 +871,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
           </button>
         </div>
         {photoInput}
+        {lookupPausedBanner}
         {list}
       </div>
 
