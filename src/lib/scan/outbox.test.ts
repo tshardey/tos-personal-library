@@ -9,6 +9,7 @@ import {
   outboxKey,
   readOutbox,
   removeOutboxEntry,
+  resetOutboxMemory,
   scansToHeal,
   type OutboxEntry,
 } from "./outbox";
@@ -54,7 +55,10 @@ function deps(create: (a: ScanItemArgs) => Promise<"created" | "exists">, over: 
   return { d, sleeps, saved, rejected };
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  resetOutboxMemory();
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe("outbox storage", () => {
@@ -74,15 +78,40 @@ describe("outbox storage", () => {
     expect(readOutbox(H)).toEqual([a, { ...c, failed: "rejected" }]);
   });
 
-  it("degrades to not remembered when storage throws", () => {
+  it("keeps entries in memory when storage throws, and never throws", () => {
     const boom = () => {
       throw new Error("blocked");
     };
     vi.stubGlobal("localStorage", { getItem: boom, setItem: boom, removeItem: boom });
-    expect(() => appendOutbox(entry())).not.toThrow();
-    expect(readOutbox(H)).toEqual([]);
-    expect(() => removeOutboxEntry(H, "x")).not.toThrow();
-    expect(() => markOutboxRejected(H, "x")).not.toThrow();
+    const [a, b] = [entry(), entry()];
+    expect(() => appendOutbox(a)).not.toThrow();
+    expect(() => appendOutbox(b)).not.toThrow();
+    expect(readOutbox(H)).toEqual([a, b]);
+    expect(() => removeOutboxEntry(H, a.id)).not.toThrow();
+    expect(() => markOutboxRejected(H, b.id)).not.toThrow();
+    expect(readOutbox(H)).toEqual([{ ...b, failed: "rejected" }]);
+  });
+
+  it("keeps entries in memory when only writes fail (quota exceeded)", () => {
+    const e = entry();
+    const real = localStorage;
+    const getItem = (k: string) => real.getItem(k);
+    vi.stubGlobal("localStorage", {
+      getItem,
+      setItem: () => {
+        throw new Error("QuotaExceededError");
+      },
+      removeItem: () => {},
+    });
+    appendOutbox(e);
+    expect(readOutbox(H)).toEqual([e]);
+  });
+
+  it("hydrates from storage after a reload", () => {
+    const e = entry();
+    appendOutbox(e);
+    resetOutboxMemory();
+    expect(readOutbox(H)).toEqual([e]);
   });
 
   it("reads malformed storage as empty", () => {
@@ -102,6 +131,48 @@ describe("isRejection (D6)", () => {
     expect(isRejection(new ScanSaveError(null, 429))).toBe(false);
     expect(isRejection(new ScanSaveError(null, 503))).toBe(false);
     expect(isRejection(new ScanSaveError(null, null))).toBe(false);
+  });
+
+  it("retries an expired or missing session: 401 and PGRST30x", () => {
+    expect(isRejection(new ScanSaveError(null, 401))).toBe(false);
+    expect(isRejection(new ScanSaveError("PGRST301", 401))).toBe(false);
+    expect(isRejection(new ScanSaveError("PGRST303", 401))).toBe(false);
+    expect(isRejection(new ScanSaveError("PGRST302", 400))).toBe(false);
+    expect(isRejection(new ScanSaveError(null, 403))).toBe(true);
+  });
+});
+
+describe("flushOutbox with storage blocked", () => {
+  const blockStorage = () => {
+    const boom = () => {
+      throw new Error("blocked");
+    };
+    vi.stubGlobal("localStorage", { getItem: boom, setItem: boom, removeItem: boom });
+  };
+
+  it("sends an entry held only in memory, then removes it", async () => {
+    blockStorage();
+    const e = entry();
+    appendOutbox(e);
+    const { d, saved } = deps(async () => "created");
+    await flushOutbox(H, d);
+    expect(d.create).toHaveBeenCalledWith(expect.objectContaining({ id: e.id, isbn: e.isbn }));
+    expect(saved).toEqual([e.id]);
+    expect(readOutbox(H)).toEqual([]);
+  });
+
+  it("marks a rejected entry in memory and does not retry it", async () => {
+    blockStorage();
+    const e = entry();
+    appendOutbox(e);
+    const { d, rejected, sleeps } = deps(async () => {
+      throw new ScanSaveError("22023", 400);
+    });
+    await flushOutbox(H, d);
+    expect(d.create).toHaveBeenCalledTimes(1);
+    expect(sleeps).toEqual([]);
+    expect(rejected).toEqual([e.id]);
+    expect(readOutbox(H)).toEqual([{ ...e, failed: "rejected" }]);
   });
 });
 
@@ -319,6 +390,7 @@ describe("flushOutbox (Review Focus 2)", () => {
     const rejecting = [new ScanSaveError("23514", 400), new ScanSaveError("22P02", 400), new ScanSaveError(null, 404)];
     for (const err of rejecting) {
       localStorage.clear();
+      resetOutboxMemory();
       const e = entry();
       appendOutbox(e);
       const { d, rejected } = deps(async () => {
@@ -331,6 +403,7 @@ describe("flushOutbox (Review Focus 2)", () => {
     }
     for (const err of [new ScanSaveError(null, 429), new ScanSaveError(null, 503), new ScanSaveError(null, null)]) {
       localStorage.clear();
+      resetOutboxMemory();
       const e = entry();
       appendOutbox(e);
       let calls = 0;

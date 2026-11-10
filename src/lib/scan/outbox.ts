@@ -11,36 +11,68 @@ export function outboxKey(householdId: string): string {
   return `tpl_scan_outbox_${householdId}`;
 }
 
-export function readOutbox(householdId: string): OutboxEntry[] {
+/**
+ * The tab's own copy of each household's outbox. localStorage is best-effort persistence: when a
+ * write fails (storage blocked, quota exceeded) the entries still live here, so a scan is still
+ * sent and shown while the tab lives. `inSync` is false while storage lags behind memory.
+ */
+const memory = new Map<string, { entries: OutboxEntry[]; inSync: boolean }>();
+
+/** Tests only: forgets every in-memory outbox. */
+export function resetOutboxMemory(): void {
+  memory.clear();
+}
+
+function readStorage(householdId: string): OutboxEntry[] {
+  const raw = localStorage.getItem(outboxKey(householdId));
+  if (raw === null) return [];
+  let v: unknown;
   try {
-    const raw = localStorage.getItem(outboxKey(householdId));
-    if (raw === null) return [];
-    const v: unknown = JSON.parse(raw);
-    if (!Array.isArray(v)) return [];
-    return v.filter(
-      (e): e is OutboxEntry =>
-        typeof e === "object" && e !== null && typeof e.id === "string" && typeof e.isbn === "string",
-    );
+    v = JSON.parse(raw);
   } catch {
     return [];
+  }
+  if (!Array.isArray(v)) return [];
+  return v.filter(
+    (e): e is OutboxEntry =>
+      typeof e === "object" && e !== null && typeof e.id === "string" && typeof e.isbn === "string",
+  );
+}
+
+/**
+ * Memory while storage lags behind it; otherwise storage (which also hydrates memory after a
+ * reload, and picks up another tab's writes). Never throws.
+ */
+export function readOutbox(householdId: string): OutboxEntry[] {
+  const mem = memory.get(householdId);
+  if (mem && !mem.inSync) return [...mem.entries];
+  try {
+    const entries = readStorage(householdId);
+    memory.set(householdId, { entries, inSync: true });
+    return [...entries];
+  } catch {
+    return mem ? [...mem.entries] : [];
   }
 }
 
 function writeOutbox(householdId: string, entries: OutboxEntry[]): void {
+  let inSync = false;
   try {
     const key = outboxKey(householdId);
     if (entries.length === 0) localStorage.removeItem(key);
     else localStorage.setItem(key, JSON.stringify(entries));
+    inSync = true;
   } catch {
-    // Not remembered: the scan still saves while the tab lives, through the caller's own state.
+    // Not persisted: memory keeps the entries, so they are still sent and shown while the tab lives.
   }
+  memory.set(householdId, { entries, inSync });
 }
 
 export function appendOutbox(entry: OutboxEntry): void {
   writeOutbox(entry.householdId, [...readOutbox(entry.householdId), entry]);
 }
 
-/** Re-reads storage, so an entry appended since the caller last read is never dropped. */
+/** Re-reads the outbox, so an entry appended since the caller last read is never dropped. */
 export function removeOutboxEntry(householdId: string, id: string): void {
   writeOutbox(
     householdId,
@@ -57,11 +89,15 @@ export function markOutboxRejected(householdId: string, id: string): void {
 
 const REJECTED_CODES = new Set(["42501", "22023", "23514", "22P02"]);
 
-/** D6: errors that won't fix themselves. 408, 429, 5xx and network errors are retried. */
+/**
+ * D6: errors that won't fix themselves. 408, 429, 5xx and network errors are retried, and so are
+ * 401 and PostgREST's PGRST30x JWT errors: an expired session heals once the token refreshes.
+ */
 export function isRejection(err: Pick<ScanSaveError, "code" | "status">): boolean {
+  if (err.code !== null && err.code.startsWith("PGRST30")) return false;
   if (err.code !== null && REJECTED_CODES.has(err.code)) return true;
   const s = err.status;
-  return s !== null && s >= 400 && s <= 499 && s !== 408 && s !== 429;
+  return s !== null && s >= 400 && s <= 499 && s !== 401 && s !== 408 && s !== 429;
 }
 
 export interface FlushDeps {
