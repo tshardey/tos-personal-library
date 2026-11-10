@@ -8,6 +8,7 @@ import { performConfirm, runBulkConfirm, type ConfirmForm } from "@/lib/photo/co
 import { drainIntake, type DrainStop } from "@/lib/photo/drain";
 import {
   confirmItem,
+  createScanItem,
   discardItem,
   listIntakeItems,
   processItem,
@@ -23,6 +24,7 @@ import { LookupError, lookupForItem, needsLookup } from "@/lib/photo/lookup";
 import type { IntakeAction } from "@/lib/photo/propose";
 import type { IntakeItem } from "@/lib/photo/types";
 import type { BookWithCopies } from "@/lib/types";
+import { appendOutbox, flushOutbox, isRejection, readOutbox, type OutboxEntry } from "@/lib/scan/outbox";
 
 export const POLL_MS = 10_000;
 /** D6: a paused lookup queue starts again by itself after this long. */
@@ -31,6 +33,43 @@ const ACTIVE = new Set(["pending", "processing"]);
 const OPEN = new Set(["pending", "processing", "ready", "failed"]);
 
 const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
+const browserOnline = () => typeof navigator === "undefined" || navigator.onLine !== false;
+const sleepMs = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Outbox entries a flush has sent, by id. Module-level on purpose: a flush joined by another
+ * caller hands `onSaved` to that caller's deps (latest wins), so every caller must be able to
+ * turn any saved id back into its scan.
+ */
+const sentScans = new Map<string, OutboxEntry>();
+
+/** D6: what create_scan_item has just stored, as the item a reload would bring back. */
+export function scanItemFromEntry(e: OutboxEntry): IntakeItem {
+  return {
+    id: e.id,
+    householdId: e.householdId,
+    uploadedBy: null,
+    batchId: e.batchId,
+    ownerUserId: e.ownerUserId,
+    coverPath: null,
+    titlePagePath: null,
+    sourceHash: null,
+    source: "scan",
+    scannedIsbn: e.isbn,
+    editionLabel: e.editionLabel,
+    extraCopy: e.extraCopy,
+    discardReason: null,
+    status: "ready",
+    attempts: 0,
+    claimedAt: null,
+    retryAt: null,
+    extraction: null,
+    lookup: null,
+    errorCode: null,
+    resultBookId: null,
+    createdAt: e.createdAt,
+  };
+}
 const browserFetch: typeof fetch = (...args) => fetch(...args);
 
 export interface IntakeState {
@@ -60,6 +99,14 @@ export interface IntakeState {
   setEdition(itemId: string, label: string | null): void;
   /** Adds or replaces an item without a reload (the scanner's newly created scans). */
   upsertLocal(item: IntakeItem): void;
+  /** D6: this household's scan outbox (unsent and rejected entries), as last read. */
+  scanOutbox: OutboxEntry[];
+  /** The last scan save failed in a way that retries (network, 5xx, 408, 429). */
+  scanSaveFailing: boolean;
+  /** Writes the scan to the outbox before any network call, then flushes. */
+  queueScan(entry: OutboxEntry): void;
+  /** Sends the outbox now; a backoff wait in progress is cut short. */
+  flushScans(): void;
   confirm(item: IntakeItem, action: IntakeAction, form: ConfirmForm): Promise<void>;
   bulkConfirm(itemIds: string[]): Promise<{ confirmed: number; skipped: number }>;
 }
@@ -81,6 +128,11 @@ export function useIntake(): IntakeState {
   const [lookupPausedUntil, setLookupPausedUntil] = useState<number | null>(null);
   const [inFlightCount, setInFlightCount] = useState(0);
   const [thumbs, setThumbs] = useState<Map<string, string>>(new Map());
+  const [scanOutbox, setScanOutbox] = useState<OutboxEntry[]>(() => (householdId ? readOutbox(householdId) : []));
+  const [scanSaveFailing, setScanSaveFailing] = useState(false);
+  const flushCtl = useRef<AbortController | null>(null);
+  /** Scans saved this session that a read may not include yet (it started before the save). */
+  const savedScans = useRef(new Map<string, IntakeItem>());
 
   const itemsRef = useRef<IntakeItem[]>([]);
   const catalogRef = useRef<BookWithCopies[]>([]);
@@ -131,6 +183,20 @@ export function useIntake(): IntakeState {
     itemsRef.current = next;
     setItemsState(next);
   }, []);
+  /** A server read, plus any scan saved after that read began; the read wins once it has it. */
+  const setLoadedItems = useCallback(
+    (loaded: IntakeItem[]) => {
+      const ids = new Set(loaded.map((i) => i.id));
+      const missing: IntakeItem[] = [];
+      for (const [id, item] of savedScans.current) {
+        if (ids.has(id)) savedScans.current.delete(id);
+        // The on-screen copy may have its lookup by now.
+        else missing.push(itemsRef.current.find((i) => i.id === id) ?? item);
+      }
+      setItems(missing.length === 0 ? loaded : [...loaded, ...missing]);
+    },
+    [setItems],
+  );
   const patchItem = useCallback(
     (id: string, patch: Partial<IntakeItem>) =>
       setItems(itemsRef.current.map((i) => (i.id === id ? { ...i, ...patch } : i))),
@@ -149,7 +215,7 @@ export function useIntake(): IntakeState {
       const [nextItems, nextCatalog] = await Promise.all([listIntakeItems(householdId), listBooks(householdId)]);
       catalogRef.current = nextCatalog;
       setCatalogState(nextCatalog);
-      setItems(nextItems);
+      setLoadedItems(nextItems);
       loadedOnce.current = true;
       markStale(false);
       setStatus("ready");
@@ -157,19 +223,19 @@ export function useIntake(): IntakeState {
       onReadFailure(e);
       throw e;
     }
-  }, [householdId, setItems, markStale, onReadFailure]);
+  }, [householdId, setLoadedItems, markStale, onReadFailure]);
 
   /** Items only. While stale, a full load instead, so the catalog heals too. */
   const loadItems = useCallback(async () => {
     if (!householdId) return;
     if (staleRef.current) return load();
     try {
-      setItems(await listIntakeItems(householdId));
+      setLoadedItems(await listIntakeItems(householdId));
     } catch (e) {
       onReadFailure(e);
       throw e;
     }
-  }, [householdId, setItems, load, onReadFailure]);
+  }, [householdId, setLoadedItems, load, onReadFailure]);
 
   const onOutcome = useCallback(
     (_id: string, outcome: ProcessOutcome | "error") => {
@@ -384,6 +450,81 @@ export function useIntake(): IntakeState {
     [setItems],
   );
 
+  const refreshOutbox = useCallback(() => {
+    if (householdId && mounted.current) setScanOutbox(readOutbox(householdId));
+  }, [householdId]);
+
+  /**
+   * D6. Each call aborts this hook's previous flush deps (cutting a backoff wait short) and joins or
+   * starts the household's single flight. Either this hook's deps or another caller's may end up
+   * running any entry; both end in the same upsert of a ready scan item.
+   */
+  const flushScans = useCallback(() => {
+    if (!householdId) return;
+    const hh = householdId;
+    flushCtl.current?.abort();
+    const ctl = new AbortController();
+    flushCtl.current = ctl;
+    void flushOutbox(hh, {
+      create: async (args) => {
+        const entry = readOutbox(hh).find((e) => e.id === args.id);
+        if (entry) sentScans.set(args.id, entry);
+        try {
+          const result = await createScanItem(args);
+          if (mounted.current) setScanSaveFailing(false);
+          return result;
+        } catch (e) {
+          const err = (e ?? {}) as { code?: string | null; status?: number | null };
+          if (mounted.current && !isRejection({ code: err.code ?? null, status: err.status ?? null })) {
+            setScanSaveFailing(true);
+          }
+          throw e;
+        }
+      },
+      sleep: sleepMs,
+      online: browserOnline,
+      onSaved: (id) => {
+        const entry = sentScans.get(id);
+        sentScans.delete(id);
+        refreshOutbox();
+        if (!entry || !mounted.current) return;
+        // A resend that answers "exists" may find the item already loaded, lookup and all.
+        if (itemsRef.current.some((i) => i.id === id)) return;
+        const item = scanItemFromEntry(entry);
+        savedScans.current.set(id, item);
+        upsertLocal(item);
+      },
+      onRejected: (id) => {
+        sentScans.delete(id);
+        refreshOutbox();
+      },
+      signal: ctl.signal,
+    }).catch((e) => console.error("Scan upload stopped", errName(e)));
+  }, [householdId, refreshOutbox, upsertLocal]);
+
+  const queueScan = useCallback(
+    (entry: OutboxEntry) => {
+      appendOutbox(entry);
+      refreshOutbox();
+      flushScans();
+    },
+    [refreshOutbox, flushScans],
+  );
+
+  // D6: on mount, scans left by an offline Done upload; and again whenever the network is back.
+  useEffect(() => {
+    if (!householdId) return;
+    refreshOutbox();
+    flushScans();
+    const onOnline = () => flushScans();
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      flushCtl.current?.abort();
+      flushCtl.current = null;
+    };
+  }, [householdId, refreshOutbox, flushScans]);
+
   const enrich = useCallback(
     (books: BookWithCopies[]) => {
       const ids = new Set(books.map((b) => b.id));
@@ -483,6 +624,10 @@ export function useIntake(): IntakeState {
     setOwner,
     setEdition,
     upsertLocal,
+    scanOutbox,
+    scanSaveFailing,
+    queueScan,
+    flushScans,
     confirm,
     bulkConfirm,
   };

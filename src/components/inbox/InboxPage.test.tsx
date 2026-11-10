@@ -24,6 +24,7 @@ const repo = vi.hoisted(() => ({
   uploadPhoto: vi.fn(),
   createIntakeItem: vi.fn(),
   setItemEdition: vi.fn(),
+  createScanItem: vi.fn(),
 }));
 const lib = vi.hoisted(() => ({ listBooks: vi.fn(), patchBook: vi.fn() }));
 const photo = vi.hoisted(() => ({
@@ -928,5 +929,49 @@ describe("InboxPage", () => {
       render(<InboxPage />);
       expect(await screen.findByRole("link", { name: "Scan barcodes" })).toHaveAttribute("href", "#/scan");
     });
+  });
+});
+
+describe("scans saved on this phone (D6, D10)", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const outbox = (ids: string[]) =>
+    localStorage.setItem(
+      "tpl_scan_outbox_h1",
+      JSON.stringify(
+        ids.map((id, n) => ({
+          id,
+          householdId: "h1",
+          batchId: "batch-s",
+          ownerUserId: "u1",
+          isbn: "9780000000002",
+          editionLabel: null,
+          extraCopy: false,
+          createdAt: `2026-11-10T09:00:0${n}.000Z`,
+        })),
+      ),
+    );
+
+  it("says how many scans wait on this phone while offline", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    outbox(["scan-1", "scan-2"]);
+    render(<InboxPage />);
+    expect(
+      await screen.findByText("2 scans are saved on this phone and will upload when you're online."),
+    ).toBeInTheDocument();
+    expect(repo.createScanItem).not.toHaveBeenCalled();
+  });
+
+  it("uploads them on mount and shows each as a ready scan", async () => {
+    outbox(["scan-1"]);
+    repo.createScanItem.mockResolvedValue("created");
+    photo.lookupIsbn.mockImplementation(() => new Promise(() => {}));
+    render(<InboxPage />);
+    await waitFor(() => expect(repo.createScanItem).toHaveBeenCalledTimes(1));
+    expect(repo.createScanItem.mock.calls[0][0]).toMatchObject({ id: "scan-1", isbn: "9780000000002" });
+    await waitFor(() => expect(localStorage.getItem("tpl_scan_outbox_h1")).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByText(/saved on this phone and will upload/)).toBeNull(),
+    );
+    expect(screen.queryByText("No photos yet.")).toBeNull();
   });
 });

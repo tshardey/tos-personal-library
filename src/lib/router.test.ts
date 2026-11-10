@@ -25,3 +25,11 @@ describe("parseHash", () => {
     expect(parseHash(routeToHash({ name: "inbox" }))).toEqual({ name: "inbox" });
   });
 });
+
+describe("scan route", () => {
+  it("parses scan and round-trips it", () => {
+    expect(parseHash("#/scan")).toEqual({ name: "scan" });
+    expect(routeToHash({ name: "scan" })).toBe("#/scan");
+    expect(parseHash(routeToHash({ name: "scan" }))).toEqual({ name: "scan" });
+  });
+});

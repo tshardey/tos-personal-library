@@ -110,6 +110,8 @@ export default function InboxPage() {
   // After a later failed read the page stays (uploads keep going), but nothing is confirmed
   // against data that may be stale: a failed read must never look like "no matches".
   const { stale } = intake;
+  // D10: scans left by an offline Done; useIntake sends them (D6) and this line goes.
+  const savedScans = intake.scanOutbox.filter((e) => !e.failed).length;
 
   async function runBulk(ids: string[]) {
     setBulkBusy(true);
@@ -167,6 +169,13 @@ export default function InboxPage() {
         labels={intake.labels}
       />
 
+      {savedScans > 0 && (
+        <p role="status" className="mb-3 rounded border p-2 text-sm">
+          {savedScans === 1
+            ? "1 scan is saved on this phone and will upload when you're online."
+            : `${savedScans} scans are saved on this phone and will upload when you're online.`}
+        </p>
+      )}
       {stale && (
         <div role="alert" className="mb-3 flex items-center gap-2 rounded border border-red-300 bg-red-50 p-2 text-sm">
           <span className="text-red-700">Couldn't reach the photo inbox.</span>
