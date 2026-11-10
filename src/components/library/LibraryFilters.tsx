@@ -4,12 +4,15 @@ import type { HouseholdMember } from "@/lib/types";
 interface Props {
   query: string;
   owner: OwnerFilter;
+  edition: string | null;
+  labels: string[];
   members: HouseholdMember[];
   onQuery(q: string): void;
   onOwner(o: OwnerFilter): void;
+  onEdition(e: string | null): void;
 }
 
-export default function LibraryFilters({ query, owner, members, onQuery, onOwner }: Props) {
+export default function LibraryFilters({ query, owner, edition, labels, members, onQuery, onOwner, onEdition }: Props) {
   const chips: { value: OwnerFilter; label: string }[] = [
     { value: "all", label: "All" },
     { value: "shared", label: "Shared" },
@@ -25,6 +28,21 @@ export default function LibraryFilters({ query, owner, members, onQuery, onOwner
         aria-label="Search books"
         className="w-full rounded border px-3 py-2"
       />
+      {labels.length > 0 && (
+        <select
+          aria-label="Edition"
+          value={edition ?? ""}
+          onChange={(e) => onEdition(e.target.value === "" ? null : e.target.value)}
+          className="w-full rounded border px-3 py-2"
+        >
+          <option value="">All editions</option>
+          {labels.map((l) => (
+            <option key={l} value={l}>
+              {l}
+            </option>
+          ))}
+        </select>
+      )}
       <div className="flex gap-2 overflow-x-auto">
         {chips.map((c) => (
           <button

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
+import { editionLabels } from "@/lib/editions";
 import { useCatalog } from "@/hooks/useCatalog";
 import { createBook } from "@/lib/library-repo";
 import { navigate } from "@/lib/router";
@@ -24,7 +25,7 @@ const EMPTY: BookInput = {
 export default function AddBook() {
   const { household, members } = useHousehold();
   const { user } = useAuth();
-  const { reload } = useCatalog();
+  const { books, reload } = useCatalog();
   const [book, setBook] = useState<BookInput | null>(null);
   if (!household) return null;
   const householdId = household.id;
@@ -45,6 +46,7 @@ export default function AddBook() {
           <CopyForm
             initial={{ ownerUserId: user?.id ?? null, editionNote: null, copyNote: null, location: null }}
             members={members}
+            labels={editionLabels(books, [])}
             submitLabel="Add book"
             onSubmit={async (copy) => {
               const created = await createBook(householdId, book, copy);

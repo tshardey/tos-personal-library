@@ -1,22 +1,26 @@
 import { useState } from "react";
 import type { CopyInput, HouseholdMember } from "@/lib/types";
 import { normalizeCopyInput } from "@/lib/normalize";
+import EditionPicker from "@/components/edition/EditionPicker";
 
 export default function CopyForm({
   initial,
   members,
+  labels,
   submitLabel,
   onSubmit,
   onCancel,
 }: {
   initial: CopyInput;
   members: HouseholdMember[];
+  labels: string[];
   submitLabel: string;
   onSubmit(value: CopyInput): Promise<void>;
   onCancel?(): void;
 }) {
   const [owner, setOwner] = useState(initial.ownerUserId ?? "");
-  const [editionNote, setEditionNote] = useState(initial.editionNote ?? "");
+  const [editionNote, setEditionNote] = useState<string | null>(initial.editionNote);
+  const [copyNote, setCopyNote] = useState(initial.copyNote ?? "");
   const [location, setLocation] = useState(initial.location ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +30,7 @@ export default function CopyForm({
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(normalizeCopyInput({ ownerUserId: owner, editionNote, copyNote: initial.copyNote, location }));
+      await onSubmit(normalizeCopyInput({ ownerUserId: owner, editionNote, copyNote, location }));
     } catch (err) {
       console.error("Failed to save copy", err);
       setError("Couldn't save the copy.");
@@ -49,9 +53,16 @@ export default function CopyForm({
           ))}
         </select>
       </label>
+      <EditionPicker value={editionNote} labels={labels} onChange={setEditionNote} />
       <label className="block text-sm">
-        Edition note
-        <input value={editionNote} onChange={(e) => setEditionNote(e.target.value)} className={input} />
+        Copy note
+        <textarea
+          value={copyNote}
+          onChange={(e) => setCopyNote(e.target.value)}
+          placeholder="Sprayed edges, signed, damage…"
+          rows={2}
+          className={input}
+        />
       </label>
       <label className="block text-sm">
         Location

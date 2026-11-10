@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
+import { editionLabels } from "@/lib/editions";
 import { filterBooks, type OwnerFilter } from "@/lib/filter-books";
 import { navigate } from "@/lib/router";
 import CoverWall from "./CoverWall";
@@ -11,7 +12,12 @@ export default function LibraryPage() {
   const { books, loading, error, reload } = useCatalog();
   const [query, setQuery] = useState("");
   const [owner, setOwner] = useState<OwnerFilter>("all");
-  const visible = useMemo(() => filterBooks(books, { query, owner }), [books, query, owner]);
+  const [edition, setEdition] = useState<string | null>(null);
+  const labels = useMemo(() => editionLabels(books, []), [books]);
+  const visible = useMemo(
+    () => filterBooks(books, { query, owner, edition }),
+    [books, query, owner, edition],
+  );
 
   if (loading) return <p className="p-6">Loading…</p>;
   if (error) {
@@ -55,9 +61,12 @@ export default function LibraryPage() {
       <LibraryFilters
         query={query}
         owner={owner}
+        edition={edition}
+        labels={labels}
         members={members}
         onQuery={setQuery}
         onOwner={setOwner}
+        onEdition={setEdition}
       />
       {visible.length === 0 ? (
         <p className="p-6 text-center">No matching books</p>

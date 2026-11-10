@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { filterBooks } from "./filter-books";
 import type { BookWithCopies, Copy } from "./types";
 
-function copy(ownerUserId: string | null): Copy {
+function copy(ownerUserId: string | null, editionNote: string | null = null): Copy {
   return {
     id: Math.random().toString(),
     bookId: "b",
     ownerUserId,
-    editionNote: null,
+    editionNote,
     copyNote: null,
     location: null,
     origin: "manual",
@@ -38,7 +38,7 @@ function book(title: string, authors: string[], owners: (string | null)[] = []):
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",
-    copies: owners.map(copy),
+    copies: owners.map((o) => copy(o)),
   };
 }
 
@@ -71,5 +71,20 @@ describe("filterBooks", () => {
   });
   it("all keeps books with zero copies", () => {
     expect(filterBooks(all, { query: "orphan", owner: "all" })).toEqual([none]);
+  });
+  it("filters by edition, exact and case-insensitive", () => {
+    const a = book("Edition A", ["X"]);
+    a.copies = [copy(null, "Invented Box")];
+    const b = book("Edition B", ["X"]);
+    b.copies = [copy(null, "Invented Box Deluxe")];
+    expect(filterBooks([a, b, none], { query: "", owner: "all", edition: "invented box" })).toEqual([a]);
+  });
+  it("search matches a copy's edition note", () => {
+    const a = book("Edition A", ["X"]);
+    a.copies = [copy(null, "Invented Box")];
+    expect(filterBooks([a, none], { query: "invented", owner: "all" })).toEqual([a]);
+  });
+  it("edition null filters nothing", () => {
+    expect(filterBooks(all, { query: "", owner: "all", edition: null })).toEqual(all);
   });
 });
