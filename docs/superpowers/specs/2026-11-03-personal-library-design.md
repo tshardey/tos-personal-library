@@ -126,6 +126,8 @@ Conceptual model (exact columns left to the builder, but these concepts must exi
 
 ### 6.5 Tome of Secrets integration (changes in the ToS repo)
 
+> **Superseded (2026-11-10)** by `2026-11-10-tos-integration-design.md`. The text below is kept for history.
+
 - Add a library search source (e.g. `searchLibrary`) that queries the signed-in user's household books and returns `BookSearchResult`-shaped results, carrying the library book id.
 - **Library results are always shown first, and external results still appear below them** (not "external only when the library is empty"), so a user reading the ebook/audiobook of a book owned in print can still pick external metadata. Library results are visually marked "in our library." *(Claude's call.)*
 - **The library replaces ToS's "Physical TBR" shelf** (decided by Tierra). Today a ToS book has `shelfCategory: 'general' | 'physical-tbr'` (validated in `dataValidator.js`, migrated in `dataMigrator.js`, set in `stateAdapter.js`, edited in `LibraryController.js`, and set to `physical-tbr` by `shoppingRenderer.js` when a purchase is linked). It is not referenced by any game rules in `assets/data/` or the rules Markdown. Replacement:
