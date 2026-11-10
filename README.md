@@ -31,7 +31,16 @@ docker compose up app                       # http://localhost:5173/tos-personal
 docker compose run --rm app npm test
 docker compose run --rm app npm run lint
 docker compose run --rm app npm run build
+docker compose run --rm app sh -c "npm run build && npm run check:bundle"   # no zxing in the entry chunk
 ```
+
+**End-to-end walkthrough (Playwright).** It runs only against the local stack, with `supabase functions serve` running and `LIBRARY_INTAKE_FAKE_VISION=1` in its env file (no Anthropic key). Pass the local publishable key from `supabase status`:
+
+```bash
+E2E_SUPABASE_PUBLISHABLE_KEY=<local publishable key> docker compose run --rm e2e npx playwright test
+```
+
+It signs up throwaway users on the local stack, fakes the camera, and generates its barcode images and photos at run time.
 
 ## Local database (Supabase)
 
@@ -86,6 +95,24 @@ The Inbox turns photos of book covers into catalog entries. Nothing is written t
 **Privacy.** The photo bucket is private and only household members can read it. Photos are resized in the browser to 1280 px and re-encoded, which drops EXIF including location. On Confirm the cover is kept as that copy's photo (shown when the book has no stock cover) and the title page is deleted. On discard both are deleted. Photos uploaded but never turned into a card are removed after 24 hours.
 
 **Requires** the Tome of Secrets `library-photo-intake` migration and `library-intake` Edge Function. Without them the page says `Couldn't reach the photo inbox.`
+
+## Scan
+
+`Scan` in the header opens the barcode scanner for working through a shelf. A scan only adds a card to the Inbox. Nothing is written to the library until someone confirms it there.
+
+1. **Set up the session.** Pick the owner and the `Edition for this session` (for example a box or club name) before you start. Both apply to every scan and photo in the session until you change them, and the edition can still be changed per card in the Inbox. A session survives a reload: reopening Scan shows its list with `Started {time}`, and `New session` starts a fresh one.
+2. **Tap `Start scanning` once.** The back camera starts and keeps reading, so there is no tap per book. Hold each book's barcode inside the white band. The camera stops when you switch apps, lock the phone, or leave it untouched for 2 minutes (`Resume camera` starts it again).
+3. **Listen for the beeps.** One high beep (and a short buzz on Android) means the book was added to the list. Two low beeps mean look at the screen: the book is already in the library or waiting in the Inbox from another session, or you scanned it again. The border also flashes green or amber, which is the only cue when the phone is on silent (iPhone has no vibration). `Sound on` turns the beeps off and is remembered.
+4. **Second copies.** A barcode held in view counts once. Scanning the same book again after a few seconds asks `Add another copy?`, and each row also has `Add another copy`.
+5. **When a barcode won't read**, or the book has none, use `Take a photo`. A row that says `Not found online.` has its own `Take a photo`, and the photo replaces that row and keeps the scanned ISBN. A barcode that isn't an ISBN (a shop sticker or a mass-market UPC) says `That barcode isn't an ISBN.` and suggests a photo.
+6. **`Type ISBN`** takes an ISBN-13 or ISBN-10 by hand. It also works when camera access is off.
+7. **Done** opens the Inbox, where each scan is a card to review: bulk confirm (`Add N new books`) for clear new books, or one card at a time. Two scans of the same book in a session are never bulk-added.
+
+**Offline.** Scans are saved on the phone first and upload when the network is back (`Saved on this phone. It will upload when you're back online.`). Don't clear site data until they have uploaded. Book lookups (OpenLibrary, then Google Books if a key is set) wait and retry by themselves when they are rate limited or offline (`Online lookup paused. It will retry.`).
+
+**Privacy and cost.** Scanning reads EAN-13 ISBNs on the phone; the barcode reader is downloaded the first time the camera starts and is served from this site. Only the ISBN is sent, to OpenLibrary and Google Books. Scans never call Claude and don't count toward the daily photo limit. The camera needs HTTPS, so it works on the deployed site, not on the LAN dev server.
+
+**Requires** the Tome of Secrets `library-scan-intake` migration.
 
 ## Deploy (GitHub Pages)
 
