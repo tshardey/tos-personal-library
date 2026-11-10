@@ -9,6 +9,7 @@ import BookDetail from "@/components/book/BookDetail";
 import AddBook from "@/components/book/AddBook";
 import ImportPage from "@/components/import/ImportPage";
 import InboxPage from "@/components/inbox/InboxPage";
+import ChunkErrorBoundary from "@/components/common/ChunkErrorBoundary";
 import { useRoute } from "@/lib/router";
 
 // Its own chunk: the scanner, and through it the barcode decoder, load only on #/scan (D1).
@@ -68,9 +69,11 @@ function SignedIn() {
       ) : route.name === "inbox" ? (
         <InboxPage />
       ) : route.name === "scan" ? (
-        <Suspense fallback={<p className="p-6">Loading…</p>}>
-          <ScanPage />
-        </Suspense>
+        <ChunkErrorBoundary>
+          <Suspense fallback={<p className="p-6">Loading…</p>}>
+            <ScanPage />
+          </Suspense>
+        </ChunkErrorBoundary>
       ) : (
         <LibraryPage />
       )}
