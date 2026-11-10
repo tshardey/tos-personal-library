@@ -41,6 +41,7 @@ These settle what spec §7 leaves to the builder and the brief's open points. Wh
   - reader JS: 41.7 KB raw, 12.3 KB gzipped;
   - `zxing_reader.wasm`: 947 KB raw, 411 KB gzipped.
   - The entry chunk pays nothing for any of it.
+  - **Measured in the build (Task 9, `npm run check:bundle`, kB = 1000 bytes):** the `decoder` chunk (decoder.ts plus the reader JS, minified) is 36.0 kB raw, 13.0 kB gzipped; `zxing_reader-*.wasm` is 946.9 kB raw, 411.1 kB gzipped; the `ScanPage` route chunk is 24.7 kB raw, 8.9 kB gzipped. The raw reader JS is smaller than the tarball figure above because it is minified.
 - **How it's lazy-loaded:** `ScanPage` is a `React.lazy` route chunk. `decoder.ts` is reached only through `import("./decoder")` from `loadDecoder()`, which runs when the camera starts. Task 9 adds `scripts/check-bundle.mjs`, which fails the build check if the entry chunk mentions `zxing` or if no `zxing_reader-*.wasm` asset exists.
 - **Rejected:**
   - Native `BarcodeDetector` first: Android only, it has no add-on control, and it would mean a second code path to test.
