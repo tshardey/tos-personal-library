@@ -1,0 +1,183 @@
+import type { createScanItem, ScanItemArgs, ScanSaveError } from "../photo/intake-repo";
+import type { IntakeItem } from "../photo/types";
+
+/** D6: the create_scan_item arguments, written before any network call. */
+export interface OutboxEntry extends ScanItemArgs {
+  createdAt: string;
+  failed?: "rejected";
+}
+
+export function outboxKey(householdId: string): string {
+  return `tpl_scan_outbox_${householdId}`;
+}
+
+export function readOutbox(householdId: string): OutboxEntry[] {
+  try {
+    const raw = localStorage.getItem(outboxKey(householdId));
+    if (raw === null) return [];
+    const v: unknown = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return v.filter(
+      (e): e is OutboxEntry =>
+        typeof e === "object" && e !== null && typeof e.id === "string" && typeof e.isbn === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeOutbox(householdId: string, entries: OutboxEntry[]): void {
+  try {
+    const key = outboxKey(householdId);
+    if (entries.length === 0) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(entries));
+  } catch {
+    // Not remembered: the scan still saves while the tab lives, through the caller's own state.
+  }
+}
+
+export function appendOutbox(entry: OutboxEntry): void {
+  writeOutbox(entry.householdId, [...readOutbox(entry.householdId), entry]);
+}
+
+/** Re-reads storage, so an entry appended since the caller last read is never dropped. */
+export function removeOutboxEntry(householdId: string, id: string): void {
+  writeOutbox(
+    householdId,
+    readOutbox(householdId).filter((e) => e.id !== id),
+  );
+}
+
+export function markOutboxRejected(householdId: string, id: string): void {
+  writeOutbox(
+    householdId,
+    readOutbox(householdId).map((e) => (e.id === id ? { ...e, failed: "rejected" as const } : e)),
+  );
+}
+
+const REJECTED_CODES = new Set(["42501", "22023", "23514", "22P02"]);
+
+/** D6: errors that won't fix themselves. 408, 429, 5xx and network errors are retried. */
+export function isRejection(err: Pick<ScanSaveError, "code" | "status">): boolean {
+  if (err.code !== null && REJECTED_CODES.has(err.code)) return true;
+  const s = err.status;
+  return s !== null && s >= 400 && s <= 499 && s !== 408 && s !== 429;
+}
+
+export interface FlushDeps {
+  create: typeof createScanItem;
+  sleep(ms: number): Promise<void>;
+  online(): boolean;
+  onSaved(id: string): void;
+  onRejected(id: string): void;
+  signal?: AbortSignal;
+}
+
+const BACKOFF_MS = [2000, 8000, 30000];
+
+interface Flight {
+  promise: Promise<void>;
+  again: boolean;
+}
+
+/** One flush per household (D6); module state, so another tab has its own. */
+const flights = new Map<string, Flight>();
+
+function abortable(sleep: Promise<void>, signal: AbortSignal | undefined): Promise<void> {
+  if (!signal) return sleep;
+  return new Promise((resolve) => {
+    const done = () => {
+      signal.removeEventListener("abort", done);
+      resolve();
+    };
+    signal.addEventListener("abort", done);
+    void sleep.then(done, done);
+  });
+}
+
+async function runFlush(householdId: string, deps: FlushDeps, flight: Flight): Promise<void> {
+  let failures = 0;
+  for (;;) {
+    if (deps.signal?.aborted || !deps.online()) return;
+    // A call made meanwhile set `again`; reading storage fresh before each entry is what honours it.
+    flight.again = false;
+    const next = readOutbox(householdId).find((e) => !e.failed);
+    if (!next) return;
+    const args: ScanItemArgs = {
+      id: next.id,
+      householdId: next.householdId,
+      batchId: next.batchId,
+      ownerUserId: next.ownerUserId,
+      isbn: next.isbn,
+      editionLabel: next.editionLabel,
+      extraCopy: next.extraCopy,
+    };
+    try {
+      await deps.create(args);
+      removeOutboxEntry(householdId, next.id);
+      failures = 0;
+      deps.onSaved(next.id);
+    } catch (err) {
+      const e = err as Partial<ScanSaveError>;
+      if (isRejection({ code: e.code ?? null, status: e.status ?? null })) {
+        markOutboxRejected(householdId, next.id);
+        failures = 0;
+        deps.onRejected(next.id);
+        continue;
+      }
+      const delay = BACKOFF_MS[Math.min(failures, BACKOFF_MS.length - 1)];
+      failures += 1;
+      if (deps.signal?.aborted) return;
+      await abortable(deps.sleep(delay), deps.signal);
+    }
+  }
+}
+
+/**
+ * Sends unsent entries one at a time until none is left. A call while a flush runs for this
+ * household returns the running promise (its deps are the first caller's) and asks it to look again.
+ */
+export function flushOutbox(householdId: string, deps: FlushDeps): Promise<void> {
+  const running = flights.get(householdId);
+  if (running) {
+    running.again = true;
+    return running.promise;
+  }
+  const flight: Flight = { promise: Promise.resolve(), again: false };
+  flight.promise = runFlush(householdId, deps, flight).finally(() => {
+    flights.delete(householdId);
+  });
+  flights.set(householdId, flight);
+  return flight.promise;
+}
+
+const isOpen = (i: IntakeItem) => i.status !== "confirmed" && i.status !== "discarded";
+
+/**
+ * D8 healing, pure. Per batch and scanned ISBN: open photos minus scans already replaced is how
+ * many open not-found scans of that ISBN to discard, newest first. Returns their ids.
+ */
+export function scansToHeal(batchItems: IntakeItem[]): string[] {
+  const groups = new Map<string, IntakeItem[]>();
+  for (const i of batchItems) {
+    if (!i.scannedIsbn) continue;
+    const key = `${i.batchId}\u0000${i.scannedIsbn}`;
+    const g = groups.get(key);
+    if (g) g.push(i);
+    else groups.set(key, [i]);
+  }
+  const heal: string[] = [];
+  for (const items of groups.values()) {
+    const photos = items.filter((i) => i.source === "photo" && i.status !== "discarded").length;
+    const replaced = items.filter(
+      (i) => i.source === "scan" && i.status === "discarded" && i.discardReason === "replaced_by_photo",
+    ).length;
+    const toHeal = photos - replaced;
+    if (toHeal <= 0) continue;
+    const notFound = items
+      .filter((i) => i.source === "scan" && isOpen(i) && i.lookup?.source === "none")
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+    heal.push(...notFound.slice(0, toHeal).map((i) => i.id));
+  }
+  return heal;
+}

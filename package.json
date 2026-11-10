@@ -19,7 +19,8 @@
     "@supabase/supabase-js": "^2.47.0",
     "papaparse": "^5.7.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zxing-wasm": "3.1.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
