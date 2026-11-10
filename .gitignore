@@ -8,3 +8,5 @@ library_*.csv
 *.jpg
 *.jpeg
 *.heic
+test-results/
+playwright-report/

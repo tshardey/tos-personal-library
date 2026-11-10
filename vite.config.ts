@@ -1,6 +1,6 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { fileURLToPath } from "url";
 
 export default defineConfig({
@@ -16,5 +16,7 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["src/test/setup.ts"],
+    // e2e/ is Playwright's (npm run e2e), not Vitest's.
+    exclude: [...configDefaults.exclude, "e2e/**"],
   },
 });
