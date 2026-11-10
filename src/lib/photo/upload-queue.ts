@@ -52,6 +52,10 @@ export async function runUploadBatch(
     ownerUserId: string | null;
     batchId: string;
     titlePage?: File;
+    /** The batch's edition (§6.3), stored on each item it creates. */
+    editionLabel?: string | null;
+    /** D8: a photo taken for a not-found scan carries the scan's ISBN. */
+    scannedIsbn?: string | null;
     onChange(entries: UploadEntry[]): void;
   },
   deps: UploadDeps = browserUploadDeps,
@@ -107,6 +111,8 @@ export async function runUploadBatch(
         coverPath: coverKey,
         titlePagePath: titleKey,
         sourceHash: cover.sourceHash,
+        scannedIsbn: opts.scannedIsbn ?? null,
+        editionLabel: opts.editionLabel ?? null,
       });
       seen.add(cover.sourceHash);
       if (result === "duplicate") {

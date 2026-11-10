@@ -5,7 +5,7 @@ import { useIntake } from "@/hooks/useIntake";
 import { bulkEligible, proposeMatch } from "@/lib/photo/propose";
 import type { IntakeItem } from "@/lib/photo/types";
 import { holdWakeLock } from "@/lib/photo/wake-lock";
-import BulkConfirmSheet from "./BulkConfirmSheet";
+import BulkConfirmSheet, { type BulkEntry } from "./BulkConfirmSheet";
 import IntakeCard from "./IntakeCard";
 import UploadPanel from "./UploadPanel";
 
@@ -68,17 +68,21 @@ export default function InboxPage() {
   const eligible = useMemo(
     () =>
       groups.review
-        .filter((item) => {
+        .flatMap((item): BulkEntry[] => {
           const input = { item, catalog, openItems };
-          return bulkEligible(input, proposeMatch(input));
-        })
-        .map((i) => ({
-          id: i.id,
-          title: i.extraction?.title ?? "",
-          authors: i.extraction?.authors ?? [],
-          // The note runBulkConfirm writes on the copy, shown before anything is written.
-          editionNote: (i.extraction?.editionClues ?? []).join("; ").trim(),
-        })),
+          const proposal = proposeMatch(input);
+          if (!bulkEligible(input, proposal)) return [];
+          // What runBulkConfirm writes: the proposal's title and authors (a scan's come from its
+          // lookup) and the item's own edition label. D12: Claude's clues never prefill it.
+          return [
+            {
+              id: item.id,
+              title: proposal.query.title,
+              authors: proposal.query.authors,
+              editionNote: item.editionLabel ?? "",
+            },
+          ];
+        }),
     [groups.review, catalog, openItems],
   );
 
@@ -107,10 +111,10 @@ export default function InboxPage() {
   // against data that may be stale: a failed read must never look like "no matches".
   const { stale } = intake;
 
-  async function runBulk() {
+  async function runBulk(ids: string[]) {
     setBulkBusy(true);
     try {
-      const r = await intake.bulkConfirm(eligible.map((e) => e.id));
+      const r = await intake.bulkConfirm(ids);
       const added = `Added ${r.confirmed} ${r.confirmed === 1 ? "new book" : "new books"}.`;
       setBulkResult(r.skipped > 0 ? `${added} ${r.skipped} left to review.` : added);
     } catch {
@@ -135,6 +139,8 @@ export default function InboxPage() {
         onConfirm={intake.confirm}
         onRetry={intake.retry}
         onOwner={intake.setOwner}
+        labels={intake.labels}
+        onEdition={intake.setEdition}
       />
     </li>
   );
@@ -158,6 +164,7 @@ export default function InboxPage() {
         userId={user.id}
         onItemCreated={intake.processNew}
         onUploadingChange={onUploadingChange}
+        labels={intake.labels}
       />
 
       {stale && (
@@ -179,7 +186,7 @@ export default function InboxPage() {
       )}
       {intake.lookupPaused && (
         <div className="mb-3 flex items-center gap-2 rounded border p-2 text-sm">
-          <span>Online lookup paused.</span>
+          <span>Online lookup paused. It will retry.</span>
           <button type="button" onClick={intake.resumeLookups} className="rounded border px-2 py-1">
             Retry
           </button>
@@ -207,8 +214,12 @@ export default function InboxPage() {
       {sheetOpen && (
         <BulkConfirmSheet
           entries={eligible}
+          labels={intake.labels}
           busy={bulkBusy || stale}
-          onConfirm={() => void runBulk()}
+          onConfirm={(ids) => void runBulk(ids)}
+          onSetEdition={(ids, label) => {
+            for (const id of ids) intake.setEdition(id, label);
+          }}
           onCancel={() => setSheetOpen(false)}
         />
       )}

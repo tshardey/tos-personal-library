@@ -23,9 +23,15 @@ const repo = vi.hoisted(() => ({
   sourceHashExists: vi.fn(),
   uploadPhoto: vi.fn(),
   createIntakeItem: vi.fn(),
+  setItemEdition: vi.fn(),
 }));
 const lib = vi.hoisted(() => ({ listBooks: vi.fn(), patchBook: vi.fn() }));
-const photo = vi.hoisted(() => ({ preparePhoto: vi.fn(), lookupMetadata: vi.fn(), enrichMissing: vi.fn() }));
+const photo = vi.hoisted(() => ({
+  preparePhoto: vi.fn(),
+  lookupMetadata: vi.fn(),
+  lookupIsbn: vi.fn(),
+  enrichMissing: vi.fn(),
+}));
 
 vi.mock("@/lib/photo/intake-repo", () => ({
   ...repo,
@@ -43,6 +49,17 @@ vi.mock("@/lib/photo/prepare", async (importOriginal) => ({
 vi.mock("@/lib/photo/lookup", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/photo/lookup")>()),
   lookupMetadata: photo.lookupMetadata,
+  lookupIsbn: photo.lookupIsbn,
+  // The real lookupForItem calls its own module's functions, which a mock can't reach; this
+  // dispatches the same way (D7: the scanned ISBN first, then the title) to the mocks.
+  lookupForItem: async (it: IntakeItem, opts: unknown) => {
+    const title = it.extraction?.title?.trim() ?? "";
+    if (it.scannedIsbn !== null) {
+      const r = await photo.lookupIsbn(it.scannedIsbn, opts);
+      if (r.source !== "none" || it.source === "scan" || title === "") return r;
+    }
+    return photo.lookupMetadata({ title, authors: it.extraction?.authors ?? [] }, opts);
+  },
 }));
 vi.mock("@/lib/libib/enrich", () => ({ enrichMissing: photo.enrichMissing }));
 
@@ -194,6 +211,9 @@ beforeEach(() => {
   repo.saveLookup.mockResolvedValue(undefined);
   repo.setItemOwner.mockResolvedValue(undefined);
   repo.retryItem.mockResolvedValue(true);
+  repo.setItemEdition.mockImplementation(async (id: string, label: string | null) => {
+    h.items = h.items.map((i) => (i.id === id ? { ...i, editionLabel: label } : i));
+  });
   repo.discardItem.mockImplementation(async (id: string) => {
     h.items = h.items.map((i) => (i.id === id ? { ...i, status: "discarded" } : i));
     return true;
@@ -208,6 +228,7 @@ beforeEach(() => {
     sourceHash: `sha-${f.name}`,
   }));
   photo.lookupMetadata.mockResolvedValue({ ...NO_LOOKUP });
+  photo.lookupIsbn.mockResolvedValue({ ...NO_LOOKUP, byIsbn: true });
   photo.enrichMissing.mockResolvedValue({ looked: 0, filled: 0, failed: false });
 });
 
@@ -354,7 +375,7 @@ describe("InboxPage", () => {
       expect(within(sheet).getByText(t, { exact: false })).toBeInTheDocument();
     }
     expect(within(sheet).queryByText("Salt Road", { exact: false })).toBeNull();
-    fireEvent.click(within(sheet).getByRole("button", { name: "Add them" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Add 3 books" }));
     await waitFor(() => expect(repo.confirmItem).toHaveBeenCalledTimes(3));
     expect(repo.confirmItem.mock.calls.map((c) => c[0]).sort()).toEqual(eligible.map((i) => i.id).sort());
     for (const call of repo.confirmItem.mock.calls) expect(call[1]).toHaveProperty("book");
@@ -499,7 +520,7 @@ describe("InboxPage", () => {
       .mockRejectedValueOnce(new Error("boom"))
       .mockRejectedValueOnce(new LookupError("OpenLibrary answered 429", true));
     render(<InboxPage />);
-    expect(await screen.findByText("Online lookup paused.")).toBeInTheDocument();
+    expect(await screen.findByText("Online lookup paused. It will retry.")).toBeInTheDocument();
     expect(screen.queryByText("Looking it up online…")).toBeNull();
     expect(photo.lookupMetadata).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -605,19 +626,20 @@ describe("InboxPage", () => {
     });
   });
 
-  it("shows the prefilled edition note on the collapsed card and in the bulk sheet", async () => {
+  it("shows Claude's clues only as a hint, never as the edition, on the card and in the bulk sheet", async () => {
     h.items = [
       item({}, { title: "Copper Lantern", editionClues: ["Book club edition", "Sprayed edges"] }),
       item({}, { title: "Northern Kettle" }),
     ];
     render(<InboxPage />);
     const c = await findCard("Copper Lantern");
-    expect(within(c).getByText("Edition note: Book club edition; Sprayed edges")).toBeInTheDocument();
-    expect(within(await findCard("Northern Kettle")).queryByText(/Edition note:/)).toBeNull();
+    expect(within(c).getByText("Claude saw: Book club edition, Sprayed edges")).toBeInTheDocument();
+    expect(within(c).getByRole("button", { name: "Edition: none" })).toBeInTheDocument();
+    expect(within(await findCard("Northern Kettle")).queryByText(/Claude saw:/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Add 2 new books" }));
     const sheet = screen.getByRole("dialog");
-    expect(within(sheet).getByText("Edition note: Book club edition; Sprayed edges")).toBeInTheDocument();
-    expect(within(sheet).getAllByText(/Edition note:/)).toHaveLength(1);
+    expect(within(sheet).getAllByText("Edition: none")).toHaveLength(2);
+    expect(within(sheet).queryByText(/Book club edition/)).toBeNull();
   });
 
   it("names a confirmed item after its catalog book, and an untitled discard as Photo removed", async () => {
@@ -688,5 +710,223 @@ describe("InboxPage", () => {
     const left = within(review).getByRole("article", { name: "Copper Lantern" });
     expect(within(left).queryByText(TWIN)).toBeNull();
     expect(within(left).getByRole("radio", { name: "Add a copy to Copper Lantern" })).toBeChecked();
+  });
+
+  describe("editions and hints", () => {
+    const labelled = () => [book("b7", "Paper Moth", { copies: [copy({ bookId: "b7", editionNote: "Invented Box" })] })];
+
+    it("shows Claude's clues as a hint and confirms with no edition by default", async () => {
+      h.books = labelled();
+      const it1 = item({}, { title: "Copper Lantern", editionClues: ["Invented foil", "Signed"] });
+      h.items = [it1];
+      render(<InboxPage />);
+      const c = await findCard("Copper Lantern");
+      expect(within(c).getByText("Claude saw: Invented foil, Signed")).toBeInTheDocument();
+      expect(within(c).getByRole("button", { name: "Edition: none" })).toBeInTheDocument();
+      fireEvent.click(within(c).getByRole("button", { name: "Confirm" }));
+      await waitFor(() => expect(repo.confirmItem).toHaveBeenCalledTimes(1));
+      expect(repo.confirmItem.mock.calls[0][2]).toEqual({
+        ownerUserId: "u1",
+        editionNote: null,
+        copyNote: null,
+        location: null,
+      });
+    });
+
+    it("saves a picked edition at once and confirms with it and the typed copy note", async () => {
+      h.books = labelled();
+      const it1 = item({}, { title: "Copper Lantern", editionClues: ["Invented foil", "Signed"] });
+      h.items = [it1];
+      render(<InboxPage />);
+      const c = await findCard("Copper Lantern");
+      fireEvent.click(within(c).getByRole("button", { name: "Edition: none" }));
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Edition" })).getByRole("button", { name: "Invented Box" }));
+      await waitFor(() => expect(repo.setItemEdition).toHaveBeenCalledWith(it1.id, "Invented Box"));
+      expect(within(c).getByRole("button", { name: "Edition: Invented Box" })).toBeInTheDocument();
+      fireEvent.click(within(c).getByRole("button", { name: "Edit details" }));
+      fireEvent.change(within(c).getByLabelText("Copy note"), { target: { value: "Gift from a friend" } });
+      fireEvent.click(within(c).getByRole("button", { name: "Confirm" }));
+      await waitFor(() => expect(repo.confirmItem).toHaveBeenCalledTimes(1));
+      expect(repo.confirmItem.mock.calls[0][2]).toEqual({
+        ownerUserId: "u1",
+        editionNote: "Invented Box",
+        copyNote: "Gift from a friend",
+        location: null,
+      });
+    });
+  });
+
+  describe("scan cards", () => {
+    const ISBN = "9780000000002";
+    const FOUND = {
+      ...NO_LOOKUP,
+      source: "openlibrary" as const,
+      agrees: true,
+      byIsbn: true,
+      title: "Invented Atlas",
+      authors: ["Ana Vale"],
+      matchIsbns: [ISBN],
+      coverUrl: "https://covers.example.test/invented-atlas.jpg",
+    };
+    const scan = (over: Partial<IntakeItem> = {}) =>
+      item({ source: "scan", scannedIsbn: ISBN, coverPath: null, sourceHash: null, ...over }, null);
+
+    it("shows a found scan by its lookup title and ISBN, and counts it for bulk", async () => {
+      h.items = [scan({ lookup: { ...FOUND } }), item({}, { title: "Copper Lantern" })];
+      render(<InboxPage />);
+      const c = await findCard("Invented Atlas");
+      expect(within(c).getByText(`Scanned ISBN ${ISBN}`)).toBeInTheDocument();
+      expect(within(c).getByRole("img")).toHaveAttribute("src", FOUND.coverUrl);
+      expect(screen.getByRole("button", { name: "Add 2 new books" })).toBeInTheDocument();
+    });
+
+    it("asks for a title on a not-found scan and confirms it with the scanned ISBN", async () => {
+      const s = scan({ lookup: { ...NO_LOOKUP, byIsbn: true } });
+      h.items = [s];
+      render(<InboxPage />);
+      const c = await findCard("Not found online");
+      expect(within(c).getByText("No title found. Type it to continue.")).toBeInTheDocument();
+      expect(within(c).getByText(`Scanned ISBN ${ISBN}`)).toBeInTheDocument();
+      const confirm = within(c).getByRole("button", { name: "Confirm" });
+      expect(confirm).toBeDisabled();
+      fireEvent.change(within(c).getByLabelText("Title"), { target: { value: "Invented Atlas" } });
+      expect(confirm).toBeEnabled();
+      fireEvent.click(confirm);
+      await waitFor(() => expect(repo.confirmItem).toHaveBeenCalledTimes(1));
+      expect(repo.confirmItem.mock.calls[0][0]).toBe(s.id);
+      expect(repo.confirmItem.mock.calls[0][1]).toEqual({
+        book: expect.objectContaining({ title: "Invented Atlas", isbn13: [ISBN] }),
+      });
+    });
+
+    it("says when the photo and the barcode disagree", async () => {
+      h.items = [item({ scannedIsbn: ISBN, lookup: { ...FOUND } }, { title: "Copper Lantern" })];
+      render(<InboxPage />);
+      const c = await findCard("Copper Lantern");
+      expect(within(c).getByText("The photo and the barcode don't match. Check which book this is.")).toBeInTheDocument();
+    });
+
+    it("says a deliberate second scan was scanned more than once, not the photo wording", async () => {
+      h.items = [scan({ lookup: { ...FOUND } }), scan({ lookup: { ...FOUND }, extraCopy: true })];
+      render(<InboxPage />);
+      const [a] = await screen.findAllByRole("article", { name: "Invented Atlas" });
+      expect(within(a).getByText("You scanned this book more than once in this session.")).toBeInTheDocument();
+      expect(screen.queryByText("Another photo in this batch looks like the same book.")).toBeNull();
+    });
+
+    it("looks up a ready scan by its ISBN once and saves the result", async () => {
+      const s = scan({ lookup: null });
+      h.items = [s];
+      photo.lookupIsbn.mockResolvedValue({ ...FOUND });
+      render(<InboxPage />);
+      await waitFor(() => expect(repo.saveLookup).toHaveBeenCalledTimes(1));
+      expect(photo.lookupIsbn).toHaveBeenCalledTimes(1);
+      expect(photo.lookupIsbn.mock.calls[0][0]).toBe(ISBN);
+      expect(photo.lookupMetadata).not.toHaveBeenCalled();
+      expect(repo.saveLookup.mock.calls[0]).toEqual([s.id, FOUND]);
+      expect(await findCard("Invented Atlas")).toBeInTheDocument();
+    });
+
+    it("pauses lookups on a retryable error and resumes by itself after 60 s", async () => {
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      h.items = [scan({ lookup: null })];
+      photo.lookupIsbn
+        .mockRejectedValueOnce(new LookupError("OpenLibrary answered 503", true))
+        .mockResolvedValue({ ...FOUND });
+      render(<InboxPage />);
+      await act(() => vi.advanceTimersByTimeAsync(10));
+      expect(screen.getByText("Online lookup paused. It will retry.")).toBeInTheDocument();
+      expect(photo.lookupIsbn).toHaveBeenCalledTimes(1);
+      await act(() => vi.advanceTimersByTimeAsync(59_000));
+      expect(photo.lookupIsbn).toHaveBeenCalledTimes(1);
+      await act(() => vi.advanceTimersByTimeAsync(1_000));
+      expect(photo.lookupIsbn).toHaveBeenCalledTimes(2);
+      expect(repo.saveLookup).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText("Online lookup paused. It will retry.")).toBeNull();
+    });
+
+    it("resumes paused lookups when the browser comes back online", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      h.items = [scan({ lookup: null })];
+      photo.lookupIsbn
+        .mockRejectedValueOnce(new LookupError("OpenLibrary request failed", true))
+        .mockResolvedValue({ ...FOUND });
+      render(<InboxPage />);
+      expect(await screen.findByText("Online lookup paused. It will retry.")).toBeInTheDocument();
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await waitFor(() => expect(repo.saveLookup).toHaveBeenCalledTimes(1));
+      expect(photo.lookupIsbn).toHaveBeenCalledTimes(2);
+    });
+
+    it("marks only the item on a non-retryable lookup error, without pausing", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const a = scan({ lookup: null });
+      const b = item({ lookup: null }, { title: "Copper Lantern" });
+      h.items = [a, b];
+      photo.lookupIsbn.mockRejectedValueOnce(new LookupError("OpenLibrary sent a reply that isn't JSON", false));
+      render(<InboxPage />);
+      await waitFor(() => expect(repo.saveLookup).toHaveBeenCalledTimes(1));
+      expect(repo.saveLookup.mock.calls[0][0]).toBe(b.id);
+      expect(screen.queryByText("Online lookup paused. It will retry.")).toBeNull();
+    });
+  });
+
+  describe("bulk editions", () => {
+    it("sets the edition on the checked entries and adds only those", async () => {
+      h.books = [book("b7", "Paper Moth", { copies: [copy({ bookId: "b7", editionNote: "Invented Box" })] })];
+      const eligible = [
+        item({}, { title: "Copper Lantern" }),
+        item({}, { title: "Northern Kettle" }),
+        item({}, { title: "Silent Harbor" }),
+      ];
+      h.items = eligible;
+      render(<InboxPage />);
+      fireEvent.click(await screen.findByRole("button", { name: "Add 3 new books" }));
+      const sheet = screen.getByRole("dialog");
+      for (const e of eligible) {
+        expect(within(sheet).getByRole("checkbox", { name: e.extraction!.title! })).toBeChecked();
+      }
+      fireEvent.click(within(sheet).getByRole("checkbox", { name: "Northern Kettle" }));
+      fireEvent.click(within(sheet).getByRole("button", { name: "Set edition for selected: none" }));
+      fireEvent.click(
+        within(screen.getByRole("dialog", { name: "Set edition for selected" })).getByRole("button", {
+          name: "Invented Box",
+        }),
+      );
+      fireEvent.click(within(sheet).getByRole("button", { name: "Apply" }));
+      await waitFor(() => expect(repo.setItemEdition).toHaveBeenCalledTimes(2));
+      expect(repo.setItemEdition.mock.calls.map((c) => c[0]).sort()).toEqual([eligible[0].id, eligible[2].id].sort());
+      for (const call of repo.setItemEdition.mock.calls) expect(call[1]).toBe("Invented Box");
+      expect(within(sheet).getAllByText("Edition: Invented Box")).toHaveLength(2);
+
+      fireEvent.click(within(sheet).getByRole("button", { name: "Add 2 books" }));
+      await waitFor(() => expect(repo.confirmItem).toHaveBeenCalledTimes(2));
+      expect(repo.confirmItem.mock.calls.map((c) => c[0]).sort()).toEqual([eligible[0].id, eligible[2].id].sort());
+      for (const call of repo.confirmItem.mock.calls) {
+        expect(call[2]).toMatchObject({ editionNote: "Invented Box" });
+      }
+    });
+  });
+
+  describe("batch edition", () => {
+    it("creates each uploaded photo with the batch's edition", async () => {
+      render(<InboxPage />);
+      fireEvent.click(await screen.findByRole("button", { name: "Edition for this batch: none" }));
+      const picker = screen.getByRole("dialog", { name: "Edition for this batch" });
+      fireEvent.change(within(picker).getByLabelText("Filter editions"), { target: { value: "Invented Box" } });
+      fireEvent.click(within(picker).getByRole("button", { name: 'Add "Invented Box"' }));
+      expect(screen.getByRole("button", { name: "Edition for this batch: Invented Box" })).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Choose photos"), { target: { files: files(1) } });
+      await waitFor(() => expect(repo.createIntakeItem).toHaveBeenCalledTimes(1));
+      expect(repo.createIntakeItem.mock.calls[0][0]).toMatchObject({ editionLabel: "Invented Box" });
+    });
+
+    it("links to the barcode scanner", async () => {
+      render(<InboxPage />);
+      expect(await screen.findByRole("link", { name: "Scan barcodes" })).toHaveAttribute("href", "#/scan");
+    });
   });
 });
