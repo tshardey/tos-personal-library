@@ -281,7 +281,7 @@ Each has a test in the named task.
 
 1. **The phone stays on one barcode for 10 s, or two books with the same ISBN are scanned a second apart.** One row only for the first. The second copy is reachable through `Add another copy` on the row, or by rescanning after 3 s. *(Task 7: read-gate tests with a fake clock. Task 9: the e2e "hold" test.)*
 2. **The network drops mid-shelf, then the tab is killed.** Every scan is still listed after reload and uploads exactly once when the network is back. *(Task 7: outbox tests. Task 1 pgTAP: `create_scan_item` returns `exists` on a resend. Task 9: e2e offline then reload.)*
-3. **A mass-market paperback's UPC, or a lone price add-on, is in view.** No row; `That barcode isn't an ISBN.` and the nudge show at once. *(Task 3: parser. Task 7: gate. Task 9: real phone.)*
+3. **A mass-market paperback's UPC, or a lone price add-on, is in view.** No row; for a UPC, `That barcode isn't an ISBN.` and the nudge show at once. A lone price add-on is not decodable on its own by zxing (it is only read as part of an EAN-13), so it gets the 8 s nudge rather than the immediate message; no row either way. *(Task 3: parser. Task 7: gate. Task 9: real phone.)*
 4. **The photo taken for a not-found ISBN is of a different book.** The card warns, and the item is never bulk-eligible. *(Task 4: `isbnConflict`.)*
 5. **The same book scanned twice on purpose for one owner.** After the first is confirmed, the second defaults to `Add a copy`, never `Already recorded`, and bulk adds neither. *(Task 4: `extraCopy` defaults and twins. Task 1: the `extra_copy` column.)*
 
