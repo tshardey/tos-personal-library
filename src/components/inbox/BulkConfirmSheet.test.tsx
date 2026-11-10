@@ -26,4 +26,24 @@ describe("BulkConfirmSheet", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Salt Road" }));
     expect(screen.getByRole("button", { name: "Add 0 books" })).toBeDisabled();
   });
+
+  it("keeps the footer outside the scrolling list", () => {
+    render(
+      <BulkConfirmSheet
+        entries={[entry("i1", "Salt Road")]}
+        labels={[]}
+        busy={false}
+        onConfirm={vi.fn()}
+        onSetEdition={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const list = screen.getByRole("list");
+    expect(list.className).toContain("overflow-y-auto");
+    expect(list.contains(screen.getByRole("button", { name: "Cancel" }))).toBe(false);
+    expect(screen.getByRole("dialog").className).toContain("flex-col");
+    expect(screen.getByRole("button", { name: "Cancel" }).parentElement?.parentElement?.className).toContain(
+      "safe-area-inset-bottom",
+    );
+  });
 });

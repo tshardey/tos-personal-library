@@ -153,12 +153,12 @@ export default function InboxPage() {
         <h3 id={id} className="mb-2 font-semibold">
           {title}
         </h3>
-        <ul className="space-y-3">{list.map(card)}</ul>
+        <ul className="space-y-2 sm:space-y-3">{list.map(card)}</ul>
       </section>
     );
 
   return (
-    <div className="mx-auto max-w-2xl p-4">
+    <div className="mx-auto max-w-2xl p-3 sm:p-4">
       <h2 className="mb-3 text-lg font-semibold">Photo inbox</h2>
       <UploadPanel
         householdId={household.id}

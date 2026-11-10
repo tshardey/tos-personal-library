@@ -55,3 +55,17 @@ export function useRoute(): Route {
   }, []);
   return parseHash(hash);
 }
+
+export type Tab = "library" | "scan" | "inbox" | "import";
+
+/** The nav tab a route belongs to: book detail and Add count as Library. */
+export function tabFor(route: Route): Tab {
+  switch (route.name) {
+    case "scan":
+    case "inbox":
+    case "import":
+      return route.name;
+    default:
+      return "library";
+  }
+}
