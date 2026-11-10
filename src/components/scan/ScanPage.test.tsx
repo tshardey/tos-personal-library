@@ -370,6 +370,50 @@ describe("ScanPage", () => {
     expect(fb.accept).not.toHaveBeenCalled();
   });
 
+  it("badges an owned scan, explains review, and amber-flashes it instead of green", async () => {
+    h.books = [book({ isbn13: [A], copies: [{ ...book().copies[0], ownerUserId: "u1", editionNote: null }] })];
+    await startScanning();
+    await feed(A);
+    const row = rowFor(A);
+    expect(within(row).getByText("You own this")).toBeInTheDocument();
+    expect(within(row).getByText(/Review will mark it Already recorded, so it won't be added/)).toBeInTheDocument();
+    expect(within(row).getByText("Already in library \u2014 Avery's copy")).toBeInTheDocument();
+    expect(document.querySelector("[data-flash]")).toHaveAttribute("data-flash", "notice");
+    await advance(500);
+    expect(document.querySelector("[data-flash]")).toBeNull();
+  });
+
+  it("flashes green and shows no badge for a book nobody owns", async () => {
+    await startScanning();
+    await feed(A);
+    expect(document.querySelector("[data-flash]")).toHaveAttribute("data-flash", "accept");
+    expect(within(rowFor(A)).queryByText("You own this")).toBeNull();
+    expect(within(rowFor(A)).queryByRole("button", { name: "Remove" })).toBeNull();
+  });
+
+  it("words review honestly when only someone else owns the book", async () => {
+    h.books = [book({ isbn13: [A] })];
+    await startScanning();
+    await feed(A);
+    const row = rowFor(A);
+    expect(within(row).getByText("You own this")).toBeInTheDocument();
+    expect(within(row).getByText(/Only someone else has a copy, so review will add one/)).toBeInTheDocument();
+  });
+
+  it("removes an owned scan through discardItem and drops its row", async () => {
+    h.books = [book({ isbn13: [A], copies: [{ ...book().copies[0], ownerUserId: "u1", editionNote: null }] })];
+    h.items = [scanItem({ id: "scan-owned", batchId: "batch-s", scannedIsbn: A, lookup: NOT_FOUND })];
+    localStorage.setItem(
+      "tpl_scan_session",
+      JSON.stringify({ householdId: "h1", batchId: "batch-s", edition: null, ownerUserId: "u1", startedAt: "2026-11-10T09:00:00.000Z" }),
+    );
+    await startScanning();
+    fireEvent.click(within(rowFor(A)).getByRole("button", { name: "Remove" }));
+    await advance(0);
+    expect(repo.discardItem).toHaveBeenCalledWith("scan-owned", "discarded");
+    expect(rows()).toHaveLength(0);
+  });
+
   it("turns a non-ISBN barcode into a message and the nudge, never a row (Review Focus 3)", async () => {
     await startScanning();
     await feed(UPC);

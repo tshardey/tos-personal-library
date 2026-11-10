@@ -7,6 +7,25 @@ export interface OwnedInfo {
   line: string | null;
   /** An open item in another batch has this ISBN; show ELSEWHERE_LINE. */
   elsewhere: boolean;
+  /** A copy of this ISBN is recorded for the scanning owner (so review defaults to "Already recorded"). */
+  recordedForOwner: boolean;
+}
+
+export const OWNED_BADGE = "You own this";
+
+/**
+ * What review really does with an owned scan (proposeMatch's defaultFor): a copy already recorded for the
+ * same owner defaults to "Already recorded"; a copy held only by someone else defaults to adding a copy.
+ */
+export function ownedExplainLine(recordedForOwner: boolean): string {
+  return recordedForOwner
+    ? "Review will mark it Already recorded, so it won't be added. Tap 'Add another copy' to add one."
+    : "Only someone else has a copy, so review will add one for this owner. Remove it to skip.";
+}
+
+/** Which scan-time flash an accepted scan gets: amber when the book is already owned or waiting elsewhere. */
+export function scanFlashKind(info: Pick<OwnedInfo, "line" | "elsewhere">): "accept" | "notice" {
+  return info.line !== null || info.elsewhere ? "notice" : "accept";
 }
 
 export const ELSEWHERE_LINE = "Also waiting in the inbox from another session.";
@@ -34,6 +53,7 @@ export function ownedInfo(
   members: HouseholdMember[],
   openItems: IntakeItem[],
   batchId: string,
+  ownerUserId: string | null = null,
 ): OwnedInfo {
   const owners = new Set<string | null>();
   for (const book of catalog) {
@@ -58,5 +78,5 @@ export function ownedInfo(
       !CLOSED.has(i.status) &&
       (toIsbn13(i.scannedIsbn) === isbn13 || toIsbn13(i.extraction?.isbn) === isbn13),
   );
-  return { line, elsewhere };
+  return { line, elsewhere, recordedForOwner: owners.has(ownerUserId) };
 }

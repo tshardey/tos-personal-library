@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BookWithCopies, Copy, HouseholdMember } from "../types";
 import type { Extraction, IntakeItem } from "../photo/types";
-import { ELSEWHERE_LINE, ownedInfo } from "./owners";
+import { ELSEWHERE_LINE, ownedExplainLine, ownedInfo, scanFlashKind } from "./owners";
 
 const ISBN = "9780000000002";
 const A = "member-a";
@@ -112,12 +112,31 @@ describe("ownedInfo", () => {
 
   it("flags an open item of the same ISBN in another batch only", () => {
     const other = photoItem("batch-2");
-    expect(ownedInfo(ISBN, [], members, [other], "batch-1")).toEqual({ line: null, elsewhere: true });
+    expect(ownedInfo(ISBN, [], members, [other], "batch-1")).toMatchObject({ line: null, elsewhere: true });
     expect(ownedInfo(ISBN, [], members, [photoItem("batch-1")], "batch-1").elsewhere).toBe(false);
     const closed = photoItem("batch-2", { status: "confirmed" });
     expect(ownedInfo(ISBN, [], members, [closed], "batch-1").elsewhere).toBe(false);
     const scan = photoItem("batch-2", { source: "scan", extraction: null, scannedIsbn: ISBN });
     expect(ownedInfo(ISBN, [], members, [scan], "batch-1").elsewhere).toBe(true);
     expect(ELSEWHERE_LINE).toBe("Also waiting in the inbox from another session.");
+  });
+});
+
+describe("owned wording and flash", () => {
+  it("knows whether the scanning owner has a recorded copy", () => {
+    expect(ownedInfo(ISBN, [book([A])], members, [], "batch-1", A).recordedForOwner).toBe(true);
+    expect(ownedInfo(ISBN, [book([B])], members, [], "batch-1", A).recordedForOwner).toBe(false);
+    expect(ownedInfo(ISBN, [book([null])], members, [], "batch-1", null).recordedForOwner).toBe(true);
+  });
+
+  it("explains what review does in each case", () => {
+    expect(ownedExplainLine(true)).toMatch(/Already recorded.*won't be added/);
+    expect(ownedExplainLine(false)).toMatch(/add one for this owner/);
+  });
+
+  it("picks the amber flash for owned or elsewhere, green otherwise", () => {
+    expect(scanFlashKind({ line: "Already in library — Avery's copy", elsewhere: false })).toBe("notice");
+    expect(scanFlashKind({ line: null, elsewhere: true })).toBe("notice");
+    expect(scanFlashKind({ line: null, elsewhere: false })).toBe("accept");
   });
 });

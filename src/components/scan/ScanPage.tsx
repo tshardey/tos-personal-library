@@ -18,7 +18,7 @@ import {
 } from "@/lib/scan/camera";
 import { createFeedback as browserFeedback, loadSoundOn, saveSoundOn, type Feedback } from "@/lib/scan/feedback";
 import { scansToHeal, type OutboxEntry } from "@/lib/scan/outbox";
-import { ELSEWHERE_LINE, ownedInfo } from "@/lib/scan/owners";
+import { ELSEWHERE_LINE, ownedExplainLine, ownedInfo, scanFlashKind } from "@/lib/scan/owners";
 import { createReadGate, idleDue, nudgeDue, REPEAT_WINDOW_MS } from "@/lib/scan/read-gate";
 import { loadDecoder as browserLoadDecoder, runScanLoop } from "@/lib/scan/scan-loop";
 import { clearSession, loadSession, saveSession, type ScanSession } from "@/lib/scan/session";
@@ -257,11 +257,15 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
     return set;
   }, [batchItems, batchOutbox]);
 
-  const ownedLines = useCallback(
-    (isbn: string | null): string[] => {
-      if (!isbn || batchId === null) return [];
-      const info = ownedInfo(isbn, catalog, members, openItems, batchId);
-      return [...(info.line ? [info.line] : []), ...(info.elsewhere ? [ELSEWHERE_LINE] : [])];
+  /** The owned-book parts of a row: the secondary lines, and the badge when the household holds the ISBN. */
+  const ownedView = useCallback(
+    (isbn: string | null, ownerUserId: string | null): Pick<ScanRowView, "ownedLines" | "owned"> => {
+      if (!isbn || batchId === null) return { ownedLines: [] };
+      const info = ownedInfo(isbn, catalog, members, openItems, batchId, ownerUserId);
+      return {
+        ownedLines: [...(info.line ? [info.line] : []), ...(info.elsewhere ? [ELSEWHERE_LINE] : [])],
+        ...(info.line ? { owned: { explain: ownedExplainLine(info.recordedForOwner) } } : {}),
+      };
     },
     [catalog, members, openItems, batchId],
   );
@@ -283,14 +287,10 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         createdAt: new Date(now).toISOString(),
       };
       queueScan(entry);
-      const info = ownedInfo(isbn13, catalog, members, openItems, session.batchId);
-      if (info.line !== null || info.elsewhere) {
-        feedback.notice();
-        showFlash("notice");
-      } else {
-        feedback.accept();
-        showFlash("accept");
-      }
+      const kind = scanFlashKind(ownedInfo(isbn13, catalog, members, openItems, session.batchId, session.ownerUserId));
+      if (kind === "notice") feedback.notice();
+      else feedback.accept();
+      showFlash(kind);
       since.current = now;
       lastActivity.current = now;
       setNudge(false);
@@ -521,6 +521,21 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
     [patchUpload, processNew, upsertLocal],
   );
 
+  /** Same discard the inbox uses; the row drops out of the session list and never reaches review. */
+  const removeScan = useCallback(
+    async (id: string) => {
+      try {
+        await discardItem(id, "discarded");
+      } catch (e) {
+        console.error("Couldn't remove the scan", errName(e));
+        return;
+      }
+      const scan = itemsRef.current.find((i) => i.id === id);
+      if (scan) upsertLocal({ ...scan, status: "discarded", discardReason: "discarded" });
+    },
+    [upsertLocal],
+  );
+
   const takePhoto = (from: PhotoUpload["from"]) => {
     photoFor.current = from;
     stopCamera();
@@ -588,9 +603,10 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
     const out: { at: string; row: ScanRowView }[] = [];
     const known = new Set(batchItems.map((i) => i.id));
     for (const i of batchItems) {
-      if (i.discardReason === "replaced_by_photo") continue;
+      if (i.discardReason === "replaced_by_photo" || i.discardReason === "discarded") continue;
       const isbn = i.scannedIsbn;
       const { text, error } = itemText(i);
+      const owned = ownedView(isbn, i.ownerUserId);
       out.push({
         at: i.createdAt,
         row: {
@@ -599,7 +615,8 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
           thumbUrl: i.lookup?.coverUrl ?? (i.coverPath ? (intake.thumbs.get(i.coverPath) ?? null) : null),
           status: text,
           error,
-          ownedLines: ownedLines(isbn),
+          ...owned,
+          ...(owned.owned && i.source === "scan" && OPEN.has(i.status) ? { onRemove: () => void removeScan(i.id) } : {}),
           notFound: i.source === "scan" && OPEN.has(i.status) && i.lookup?.source === "none",
         },
       });
@@ -615,7 +632,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
           thumbUrl: null,
           status: e.failed ? "Couldn't save this scan." : offline ? OFFLINE_TEXT : "Saving…",
           error: e.failed === "rejected",
-          ownedLines: ownedLines(e.isbn),
+          ...ownedView(e.isbn, e.ownerUserId),
           notFound: false,
         },
       });
@@ -640,7 +657,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
     }
     out.sort((a, b) => b.at.localeCompare(a.at) || b.row.key.localeCompare(a.row.key));
     return out.map((o) => o.row);
-  }, [batchItems, batchOutbox, uploads, batchId, online, intake.scanSaveFailing, intake.thumbs, ownedLines, runUpload]);
+  }, [batchItems, batchOutbox, uploads, batchId, online, intake.scanSaveFailing, intake.thumbs, ownedView, runUpload, removeScan]);
 
   // ---------------------------------------------------------------- actions
 
@@ -757,7 +774,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
 
   if (!running) {
     return (
-      <div className="mx-auto max-w-2xl p-4">
+      <div className="mx-auto max-w-2xl p-3 sm:p-4">
         <h2 className="mb-3 text-lg font-semibold">Scan barcodes</h2>
         {session && (
           <div className="mb-3 flex items-center justify-between gap-2 text-sm">
@@ -806,7 +823,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
   }
 
   const flashBorder =
-    flash === "accept" ? "border-green-500" : flash === "notice" ? "border-amber-400" : "border-transparent";
+    flash === "accept" ? "border-green-500" : flash === "notice" ? "border-amber-500" : "border-transparent";
 
   return (
     <div
@@ -816,7 +833,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         lastActivity.current = d.now();
       }}
     >
-      <div className="flex flex-wrap items-center gap-2 border-b p-2">
+      <div className="flex flex-wrap items-center gap-1.5 border-b p-1.5 text-sm sm:gap-2 sm:p-2 sm:text-base">
         <button type="button" onClick={done} className="rounded bg-stone-800 px-3 py-2 text-white">
           Done
         </button>
@@ -838,7 +855,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         )}
       </div>
 
-      <div className={`relative mx-auto aspect-[4/3] max-h-[50vh] w-full max-w-2xl bg-black border-4 ${flashBorder}`}>
+      <div data-flash={flash ?? undefined} className={`relative mx-auto aspect-[4/3] max-h-[50vh] w-full max-w-2xl bg-black border-4 ${flashBorder}`}>
         <video ref={videoRef} playsInline muted autoPlay className="h-full w-full object-cover" />
         {cameraError === null && !idle && (
           <div
@@ -875,7 +892,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         )}
       </div>
 
-      <div className="mx-auto w-full max-w-2xl p-3">
+      <div className="mx-auto w-full max-w-2xl p-2 text-[15px] sm:p-3 sm:text-base">
         {notIsbn && <p className="mb-2 text-sm text-amber-800">{NOT_ISBN_TEXT}</p>}
         {nudge && (
           <div
@@ -898,11 +915,11 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
             </button>
           </div>
         )}
-        <div className="mb-3 grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => takePhoto(null)} className="rounded border px-3 py-3">
+        <div className="mb-2 grid grid-cols-2 gap-2 sm:mb-3">
+          <button type="button" onClick={() => takePhoto(null)} className="min-h-10 rounded border px-3 py-2 sm:py-3">
             Take a photo
           </button>
-          <button type="button" onClick={() => setTyping(true)} className="rounded border px-3 py-3">
+          <button type="button" onClick={() => setTyping(true)} className="min-h-10 rounded border px-3 py-2 sm:py-3">
             Type ISBN
           </button>
         </div>
