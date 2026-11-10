@@ -500,6 +500,19 @@ describe("the ISBN wins (D9)", () => {
     expect(p.query.isbns[0]).toBe(SCANNED);
     expect(p.candidates[0]).toMatchObject({ bookId: "b1", reason: "isbn" });
   });
+  it("ranks the scanned ISBN's book above an older book matching the extraction ISBN", () => {
+    const it = item({ scannedIsbn: SCANNED, ownerUserId: A }, { title: "Copper Lantern", isbn: OTHER });
+    const cat = [
+      book("old", "Zzz Older", { isbn13: [OTHER], createdAt: "2025-01-01T00:00:00Z", copies: [] }),
+      book("scanned", "Zzz Newer", { isbn13: [SCANNED], createdAt: "2026-06-01T00:00:00Z", copies: [] }),
+    ];
+    for (const order of [cat, [...cat].reverse()]) {
+      const p = run(input(it, order));
+      expect(p.query.isbns).toEqual([SCANNED, OTHER]);
+      expect(p.candidates.map((c) => c.bookId)).toEqual(["scanned", "old"]);
+      expect(p.defaultAction).toEqual({ kind: "add_copy", bookId: "scanned" });
+    }
+  });
 });
 
 describe("isbnConflict (Review Focus 4)", () => {

@@ -182,10 +182,16 @@ export function proposeMatch(input: ProposeInput): Proposal {
     const c = classify(query, qKey, book);
     if (c) found.push(c);
   }
-  // Reason, then highest score, then oldest book, then id so the order never depends on catalog order.
+  // D9 "the ISBN wins": among isbn matches, the scanned ISBN's book ranks strictly first.
+  const scanned = toIsbn13(input.item.scannedIsbn);
+  const ownsScanned = (c: Candidate) =>
+    c.reason === "isbn" && scanned !== null && canonicalIsbns(books.get(c.bookId)!).has(scanned) ? 0 : 1;
+  // Reason, then the scanned ISBN, then highest score, then oldest book, then id so the order
+  // never depends on catalog order.
   found.sort(
     (a, b) =>
       RANK[a.reason] - RANK[b.reason] ||
+      ownsScanned(a) - ownsScanned(b) ||
       b.score - a.score ||
       books.get(a.bookId)!.createdAt.localeCompare(books.get(b.bookId)!.createdAt) ||
       a.bookId.localeCompare(b.bookId),
