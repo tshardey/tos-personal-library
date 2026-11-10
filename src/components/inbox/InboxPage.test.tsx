@@ -828,6 +828,33 @@ describe("InboxPage", () => {
       expect(await findCard("Invented Atlas")).toBeInTheDocument();
     });
 
+    it("keeps a saved lookup when a read that began before the save comes back without it", async () => {
+      h.items = [scan({ lookup: null })];
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      let reads = 0;
+      repo.listIntakeItems.mockImplementation(async () => {
+        reads += 1;
+        // Taken now, so it holds lookup: null, and returned only after the lookup is saved.
+        const snapshot = h.items.map((i) => ({ ...i }));
+        if (reads > 1) await gate;
+        return snapshot;
+      });
+      photo.lookupIsbn.mockResolvedValue({ ...FOUND });
+      render(<InboxPage />);
+      await waitFor(() => expect(repo.saveLookup).toHaveBeenCalledTimes(1));
+      expect(await findCard("Invented Atlas")).toBeInTheDocument();
+      await waitFor(() => expect(reads).toBeGreaterThan(1));
+
+      await act(async () => {
+        release();
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+      });
+      expect(await findCard("Invented Atlas")).toBeInTheDocument();
+      expect(screen.queryByText("Looking it up online…")).toBeNull();
+      expect(photo.lookupIsbn).toHaveBeenCalledTimes(1);
+    });
+
     it("pauses lookups on a retryable error and resumes by itself after 60 s", async () => {
       vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
       vi.spyOn(console, "error").mockImplementation(() => {});

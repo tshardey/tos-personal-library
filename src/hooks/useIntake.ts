@@ -22,7 +22,7 @@ import {
 } from "@/lib/photo/intake-repo";
 import { LookupError, lookupForItem, needsLookup } from "@/lib/photo/lookup";
 import type { IntakeAction } from "@/lib/photo/propose";
-import type { IntakeItem } from "@/lib/photo/types";
+import type { IntakeItem, LookupResult } from "@/lib/photo/types";
 import type { BookWithCopies } from "@/lib/types";
 import { appendOutbox, flushOutbox, isRejection, readOutbox, type OutboxEntry } from "@/lib/scan/outbox";
 
@@ -133,6 +133,8 @@ export function useIntake(): IntakeState {
   const flushCtl = useRef<AbortController | null>(null);
   /** Scans saved this session that a read may not include yet (it started before the save). */
   const savedScans = useRef(new Map<string, IntakeItem>());
+  /** Lookups saved this session, kept over a read that started before the save landed. */
+  const savedLookups = useRef(new Map<string, LookupResult>());
 
   const itemsRef = useRef<IntakeItem[]>([]);
   const catalogRef = useRef<BookWithCopies[]>([]);
@@ -186,6 +188,18 @@ export function useIntake(): IntakeState {
   /** A server read, plus any scan saved after that read began; the read wins once it has it. */
   const setLoadedItems = useCallback(
     (loaded: IntakeItem[]) => {
+      // A lookup is only ever set once, so a null one in the read means the read predates the save.
+      if (savedLookups.current.size > 0) {
+        loaded = loaded.map((i) => {
+          const saved = savedLookups.current.get(i.id);
+          if (saved === undefined) return i;
+          if (i.lookup !== null) {
+            savedLookups.current.delete(i.id);
+            return i;
+          }
+          return { ...i, lookup: saved };
+        });
+      }
       const ids = new Set(loaded.map((i) => i.id));
       const missing: IntakeItem[] = [];
       for (const [id, item] of savedScans.current) {
@@ -331,6 +345,7 @@ export function useIntake(): IntakeState {
         }
         try {
           await saveLookup(next.id, result);
+          savedLookups.current.set(next.id, result);
         } catch (e) {
           // A later poll would bring back lookup: null, so don't promise a lookup that's done.
           console.error("Failed to save a lookup", errName(e));
