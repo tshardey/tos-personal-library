@@ -29,6 +29,11 @@ export interface Proposal {
   isbnConflict: boolean;
   /** D9: a same-batch ISBN twin where either item is a deliberate extra copy. */
   repeatScan: boolean;
+  /**
+   * Review Focus 4: a photo's scanned ISBN resolved to nothing (no found ISBN lookup and no
+   * catalog book owning it), so nothing confirms the photo shows that ISBN's book.
+   */
+  scannedIsbnUnresolved: boolean;
 }
 export interface ProposeInput {
   item: IntakeItem;
@@ -152,9 +157,21 @@ function conflictOf(input: ProposeInput, isbnBooks: BookWithCopies[]): boolean {
   const scanned = toIsbn13(item.scannedIsbn);
   const ex = item.extraction;
   if (item.source === "scan" || scanned === null || !ex?.title?.trim()) return false;
-  const resolved = isbnLookup(item) ?? isbnBooks.find((b) => canonicalIsbns(b).has(scanned)) ?? null;
+  const resolved = resolvedScan(item, scanned, isbnBooks);
   if (resolved === null) return false;
   return !agrees({ title: ex.title, authors: ex.authors }, { title: resolved.title, authors: resolved.authors });
+}
+
+/** What a scanned ISBN resolved to: the found byIsbn lookup, else the catalog book that owns it. */
+function resolvedScan(item: IntakeItem, scanned: string, isbnBooks: BookWithCopies[]) {
+  return isbnLookup(item) ?? isbnBooks.find((b) => canonicalIsbns(b).has(scanned)) ?? null;
+}
+
+/** Review Focus 4: a photo carrying a scanned ISBN that resolved to nothing. */
+function unresolvedOf(item: IntakeItem, isbnBooks: BookWithCopies[]): boolean {
+  const scanned = toIsbn13(item.scannedIsbn);
+  if (item.source === "scan" || scanned === null) return false;
+  return resolvedScan(item, scanned, isbnBooks) === null;
 }
 
 /**
@@ -209,14 +226,19 @@ export function proposeMatch(input: ProposeInput): Proposal {
     needsTitle: qKey === "",
     isbnConflict: conflictOf(input, isbnBooks),
     repeatScan,
+    scannedIsbnUnresolved: unresolvedOf(input.item, isbnBooks),
   };
 }
 
-/** D9: a scan is high only when its ISBN lookup found the book; a photo is capped at medium on a conflict. */
+/**
+ * D9: a scan is high only when its ISBN lookup found the book. A photo is capped at medium on a
+ * conflict, or when its scanned ISBN resolved to nothing (Review Focus 4): the photo may show a
+ * different book, so it must not be bulk-added under that ISBN.
+ */
 export function itemConfidence(item: IntakeItem, proposal: Proposal): Confidence {
   if (item.source === "scan") return item.lookup?.agrees ? "high" : "low";
   const c = item.extraction?.confidence ?? "low";
-  return proposal.isbnConflict && c === "high" ? "medium" : c;
+  return (proposal.isbnConflict || proposal.scannedIsbnUnresolved) && c === "high" ? "medium" : c;
 }
 
 /** D7/D9: only a ready, high-confidence, titled item with nothing to compare against may be bulk-added. */

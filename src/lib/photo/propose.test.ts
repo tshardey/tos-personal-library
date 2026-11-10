@@ -643,3 +643,39 @@ describe("itemConfidence", () => {
     expect(itemConfidence(it, run(input(it)))).toBe("low");
   });
 });
+
+describe("unresolved scanned ISBN (Review Focus 4)", () => {
+  it("caps a high photo at medium when its scanned ISBN was not found and no catalog book owns it", () => {
+    const it = item({ scannedIsbn: SCANNED, lookup: notFound() }, { title: "Glass Orchard", confidence: "high" });
+    const i = input(it);
+    const p = run(i);
+    expect(p.isbnConflict).toBe(false);
+    expect(p.scannedIsbnUnresolved).toBe(true);
+    expect(itemConfidence(it, p)).toBe("medium");
+    expect(bulkEligible(i, p)).toBe(false);
+    const noLookup = item({ scannedIsbn: SCANNED, lookup: null }, { title: "Glass Orchard", confidence: "high" });
+    expect(itemConfidence(noLookup, run(input(noLookup, [book("b1", "Glass Orchard")])))).toBe("medium");
+  });
+  it("is unchanged once a byIsbn lookup agrees", () => {
+    const it = item(
+      { scannedIsbn: SCANNED, lookup: lookup({ byIsbn: true, title: "Glass Orchard", matchIsbns: [SCANNED] }) },
+      { title: "Glass Orchard", confidence: "high" },
+    );
+    const i = input(it);
+    const p = run(i);
+    expect(p.scannedIsbnUnresolved).toBe(false);
+    expect(itemConfidence(it, p)).toBe("high");
+    expect(bulkEligible(i, p)).toBe(true);
+  });
+  it("is resolved by a catalog book that owns the scanned ISBN", () => {
+    const it = item({ scannedIsbn: SCANNED, lookup: notFound() }, { title: "Glass Orchard", confidence: "high" });
+    const p = run(input(it, [book("b1", "Glass Orchard", { isbn13: [SCANNED] })]));
+    expect(p.scannedIsbnUnresolved).toBe(false);
+    expect(itemConfidence(it, p)).toBe("high");
+  });
+  it("does not apply to a photo without a scanned ISBN, or to a scan", () => {
+    const plain = item({}, { confidence: "high" });
+    expect(run(input(plain)).scannedIsbnUnresolved).toBe(false);
+    expect(run(input(scan({ lookup: notFound() }))).scannedIsbnUnresolved).toBe(false);
+  });
+});
