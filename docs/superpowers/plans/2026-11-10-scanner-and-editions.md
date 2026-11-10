@@ -32,7 +32,8 @@ These settle what spec §7 leaves to the builder and the brief's open points. Wh
 - **Why this library:** it is a maintained WebAssembly build of ZXing-C++ (3.1.6 published 2026-10-19). It reads from `ImageData`, so it works the same on iPhone Safari, which has no `BarcodeDetector`, and on Android Chrome. Its `ReaderOptions` expose `formats` and `eanAddOnSymbol`.
 - **The API we use** (verified against the package's own `README.md` and `dist/es/reader/index.d.ts` at 3.1.6):
   - `import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader"`;
-  - `readBarcodes(imageData, { formats: ["EAN13"], eanAddOnSymbol: "Ignore", maxNumberOfSymbols: 1, tryHarder: true })` returns `ReadResult[]`, each with `isValid`, `format` and `text`;
+  - `readBarcodes(imageData, { formats: ["EANUPC"], eanAddOnSymbol: "Ignore", maxNumberOfSymbols: 1, tryHarder: true })` returns `ReadResult[]`, each with `isValid`, `format` and `text`;
+  - **why `EANUPC`:** in 3.x, `ISBN` is a separate read-only format in the `EANUPC` symbology, next to `EAN13`, so a 978/979 barcode may come back as `ISBN`. `formats: ["EAN13"]` could miss real books. `EANUPC` covers EAN-13, ISBN, UPC-A/E and EAN-8. Every result's `text` then goes through `isbnFromBarcode` (Task 3). That keeps only ISBNs, and it also lets a UPC on a mass-market paperback be recognised and trigger the `not an ISBN` nudge (D4). Task 7 checks the reported `format` against a writer-generated 978 image before anything relies on it;
   - `prepareZXingModule({ overrides: { locateFile }, fireImmediately: true })` returns a promise for the instantiated module.
   - `eanAddOnSymbol` defaults to `"Ignore"`; we still set it explicitly and pin it in a test.
 - **The `.wasm` is self-hosted.** The package's default `locateFile` fetches the `.wasm` from jsDelivr. Instead, `src/lib/scan/decoder.ts` does `import wasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url"`; the package exports that subpath. Its `locateFile` returns `wasmUrl` for paths ending `.wasm`, and `prefix + path` otherwise. Vite emits the `.wasm` as a hashed asset under GitHub Pages' own origin, so there is no third-party request and the browser cache keeps it.
@@ -53,17 +54,17 @@ These settle what spec §7 leaves to the builder and the brief's open points. Wh
 | Change | Shape | Why |
 |---|---|---|
 | Source marker | `intake_items.source text not null default 'photo' check (source in ('photo','scan'))` | Existing rows and old clients stay `photo` |
-| Scanned ISBN | `intake_items.scanned_isbn text`, checked by `library.isbn13_is_valid(scanned_isbn)` (978/979, length 13, checksum) | The ISBN is the identity of a scan; a photo taken for a not-found scan carries it too |
+| Scanned ISBN | `intake_items.scanned_isbn text`, checked by `library.isbn13_is_valid(scanned_isbn)` (978 or any 979, including 9790; length 13; checksum), the same rule as `normalizeIsbn13` (D13) | The ISBN is the identity of a scan; a photo taken for a not-found scan carries it too |
 | Relaxed constraints | `source_hash` drops `not null` (its regex check stays). `intake_items_cover_required` becomes `cover_path is not null or status in ('confirmed','discarded') or source = 'scan'`. A new `intake_items_source_shape` requires: **photo**, `source_hash is not null`; **scan**, `source_hash is null and scanned_isbn is not null and cover_path is null and title_page_path is null and status in ('ready','confirmed','discarded')` | Relaxed for scan rows only. A scan can never be `pending`, `processing` or `failed`, so it can never be claimed |
 | Scan rows start `ready` | New RPC `library.create_scan_item(...)`; clients get no insert grant on `source` or `status` | The insert policy keeps `status = 'pending'` and gains `and source = 'photo'`, so a direct insert can only make a photo row |
-| Never claimable | `claim_intake_item` returns `done` for `source = 'scan'` before any other check or counter (belt and braces with the shape constraint) | A scan never bills and never touches `intake_usage` |
+| Never claimable | `claim_intake_item` returns `done` for `source = 'scan'` right **after** its existing not-found/not-member `42501` check, so ids still can't be probed, and before any status check or counter (belt and braces with the shape constraint) | A scan never bills and never touches `intake_usage` |
 | Deliberate second copy | `intake_items.extra_copy boolean not null default false`, set only through `create_scan_item` | D9: a same-owner second copy must not default to `Already recorded` |
 | Edition per item | `intake_items.edition_label text`, which must be null or trimmed, non-empty and at most 120 characters; it gets the insert grant (photo rows) and the update grant | Spec §6.3 session edition, stored at creation and changeable per card |
-| Discard reason | `discard_reason` also allows `'replaced_by_photo'` | The not-found scan row is closed once its photo item exists (D8) |
-| Copy origin | `copies` origin check becomes `('libib','photo','manual','scan')` (drop and re-add `copies_origin_check`) | Spec §6.2 |
+| Discard reason | `discard_reason` also allows `'replaced_by_photo'`: drop `intake_items_discard_reason_check` and re-add it under the same name | The not-found scan row is closed once its photo item exists (D8) |
+| Copy origin | `copies` origin check becomes `('libib','photo','manual','scan')`: drop `copies_origin_check` and re-add it under the same name. Both auto-generated names (`copies_origin_check`, `intake_items_discard_reason_check`) were checked on 2026-11-10 by recreating those column checks in a scratch Postgres 16. Task 1 Step 3 re-checks them in the local database before writing the drops | Spec §6.2 |
 | Copy note | `copies.copy_note text`, with `copy_note is null or char_length(copy_note) <= 2000` | Spec §6.3; `copies` already has table-wide grants, so no grant change |
 | `confirm_intake_item` | **Same arguments** `(p_item uuid, p_book_id uuid, p_book jsonb, p_copy jsonb)`; new `p_copy` contract below | See below |
-| Cleanup | `library.move_claude_edition_notes() returns int` (definer, executable by no client role), called once by the migration | Spec §6.4; a function so pgTAP can test it on seeded data |
+| Cleanup | `library.move_claude_edition_notes(p_before timestamptz) returns int`. It is **security invoker**: it has no caller to check membership for, and is executable by no client role. The migration calls it as the owner with `now()`, **only on the run that adds `copy_note`** (D3) | Spec §6.4; a function so pgTAP can test it on seeded data |
 
 **The new `confirm_intake_item` contract.**
 - `edition_note`: if the `edition_note` key is present in `p_copy`, its value (null clears it); if absent, the item's `edition_label`.
@@ -91,8 +92,8 @@ These settle what spec §7 leaves to the builder and the brief's open points. Wh
 - **`update`:** `lookup`, `owner_user_id` and `edition_label`.
 - **Functions:**
   - `create_scan_item`: revoke from `public` and `anon`, grant to `authenticated`.
-  - `isbn13_is_valid`: immutable `sql`. Revoke from `public` and `anon`; grant to `authenticated`, because a check constraint runs with the inserting role's privileges.
-  - `move_claude_edition_notes`: revoke from `public`, `anon` and `authenticated`.
+  - `isbn13_is_valid`: immutable `sql` with `set search_path = ''`. Revoke from `public` and `anon`; grant to `authenticated`, because a check constraint runs with the inserting role's privileges.
+  - `move_claude_edition_notes`: security invoker. Revoke from `public`, `anon` and `authenticated`.
 
 **D3. The cleanup's exact match rule.**
 - **What matches:** a copy is moved only if all of these hold:
@@ -108,7 +109,8 @@ These settle what spec §7 leaves to the builder and the brief's open points. Wh
   - libib and manual copies;
   - photo copies whose item had no clues.
 - **Where the rule can be wrong:** JS `trim()` strips some Unicode spaces that `\s` doesn't. A clue that starts or ends with one of those doesn't match, and its copy is left alone. That is the safe direction.
-- **Re-running it** moves nothing more, because the moved rows now have `edition_note` null.
+- **Only copies created before `p_before`** (`c.created_at < p_before`) are considered. A copy confirmed later, by the new app, with a picked label that happens to equal a single Claude clue is never moved.
+- **It runs once.** The migration's first statement records whether `library.copies.copy_note` already exists. It does this in a `do` block that sets a transaction-local setting with `set_config('library.scan_intake_cleanup', ..., true)`. The last statement calls `move_claude_edition_notes(now())` only when the column was absent. So the first application (the production `db push`) cleans up with the push time as its cutoff, and a manual re-run of the idempotent migration never moves anything. The function is also idempotent on its own: moved rows have `edition_note` null.
 - **Rollout gap:** a photo confirmed by the old app between `db push` and the Pages deploy keeps its Claude text. The rollout merges the library PR immediately after the push, and says not to confirm photos in between.
 
 **D4. Repeated reads, and the "take a photo" nudge.**
@@ -137,8 +139,15 @@ If the context isn't `running` (iOS suspends it when the tab is hidden), `resume
 
 **D6. Saving scans offline, and lookups that stall.**
 - **The outbox:** a scan's id comes from `crypto.randomUUID()`. The scan is appended to the outbox `tpl_scan_outbox_<householdId>` (the `create_scan_item` arguments plus `createdAt`) **before** any network call, and its row shows at once.
-- **Flushing:** the outbox is flushed one entry at a time. A failure retries after 2 s, 8 s, then every 30 s, and again on the window's `online` event. An entry is removed only on `'created'` or `'exists'`. A `42501` or `22023` drops the entry with the row text `Couldn't save this scan.` (for example, the person left the household); any other error keeps it.
-- **Where it flushes:** while the scanner is open, and on mount of `useIntake` (the inbox and scanner both use it), so scans left after an offline `Done` upload the next time either page opens.
+- **Flushing:** the outbox is flushed one entry at a time. A failure retries after 2 s, 8 s, then every 30 s, and again on the window's `online` event. An entry is removed only on `'created'` or `'exists'`.
+- **Errors that won't fix themselves are rejected, never retried.** The entry is marked `failed: "rejected"` and its row reads `Couldn't save this scan.` This covers:
+  - Postgres codes `42501` (for example, the person left the household), `22023` (owner), `23514` (check) and `22P02` (malformed input);
+  - any other PostgREST 4xx, except `408` and `429`, which are transient.
+
+  Network errors, 5xx, `408` and `429` are retried. `createScanItem` therefore rejects with an error that carries both `code` and the HTTP `status` (Task 2).
+- **One flush at a time per household.** A module-level `Map<householdId, Promise<void>>` holds the running flush. A call while one runs sets a "run again" flag and returns the same promise. The running flush re-reads the outbox after each entry and loops until no unsent entry is left, so an entry appended mid-flush is sent by that same flush. Entries are removed **by id from a fresh `readOutbox`** (`removeOutboxEntry`), never by writing back an array read earlier. A scan appended during a flush therefore can't be lost.
+- **Other tabs:** they have their own module state, so two tabs can send the same entry. That is harmless: `create_scan_item` is idempotent on the id and answers `exists` to the second sender, which then removes the entry by id.
+- **Where it flushes:** while the scanner is open (after each read), and on mount of `useIntake` (the inbox and scanner both use it), so scans left after an offline `Done` upload the next time either page opens.
 - **Lookups:**
   - they run one at a time, oldest first;
   - an item is due when `needsLookup(item)` holds (D7);
@@ -166,7 +175,17 @@ Every result found carries `byIsbn: true`, and its `matchIsbns` always include `
 - it carries `scanned_isbn` (the insert grant), plus the session edition and owner;
 - it goes upload → claim → Claude → `lookupForItem` → proposal.
 
-Once `createIntakeItem` returns `created`, the client calls `discard_intake_item(scanItemId, 'replaced_by_photo')`. If that discard fails, it is retried on the next flush. Meanwhile both items are open twins (D9), so neither can be bulk-confirmed. The session list shows the photo's row in place of the scan's.
+Once `createIntakeItem` returns `created`, the client calls `discard_intake_item(scanItemId, 'replaced_by_photo')`. Until that discard lands, both items are open twins (D9), so neither can be bulk-confirmed.
+
+The session list hides items with `discardReason === "replaced_by_photo"`, so the photo's row stands in place of the scan's. This also holds after a reload, because `discard_reason` is now read (Task 2).
+
+**Healing on session load.** A tab killed between the photo's create and the discard leaves both items open. On every session load, the scanner runs `scansToHeal(batchItems)` (pure, Task 7) and discards what it returns with `replaced_by_photo`. The rule, per scanned ISBN within the batch:
+- photos = the photo items with that `scannedIsbn` that aren't discarded;
+- already replaced = the scans of that ISBN already discarded as `replaced_by_photo`;
+- to heal = photos − already replaced;
+- it discards that many of the **open** scans of the ISBN whose lookup is `none` (not found), newest first.
+
+This counting rule keeps a deliberate second copy (`extraCopy`) of the same ISBN that never got a photo.
 
 **D9. Matching, confidence and bulk (`propose.ts`, pure).**
 - **Query title:**
@@ -232,6 +251,10 @@ Once `createIntakeItem` returns `created`, the client calls `discard_intake_item
   - a button showing `Edition: {label}` or `Edition: none`;
   - it opens a sheet with a filter field, `None`, the labels, and `Add "{typed}"` when the trimmed text matches no label case-insensitively;
   - typing an existing label in another case picks the existing spelling.
+- **Labels are capped at `MAX_LABEL` (120 characters), matching the database check.**
+  - `canonicalLabel` returns null for longer text.
+  - The picker's filter field has `maxLength={120}`. It shows `Add "{typed}"` only for 1–120 trimmed characters; past that it shows `Labels are at most 120 characters.`
+  - So no label the database would reject with `23514` can reach an item or the outbox.
 - **No labels table, and no rename or delete** (§6.4).
 - **Claude's clues are only a hint:** `Claude saw: {clues.join(", ")}` on photo cards. Nothing prefills the edition from them any more, in `IntakeCard`, `InboxPage` or `runBulkConfirm`.
 - **Filtering and search:** the library gets an `Edition` filter (`All editions`, then the labels), which matches a copy's `editionNote` case-insensitively and in full. Search also matches copies' `editionNote`.
@@ -239,6 +262,13 @@ Once `createIntakeItem` returns `created`, the client calls `discard_intake_item
   - each entry in the sheet gets a checkbox, all checked by default;
   - `Set edition for selected` writes `edition_label` on the checked items;
   - the add button reads `Add {n} books` and adds only the checked ones.
+
+**D13. One ISBN-13 rule everywhere: 978, or any 979 prefix (including 9790), plus a valid checksum.** That is what `normalizeIsbn13` already accepts, and spec §7 says "978/979". So:
+- `isbn13_is_valid` (SQL) accepts it;
+- `isbnFromBarcode` accepts it (after cutting an add-on);
+- `isbnFromTyped` accepts it (or an ISBN-10 converted to 978).
+
+9790 is the ISMN range for printed music. It is accepted rather than special-cased: a household scanning sheet music gets a not-found row and a photo prompt, which is harmless. Changing `normalizeIsbn13` would also change libib import matching. Task 1 and Task 3 pin `9790000000001` as accepted by all four.
 
 ## Cost
 
@@ -272,31 +302,31 @@ Below, `<tos-wt>` is that path. Load the `supabase:supabase` and `supabase:supab
 **Interfaces — Produces** (D2 is the binding summary):
 
 ```sql
-library.isbn13_is_valid(p text) returns boolean            -- immutable sql; '^97[89][0-9]{10}$' and EAN checksum
+library.isbn13_is_valid(p text) returns boolean            -- immutable sql, set search_path = ''; '^97[89][0-9]{10}$' and EAN checksum (D13)
 alter table library.intake_items
   add column if not exists source        text not null default 'photo',   -- + check (source in ('photo','scan'))
   add column if not exists scanned_isbn  text,                            -- + check (scanned_isbn is null or library.isbn13_is_valid(scanned_isbn))
   add column if not exists edition_label text,                            -- + check (null or (= btrim, <> '', <= 120 chars))
   add column if not exists extra_copy    boolean not null default false;
 -- source_hash drop not null; replace intake_items_cover_required; add intake_items_source_shape;
--- discard_reason check gains 'replaced_by_photo'
+-- intake_items_discard_reason_check (drop + re-add, same name) gains 'replaced_by_photo'
 alter table library.copies add column if not exists copy_note text;      -- + check (null or <= 2000 chars)
--- copies_origin_check: ('libib','photo','manual','scan')
+-- copies_origin_check (drop + re-add, same name): ('libib','photo','manual','scan')
 library.create_scan_item(p_item uuid, p_household uuid, p_batch uuid, p_owner uuid,
                          p_isbn text, p_edition text, p_extra_copy boolean) returns text   -- 'created' | 'exists'
-library.claim_intake_item(uuid)            -- + scan → 'done' first
+library.claim_intake_item(uuid)            -- + scan → 'done', right after the existing 42501 not-found/not-member check
 library.confirm_intake_item(uuid, uuid, jsonb, jsonb)   -- same args; p_copy contract in D2
-library.move_claude_edition_notes() returns int          -- D3; called once at the end of the migration
+library.move_claude_edition_notes(p_before timestamptz) returns int   -- security invoker; D3; guarded single call at the end
 ```
 
 Rules:
 - Idempotent like the earlier library migrations: `add column if not exists`, `drop constraint if exists` before each `add constraint`, `create or replace function`, `drop policy if exists`.
 - Re-issue the insert policy with `and source = 'photo'`. Re-grant the column lists in D2: revoke the old column grants first, then grant the new lists.
-- **Every definer function** checks membership itself and uses `set search_path = ''`.
-- The migration ends with `select library.move_claude_edition_notes();`.
+- **Every definer function** checks membership itself and uses `set search_path = ''`. `move_claude_edition_notes` is the one exception to the membership rule: it is security **invoker**, with `set search_path = ''` and no client grant, because it acts on every household and only the migration owner (or `postgres` in tests) runs it.
+- The migration **starts** by recording whether `library.copies.copy_note` exists (a `do` block, `set_config('library.scan_intake_cleanup', 'run' | 'skip', true)`). It **ends** with a `do` block that calls `library.move_claude_edition_notes(now())` only when the setting is `run` (D3).
 
 - [ ] **Step 1: Write the failing pgTAP test** in the setup style of `library_photo_intake.test.sql`: users A (in a household) and B (not), `test_vals`, `pg_temp` helpers, and synthetic ISBNs only. One assertion each:
-  - **Schema:** `isbn13_is_valid('9780000000002')` and `('9791000000008')` are true. `('9780000000003')` (checksum), `('978000000000')` (12 digits) and `('9770000000000')` are false. `has_column` for the four new item columns and `copies.copy_note`.
+  - **Schema:** `isbn13_is_valid('9780000000002')`, `('9791000000008')` and `('9790000000001')` (D13) are true. `('9780000000003')` (checksum), `('978000000000')` (12 digits) and `('9770000000000')` are false. `has_column` for the four new item columns and `copies.copy_note`.
   - **Create:**
     - A's `create_scan_item(item 1, hh, batch, A, '9780000000002', ' Invented Box ', false)` returns `created`. The row is `ready`, `scan`, has a null `source_hash` and `cover_path`, `edition_label = 'Invented Box'`, and `uploaded_by = A`.
     - The same call again returns `exists`, and the item count is unchanged.
@@ -307,6 +337,7 @@ Rules:
     - Reusing a photo item's id throws `42501`.
   - **Never claimable or billed (spec brief):**
     - `claim_intake_item` on a scan returns `done`, `intake_usage` for today stays 0, and the row is still `ready` with attempts 0.
+    - B's `claim_intake_item` on A's scan throws `42501`, the same as for a random id (the scan check doesn't reveal that the id exists).
     - As `postgres`, `update ... set status = 'pending'` on a scan throws `23514`; so does setting `cover_path` or `source_hash` on it.
     - `retry_intake_item` on a scan returns false.
     - As A, a direct `insert` naming `source` or `status` throws `42501`.
@@ -318,7 +349,8 @@ Rules:
     - A scan confirmed with `p_copy '{}'` takes the item's `edition_label`. With `{"edition_note":null}` the edition is null.
     - A photo item still gets `origin 'photo'` and its cover as `photo_path`.
     - The Plan 3 tests' `'{}'` and `edition_note` payloads behave as before.
-  - **Cleanup (`move_claude_edition_notes`, called as `postgres` on seeded rows):** seed confirmed photo items with an `extraction`, plus their copies. Then:
+  - **Cleanup (`move_claude_edition_notes(p_before)`, called as `postgres` on seeded rows; the seeded copies get `created_at = now() - interval '1 day'` unless stated):** seed confirmed photo items with an `extraction`, plus their copies, and call it with `p_before = now()`. Then:
+    - A matching copy (clues `["Invented Box"]`, note `Invented Box`) with `created_at = now() + interval '1 minute'`, standing for a new-app copy whose picked label equals a single clue, is untouched.
     - Clues `["Invented foil","Signed"]` with note `Invented foil; Signed`: **moved**, so `copy_note` holds that text and `edition_note` is null.
     - Clues `[" Invented foil "]` with note `Invented foil`: moved (Plan 3 trimmed it).
     - Note `Invented foil; Signed!` (edited): untouched.
@@ -327,7 +359,8 @@ Rules:
     - A photo copy with empty clues and a null note: untouched.
     - A photo copy with no `intake_item_id`: untouched.
     - The function returns 2. A second call returns 0 and changes nothing.
-    - `authenticated` executing it throws `42501`.
+    - `authenticated` and `anon` executing it both throw `42501`.
+    - `select prosecdef from pg_proc` for it is false (invoker), and both new functions have `search_path=""` in `proconfig`.
   - **RLS unchanged for non-members:**
     - B: `select` on A's scan item `is_empty`.
     - B: `create_scan_item` into A's household throws `42501`.
@@ -336,7 +369,7 @@ Rules:
     - anon: `select` on `intake_items` and `execute create_scan_item` are both permission denied.
     - A (member): `select claim_token` still throws `42501`.
 - [ ] **Step 2: Run it to verify it fails.** `npx supabase@2.122.1 start --workdir <tos-wt>`, then `npx supabase@2.122.1 test db --workdir <tos-wt>`. Expected: FAIL, `library.isbn13_is_valid` does not exist.
-- [ ] **Step 3: Write the migration** per D2, D3 and the Rules.
+- [ ] **Step 3: Write the migration** per D2, D3 and the Rules. Before writing the two `drop constraint` lines, confirm the names on the local database: `select conrelid::regclass, conname from pg_constraint where conname in ('copies_origin_check', 'intake_items_discard_reason_check');` (through `npx supabase@2.122.1 db query --help`-confirmed syntax, or `psql` against the local stack). Expected: both rows. If a name differs, use the real one and note it in the PR body.
 - [ ] **Step 4: Verify.**
   - `npx supabase@2.122.1 db reset --workdir <tos-wt>`, then `test db`. Expected: all four library test files pass, with Plan 3's `library_photo_intake.test.sql` unchanged.
   - `npx supabase@2.122.1 db advisors --local --workdir <tos-wt>`. Expected: no new findings for `library`; check `npx supabase@2.122.1 db advisors --help` for the flags first.
@@ -367,18 +400,21 @@ interface CopyInput { ownerUserId; editionNote; copyNote: string | null; locatio
 
 // photo/types.ts
 type IntakeSource = "photo" | "scan";
+type DiscardReason = "discarded" | "already_recorded" | "replaced_by_photo";
 interface IntakeItem { /* + */ source: IntakeSource; scannedIsbn: string | null; editionLabel: string | null;
-  extraCopy: boolean; sourceHash: string | null }
+  extraCopy: boolean; sourceHash: string | null; discardReason: DiscardReason | null }
 interface LookupResult { /* + */ byIsbn?: boolean }
 // toIntakeItem: source ?? "photo", extra_copy ?? false
 
 // photo/intake-repo.ts
-// ITEM_COLUMNS + "source, scanned_isbn, edition_label, extra_copy" (still no claim_token)
+// ITEM_COLUMNS + "source, scanned_isbn, edition_label, extra_copy, discard_reason" (still no claim_token)
 createIntakeItem(row: { ...as before; scannedIsbn?: string | null; editionLabel?: string | null }):
   Promise<"created" | "duplicate">          // sends scanned_isbn / edition_label only when given
 interface ScanItemArgs { id: string; householdId: string; batchId: string; ownerUserId: string | null;
   isbn: string; editionLabel: string | null; extraCopy: boolean }
-createScanItem(args: ScanItemArgs): Promise<"created" | "exists">   // rpc create_scan_item; rejects with the PostgREST error
+class ScanSaveError extends Error { code: string | null; status: number | null }   // status null = network failure
+createScanItem(args: ScanItemArgs): Promise<"created" | "exists">
+// rpc create_scan_item; rejects with ScanSaveError carrying the PostgREST error code and the response status (D6)
 setItemEdition(itemId: string, label: string | null): Promise<void> // trims; blank → null
 discardItem(itemId, reason: "discarded" | "already_recorded" | "replaced_by_photo"): Promise<boolean>
 listOpenEditionLabels(householdId: string): Promise<string[]>       // paged; status in open; edition_label not null
@@ -386,9 +422,10 @@ listOpenEditionLabels(householdId: string): Promise<string[]>       // paged; st
 ```
 
 - [ ] **Step 1: Write the failing tests:**
-  - `toIntakeItem` maps the four new columns. A row without them (an old fixture) gives `source "photo"`, `extraCopy false`, and null `scannedIsbn` and `editionLabel`.
-  - `listIntakeItems`'s select string contains `scanned_isbn` and `edition_label` but not `claim_token`.
+  - `toIntakeItem` maps the five new columns. A row without them (an old fixture) gives `source "photo"`, `extraCopy false`, and null `scannedIsbn`, `editionLabel` and `discardReason`.
+  - `listIntakeItems`'s select string contains `scanned_isbn`, `edition_label` and `discard_reason`, but not `claim_token`.
   - `createScanItem` calls `rpc("create_scan_item", { p_item, p_household, p_batch, p_owner, p_isbn, p_edition, p_extra_copy })` and resolves `"exists"` when the RPC returns `exists`.
+  - An RPC error `{ code: "23514" }` with status 400 rejects with a `ScanSaveError` carrying code `"23514"` and status 400; a thrown fetch failure gives code null and status null.
   - `createIntakeItem` without the new fields sends exactly Plan 3's seven columns; with them it sends nine.
   - `setItemEdition("i", "  ")` updates `{ edition_label: null }`.
   - `confirmItem` with `copy: { ..., copyNote: " Signed " }` sends `p_copy.copy_note = "Signed"`.
@@ -412,7 +449,7 @@ listOpenEditionLabels(householdId: string): Promise<string[]>       // paged; st
 type BarcodeVerdict = { kind: "isbn"; isbn13: string } | { kind: "not_isbn" };
 isbnFromBarcode(text: string): BarcodeVerdict
 // digits only; 13 → itself; 15 or 18 (an add-on appended) → the first 13; otherwise not_isbn.
-// Accepts 978 and 9791–9799 via normalizeIsbn13; rejects 9790 (ISMN, sheet music) and any bad checksum.
+// The 13 digits must pass normalizeIsbn13: 978 or any 979 (including 9790), valid checksum (D13).
 isbnFromTyped(text: string): string | null
 // normalizeIsbn13, else normalizeIsbn10 → isbn10To13; spaces and hyphens allowed; 'x' accepted as X.
 
@@ -429,11 +466,12 @@ searchGoogleBooksIsbn(isbn13: string, key: string, fetchImpl: typeof fetch): Pro
   - **`isbnFromBarcode`:**
     - `"9780000000002"` gives an isbn result;
     - `"978000000000251299"` (an EAN-5 add-on) and `"978000000000212"` (EAN-2) give `9780000000002`;
-    - `"9780000000003"`, `"0012345678905"` (UPC-style), `"9790000000001"` (ISMN), `"51299"` and `""` give `not_isbn`;
-    - `"9791000000008"` gives an isbn result.
+    - `"9780000000003"`, `"0012345678905"` (UPC-style), `"51299"` and `""` give `not_isbn`;
+    - `"9791000000008"` and `"9790000000001"` give isbn results (D13).
   - **`isbnFromTyped`:**
     - `"978-0-00-000000-2"` and `" 9780000000002 "` give `9780000000002`;
     - `"0-00-000000-0"` (ISBN-10) gives `9780000000002`;
+    - `"979-0-000000-00-1"` gives `9790000000001` (D13);
     - `"9780000000003"` and `"abc"` give null.
   - **`lookupIsbn`:**
     - the URL is `search.json?isbn=9780000000002&limit=1&fields=...editions,editions.cover_i`;
@@ -513,7 +551,7 @@ lookupAsBookInput(title, authors, item: IntakeItem): NewBookInput
 // lib/editions.ts
 const MAX_LABEL = 120;
 editionLabels(catalog: BookWithCopies[], openLabels: string[]): string[]   // D12
-canonicalLabel(typed: string, labels: string[]): string | null              // trimmed; existing spelling on a case-insensitive hit; blank → null
+canonicalLabel(typed: string, labels: string[]): string | null              // trimmed; existing spelling on a case-insensitive hit; blank or > MAX_LABEL → null
 
 // components/edition/EditionPicker.tsx
 EditionPicker(props: { value: string | null; labels: string[]; onChange(label: string | null): void;
@@ -530,13 +568,14 @@ filterBooks(books, opts: { query: string; owner: OwnerFilter; edition?: string |
     - copies `"Invented Box"`, `"invented box"`, `"Invented Box"` and `" Other Box "`, plus open label `"Third Box"`, give `["Invented Box", "Other Box", "Third Box"]`;
     - blank values and a 121-character note are dropped;
     - an empty input gives `[]`.
-  - **`canonicalLabel`:** `("invented BOX", labels)` gives `"Invented Box"`, `("  ", ...)` gives null, and `(" New ", ...)` gives `"New"`.
+  - **`canonicalLabel`:** `("invented BOX", labels)` gives `"Invented Box"`, `("  ", ...)` gives null, and `(" New ", ...)` gives `"New"`. 120 characters plus surrounding spaces gives the 120 characters; 121 characters gives null.
   - **`EditionPicker`:**
     - it shows `Edition: none`;
     - opening it and typing `inv` filters to `Invented Box`;
     - typing `Fresh Box` shows `Add "Fresh Box"`, and choosing it calls `onChange("Fresh Box")`;
     - typing `invented box` shows no Add option;
     - `None` calls `onChange(null)`;
+    - the filter field has `maxLength` 120, and pasting a 121-character value (set through `fireEvent.change`) shows `Labels are at most 120 characters.` with no Add option;
     - the sheet is keyboard-operable (Escape closes it, and the options are buttons).
   - **`CopyList`:** editing a copy, picking `Invented Box` and typing a copy note calls `updateCopy` with `{ edition_note: "Invented Box", copy_note: "Signed" }` and marks both edited fields.
   - **`filterBooks`:**
@@ -600,7 +639,7 @@ UI, with exact copy:
 **Files:**
 - Create in `src/lib/scan/`: `read-gate.ts`, `outbox.ts`, `owners.ts`, `session.ts`, `feedback.ts`, `camera.ts`, `decoder.ts`, `scan-loop.ts`
 - Modify: `package.json`, `package-lock.json` (`"zxing-wasm": "3.1.6"`; run `docker compose run --rm app npm install zxing-wasm@3.1.6 --save-exact`)
-- Test: `src/lib/scan/*.test.ts`, one per module except `decoder.ts`, which gets an options-only test
+- Test: `src/lib/scan/*.test.ts`, one per module. `decoder.ts` gets an options test plus `decoder.format.test.ts`, which runs the real WASM in Node against writer-generated images (I1)
 
 **Interfaces — Produces:**
 
@@ -621,10 +660,17 @@ idleDue(now: number, lastActivity: number): boolean
 interface OutboxEntry extends ScanItemArgs { createdAt: string; failed?: "rejected" }
 outboxKey(householdId: string): string                  // `tpl_scan_outbox_${householdId}`
 readOutbox(householdId): OutboxEntry[]; appendOutbox(entry): void
+removeOutboxEntry(householdId: string, id: string): void       // re-reads storage, drops that id, writes back
+markOutboxRejected(householdId: string, id: string): void      // same read-modify-write by id
+isRejection(err: ScanSaveError): boolean
+// code in (42501, 22023, 23514, 22P02), or status 400–499 except 408 and 429 (D6)
 flushOutbox(householdId: string, deps: { create: typeof createScanItem; sleep(ms: number): Promise<void>;
   online(): boolean; onSaved(id: string): void; onRejected(id: string): void; signal?: AbortSignal }): Promise<void>
-// one at a time; backoff 2000, 8000, then 30000 repeating while online(); stops when the signal aborts.
-// 'created' | 'exists' → remove + onSaved; 42501/22023 → mark failed: "rejected" + onRejected; else keep
+// One flush per household: a module-level Map<householdId, Promise<void>>. A call while one runs sets a
+// "run again" flag and returns the running promise. The loop re-reads the outbox before each entry and
+// ends when no unsent entry is left. Backoff 2000, 8000, then 30000 repeating while online(); stops on abort.
+// 'created' | 'exists' → removeOutboxEntry + onSaved; isRejection → markOutboxRejected + onRejected; else keep
+scansToHeal(batchItems: IntakeItem[]): string[]   // pure; D8 healing rule; ids of open scans to discard
 
 // owners.ts (pure)
 interface OwnedInfo { line: string | null; elsewhere: boolean }
@@ -652,8 +698,9 @@ startCamera(video: HTMLVideoElement, md?: MediaDevices): Promise<CameraHandle>
 grabGuideFrame(video: HTMLVideoElement, canvas: HTMLCanvasElement): ImageData | null  // center 90% × 35%
 
 // decoder.ts (lazy; D1). Only ever reached through `await import("./decoder")` in loadDecoder().
-const READER_OPTIONS: { formats: ["EAN13"]; eanAddOnSymbol: "Ignore"; maxNumberOfSymbols: 1; tryHarder: true };
-interface Decoder { decode(frame: ImageData): Promise<string[]> }   // texts of results with isValid
+const READER_OPTIONS: { formats: ["EANUPC"]; eanAddOnSymbol: "Ignore"; maxNumberOfSymbols: 1; tryHarder: true };
+interface Decoder { decode(frame: ImageData): Promise<string[]> }
+// texts of results with isValid, any EAN/UPC format; the caller filters them through isbnFromBarcode (D1)
 createDecoder(): Promise<Decoder>
 // scan-loop.ts
 loadDecoder(): Promise<Decoder>                          // import("./decoder").then(m => m.createDecoder())
@@ -678,6 +725,13 @@ runScanLoop(opts: { grab(): ImageData | null; decoder: Decoder; onText(text: str
     - `22023` calls `onRejected` and keeps the entry marked; the next entry is still sent.
     - With `online()` false it stops sending until called again.
     - A throwing `localStorage` makes `appendOutbox` a no-op and `readOutbox` return `[]`, without throwing.
+    - **Append during a flush:** `create` for entry 1 waits on a deferred promise. Meanwhile the test appends entry 2 and calls `flushOutbox` again, which returns the same promise and makes no second concurrent `create`. When entry 1 resolves, entry 1 is removed, **entry 2 is still in storage**, and the same flush then sends entry 2. At the end the outbox is empty, and `create` was called exactly twice, never two at once.
+    - **Rejections:** `ScanSaveError` with `23514`, with `22P02`, and with code null and status 404 are each marked rejected and sent once only. Status 429, status 503 and a network error (status null) are retried.
+  - **`scansToHeal` (D8):**
+    - A batch with a not-found scan S and an open photo P of the same ISBN gives `[S]`. If S is already discarded as `replaced_by_photo`, it gives `[]`.
+    - Two not-found scans of one ISBN (the second `extraCopy`) and one photo give only the newer scan.
+    - A found scan (lookup agrees) plus a photo of the same ISBN gives `[]`.
+    - Items from another batch are ignored.
   - **`owners`:**
     - A's copy gives `Already in library — Avery's copy` (fixture member A has the invented display name `"Avery"`, B `"Blake"`).
     - A's plus a shared copy gives `Avery's and shared copies`; A's and B's give `Avery's and Blake's copies`.
@@ -701,9 +755,17 @@ runScanLoop(opts: { grab(): ImageData | null; decoder: Decoder; onText(text: str
     - With a decoder that resolves after a deferred promise, a second `grab` happens only after the first decode settles, followed by `sleep(120)`.
     - Aborting stops it.
     - A rejection doesn't end it.
-  - **`decoder`:** `READER_OPTIONS` deep-equals the D1 options (this pins `eanAddOnSymbol: "Ignore"`).
+  - **`decoder`:** `READER_OPTIONS` deep-equals the D1 options (this pins `formats: ["EANUPC"]` and `eanAddOnSymbol: "Ignore"`).
+  - **`decoder.format.test.ts` (`// @vitest-environment node`; the real WASM, loaded from `node_modules` through `prepareZXingModule({ overrides: { wasmBinary } })` for both the writer and the reader):**
+    - `writeBarcode("9780000000002", { format: "EAN13" })` from `zxing-wasm/writer` produces a PNG;
+    - `readBarcodes(png, READER_OPTIONS)` from `zxing-wasm/reader` returns exactly one valid result with `text` `"9780000000002"`, and `isbnFromBarcode(text)` accepts it;
+    - the test asserts the reported `format` is one of `"EAN13"` or `"ISBN"`, and the implementer records which one in the commit message;
+    - the same check for `9791000000008`;
+    - a written UPC-A (`"012345678905"`) is read, and `isbnFromBarcode` rejects it, which proves the `not an ISBN` path sees UPCs.
+
+    If the writer's API differs from this, check `dist/es/writer/index.d.ts` at 3.1.6 and adjust the call, not the assertions.
 - [ ] **Step 2: Run to verify failure.** `docker compose run --rm app npm test -- src/lib/scan`. Expected: FAIL.
-- [ ] **Step 3: Implement** per Interfaces. `decoder.ts` uses D1's `prepareZXingModule` and `?url` exactly.
+- [ ] **Step 3: Implement** per Interfaces. `decoder.ts` uses D1's `prepareZXingModule` and `?url` exactly. Run `decoder.format.test.ts` first, **before** wiring the decoder into anything. If a 978 image is reported in a format the D1 filter doesn't expect, stop and fix D1 before continuing.
 - [ ] **Step 4: Verify.** Same command, the full `npm test`, then `npm run build`. Expected: PASS, and the build emits a `zxing_reader-*.wasm` asset.
 - [ ] **Step 5: Commit** `feat: scanner engine (read gate, offline outbox, camera, lazy decoder)`.
 
@@ -725,7 +787,8 @@ Screen (phone-first, full height; style per the inbox):
   - a top bar with `Done`, the session edition, the sound toggle, and `Torch` when it is supported;
   - under the video, `Take a photo` and `Type ISBN`.
 - **The flash and the nudge:** the flash border follows D5. The nudge banner reads `Can't read a barcode? Take a photo instead.`, with `Take a photo` and `Dismiss`.
-- **The running list (`ScanList`):** newest first. The first 20 are shown, then `Show all {n}`. Each row has a thumbnail (`lookup.coverUrl`, `loading="lazy"`, `decoding="async"`) and a status, by state:
+- **On session load (fresh or resumed):** discard every id `scansToHeal(batchItems)` returns, with `replaced_by_photo` (D8). Failures are logged by name and retried on the next load.
+- **The running list (`ScanList`):** newest first. Items with `discardReason === "replaced_by_photo"` are hidden. The first 20 are shown, then `Show all {n}`. Each row has a thumbnail (`lookup.coverUrl`, `loading="lazy"`, `decoding="async"`) and a status, by state:
 
   | Row state | Status text |
   |---|---|
@@ -746,7 +809,7 @@ Screen (phone-first, full height; style per the inbox):
 - **On `ask_another_copy`:** stop decoding and show the D4 prompt. `Add another copy` saves with `extraCopy: true`; either answer resumes decoding.
 - **`Take a photo`:**
   - stop the camera, then open `<input type="file" accept="image/*" capture="environment">`;
-  - on `change`: `runUploadBatch([file], { batchId, ownerUserId, editionLabel, scannedIsbn })`;
+  - on `change`: `runUploadBatch([file], { householdId, ownerUserId, batchId, editionLabel, scannedIsbn, onChange }, { ...browserUploadDeps, onItemCreated: intake.processNew })`. `onChange` maps the single `UploadEntry` onto the photo row's status (`preparing`/`uploading` show `Uploading photo…`; `failed` shows `Upload failed.` with `Retry`; `unreadable` shows the Plan 3 HEIC or too-small sentence; `duplicate` shows `Already uploaded`);
   - then `processNew`; if it came from a not-found row, `discardItem(scanId, "replaced_by_photo")` (D8);
   - restart the camera on `change` or `cancel`.
 - **`Type ISBN`:** a sheet with `<input inputmode="numeric" autocomplete="off">` and `Add`. An invalid entry shows `That isn't a valid ISBN. Check the digits.` A valid one goes through `onTyped`.
@@ -762,7 +825,10 @@ Screen (phone-first, full height; style per the inbox):
   - **Nudge:** advancing 8 s with no read shows the nudge; `Dismiss` hides it for another 8 s.
   - **Offline (Review Focus 2):** with `createScanItem` rejecting with a network error, 3 scans show `Saved on this phone…`. After an `online` event and a successful mock, all 3 are created exactly once and the rows change to `Looking up…`.
   - **Reload:** unmount, then remount with the same `Storage` and items mock: the list shows the batch's items plus the unsent outbox entries, the edition picker shows `Invented Box`, and the owner is restored.
-  - **Not found → photo:** a scan whose lookup is `none` shows `Take a photo`. Choosing a file calls `runUploadBatch` with `scannedIsbn: "9780000000002"` and the session edition, then `discardItem(scanId, "replaced_by_photo")`, and the camera is stopped before the input opens and restarted after `change`.
+  - **Not found → photo:** a scan whose lookup is `none` shows `Take a photo`. Choosing a file calls `runUploadBatch` with `householdId`, `batchId`, `ownerUserId`, `scannedIsbn: "9780000000002"`, the session edition and an `onChange`, then `discardItem(scanId, "replaced_by_photo")`. The camera is stopped before the input opens and restarted after `change`.
+  - **Replaced scans stay gone (I4):**
+    - a remount whose items mock returns the scan with `discardReason: "replaced_by_photo"` lists only the photo row;
+    - a remount whose mock returns the scan still open (`lookup.source "none"`) next to a photo item with the same `scannedIsbn`, standing for a tab killed before the discard, calls `discardItem(scanId, "replaced_by_photo")` once and lists only the photo row.
   - **Typed:** `978-0-00-000000-2` adds a scan. `9780000000003` shows the invalid message and adds nothing.
   - **Camera states:** `denied` shows its sentence with `Type ISBN` and `Take a photo` still working, and no torch. `torchSupported` shows `Torch`, and pressing it calls `setTorch(true)`.
   - **Lifecycle:** `visibilitychange` to hidden calls `stop()` and releases the wake lock; visible again calls `startCamera` again. 120 s idle shows `Camera paused to save battery.` `Done` calls `stop()`, clears `tpl_scan_session`, and sets the hash to `#/inbox`.
@@ -842,7 +908,7 @@ Screen (phone-first, full height; style per the inbox):
 3. **No function deploy:** `library-intake` is unchanged.
 4. Merge the library PR **right away**; the Pages deploy runs. Don't confirm photos between steps 2 and 4: a photo confirmed by the old app in that gap keeps Claude's text as its edition (D3).
 5. Spot check: open a book that was confirmed from a photo under Plan 3. Its Claude text is now under the copy note, and the edition is empty. A libib edition note is unchanged.
-6. **Real-phone walkthrough** (the list at the end of Task 9), on the deployed HTTPS site, on an iPhone and on an Android phone:
+6. **Real-phone walkthrough** (the list at the end of Task 9), on the deployed HTTPS site, on the user's phone(s). Run whichever platform-specific checks apply to the phones at hand; for example, torch and vibration need Android Chrome, and the silent-switch beep check needs an iPhone:
    - scan 5 books, including one already in the library and one scanned twice;
    - photograph a book with no barcode;
    - put the phone down for 2 minutes;
