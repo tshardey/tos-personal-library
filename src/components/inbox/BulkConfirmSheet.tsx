@@ -41,13 +41,15 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
         role="dialog"
         aria-modal="true"
         aria-labelledby="bulk-heading"
-        className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-white p-4 sm:rounded"
+        className="flex max-h-[80dvh] w-full max-w-lg flex-col rounded-t bg-white sm:rounded"
       >
-        <h3 id="bulk-heading" className="mb-2 text-lg font-semibold">
-          {heading}
-        </h3>
-        <p className="mb-2 text-sm">Each of these is added as a new book, with a copy for its owner.</p>
-        <ul className="mb-4 space-y-2">
+        <div className="shrink-0 p-3 pb-2 sm:p-4 sm:pb-2">
+          <h3 id="bulk-heading" className="mb-1 text-base font-semibold sm:mb-2 sm:text-lg">
+            {heading}
+          </h3>
+          <p className="text-[13px] sm:text-sm">Each of these is added as a new book, with a copy for its owner.</p>
+        </div>
+        <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-1 text-[15px] sm:space-y-2 sm:px-4 sm:text-base">
           {entries.map((e) => (
             <li key={e.id} className="flex items-start gap-2">
               <input
@@ -56,47 +58,49 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
                 checked={!unchecked.has(e.id)}
                 disabled={busy}
                 onChange={() => toggle(e.id)}
-                className="mt-1"
+                className="mt-1 h-5 w-5"
               />
               <span>
                 <span className="font-medium">{e.title}</span>
-                {e.authors.length > 0 && <span className="text-stone-600">{` Â· ${e.authors.join(", ")}`}</span>}
-                <span className="block text-sm text-stone-600">{`Edition: ${e.editionNote || "none"}`}</span>
+                {e.authors.length > 0 && <span className="text-stone-600">{` · ${e.authors.join(", ")}`}</span>}
+                <span className="block text-[13px] text-stone-600 sm:text-sm">{`Edition: ${e.editionNote || "none"}`}</span>
               </span>
             </li>
           ))}
         </ul>
-        <div className="mb-4 flex items-end gap-2">
-          <div className="min-w-0 flex-1">
-            <EditionPicker
-              value={edition}
-              labels={labels}
-              label="Set edition for selected"
-              disabled={busy}
-              onChange={setEdition}
-            />
+        <div className="shrink-0 border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="mb-2 flex items-end gap-2 sm:mb-3">
+            <div className="min-w-0 flex-1">
+              <EditionPicker
+                value={edition}
+                labels={labels}
+                label="Set edition for selected"
+                disabled={busy}
+                onChange={setEdition}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={busy || checked.length === 0}
+              onClick={() => onSetEdition(checked, edition)}
+              className="min-h-10 rounded border px-3 py-2 disabled:opacity-50"
+            >
+              Apply
+            </button>
           </div>
-          <button
-            type="button"
-            disabled={busy || checked.length === 0}
-            onClick={() => onSetEdition(checked, edition)}
-            className="rounded border px-3 py-2 disabled:opacity-50"
-          >
-            Apply
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={busy || checked.length === 0}
-            onClick={() => onConfirm(checked)}
-            className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
-          >
-            {checked.length === 1 ? "Add 1 book" : `Add ${checked.length} books`}
-          </button>
-          <button type="button" disabled={busy} onClick={onCancel} className="rounded border px-3 py-2">
-            Cancel
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy || checked.length === 0}
+              onClick={() => onConfirm(checked)}
+              className="min-h-10 rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+            >
+              {checked.length === 1 ? "Add 1 book" : `Add ${checked.length} books`}
+            </button>
+            <button type="button" disabled={busy} onClick={onCancel} className="min-h-10 rounded border px-3 py-2">
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     </div>

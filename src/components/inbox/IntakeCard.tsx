@@ -131,7 +131,7 @@ export default function IntakeCard(props: Props) {
 
   if (item.status === "confirmed" || item.status === "discarded") {
     return (
-      <article aria-label={heading} className="flex gap-3 rounded border p-3 text-sm">
+      <article aria-label={heading} className="flex gap-2 rounded border p-2 text-[13px] sm:gap-3 sm:p-3 sm:text-sm">
         <p className="font-medium">{heading}</p>
         <p className="text-stone-600">
           {item.status === "confirmed"
@@ -159,7 +159,7 @@ export default function IntakeCard(props: Props) {
 
   if (item.status === "pending" || item.status === "processing") {
     return (
-      <article aria-label={heading} className="flex gap-3 rounded border p-3">
+      <article aria-label={heading} className="flex gap-2 rounded border p-2 text-[15px] sm:gap-3 sm:p-3 sm:text-base">
         {thumb}
         <div>
           {extracted && <p className="font-medium">{extracted}</p>}
@@ -226,8 +226,8 @@ export default function IntakeCard(props: Props) {
   );
 
   return (
-    <article aria-label={heading} className="rounded border p-3">
-      <div className="mb-2 flex gap-3">
+    <article aria-label={heading} className="rounded border p-2 text-[15px] sm:p-3 sm:text-base">
+      <div className="mb-2 flex gap-2 sm:gap-3">
         {thumb}
         <div className="min-w-0">
           <p className="font-medium">{extracted || (isScan ? heading : "No title read")}</p>
@@ -279,7 +279,7 @@ export default function IntakeCard(props: Props) {
           if (!b) return null;
           const addLabel = `Add a copy to ${b.title}`;
           return (
-            <div key={b.id} className="py-1">
+            <div key={b.id} className="py-0.5 sm:py-1">
               <label className="flex items-start gap-2">
                 {radio({ kind: "add_copy", bookId: b.id }, addLabel)}
                 {b.coverUrl ? (
@@ -298,7 +298,7 @@ export default function IntakeCard(props: Props) {
                 </span>
               </label>
               {b.copies.length > 0 && (
-                <label className="ml-6 flex items-start gap-2 py-1">
+                <label className="ml-6 flex min-h-10 items-start gap-2 py-1">
                   {radio({ kind: "already_recorded", bookId: b.id }, "Already recorded")}
                   <span>Already recorded</span>
                 </label>
@@ -306,12 +306,12 @@ export default function IntakeCard(props: Props) {
             </div>
           );
         })}
-        <label className="flex items-start gap-2 py-1">
+        <label className="flex min-h-10 items-start gap-2 py-1">
           {radio({ kind: "new_book" }, "Add as a new book")}
           <span>Add as a new book</span>
         </label>
         {notABook && (
-          <label className="flex items-start gap-2 py-1">
+          <label className="flex min-h-10 items-start gap-2 py-1">
             {radio(DISCARD, "Discard the photo")}
             <span>Discard the photo</span>
           </label>
@@ -405,7 +405,7 @@ export default function IntakeCard(props: Props) {
           type="button"
           disabled={busy || props.stale || (writes && effectiveTitle.trim() === "")}
           onClick={() => void submit(chosen)}
-          className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+          className="rounded bg-stone-800 min-h-10 px-3 py-2 text-white disabled:opacity-50"
         >
           Confirm
         </button>
@@ -413,7 +413,7 @@ export default function IntakeCard(props: Props) {
           type="button"
           disabled={busy}
           onClick={() => void submit(DISCARD)}
-          className="rounded border px-3 py-2 disabled:opacity-50"
+          className="min-h-10 rounded border px-3 py-2 disabled:opacity-50"
         >
           {isScan ? "Discard scan" : "Discard photo"}
         </button>

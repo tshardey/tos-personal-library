@@ -10,6 +10,8 @@ import AddBook from "@/components/book/AddBook";
 import ImportPage from "@/components/import/ImportPage";
 import InboxPage from "@/components/inbox/InboxPage";
 import ChunkErrorBoundary from "@/components/common/ChunkErrorBoundary";
+import AccountMenu from "@/components/nav/AccountMenu";
+import TabBar from "@/components/nav/TabBar";
 import { useRoute } from "@/lib/router";
 
 // Its own chunk: the scanner, and through it the barcode decoder, load only on #/scan (D1).
@@ -39,27 +41,18 @@ function SignedIn() {
   if (!household) return <HouseholdSetup />;
   return (
     <div>
-      <header className="flex items-center justify-between border-b p-4">
-        <h1 className="text-xl font-semibold">Our Library</h1>
-        <div className="flex items-center gap-3">
-          <a href="#/scan" className="underline">
-            Scan
-          </a>
-          <a href="#/inbox" className="underline">
-            Photos
-          </a>
-          <a href="#/import" className="underline">
-            Import
-          </a>
-          <span>{user?.email}</span>
-          <button type="button" onClick={() => void signOut()} className="underline">
-            Sign out
-          </button>
-        </div>
+      <header className="flex items-center justify-between gap-2 px-3 py-2 sm:px-4">
+        <h1 className="text-lg font-semibold sm:text-xl">
+          <a href="#/">Our Library</a>
+        </h1>
+        <AccountMenu email={user?.email} onSignOut={() => void signOut()} />
       </header>
-      <div className="border-b p-4">
-        <InviteCode />
-      </div>
+      <TabBar route={route} />
+      {route.name === "library" && (
+        <div className="border-b p-3 sm:p-4">
+          <InviteCode />
+        </div>
+      )}
       {route.name === "book" ? (
         <BookDetail key={route.id} id={route.id} />
       ) : route.name === "add" ? (
