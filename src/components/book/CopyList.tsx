@@ -46,6 +46,7 @@ export default function CopyList({
     const before: CopyInput = normalizeCopyInput({
       ownerUserId: copy.ownerUserId,
       editionNote: copy.editionNote,
+      copyNote: copy.copyNote,
       location: copy.location,
     });
     const { changed, patch } = diffPatch(before, next, EDITABLE);

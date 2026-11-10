@@ -171,7 +171,7 @@ export default function BookDetail({ id }: { id: string }) {
         {addingCopy ? (
           <div className="mt-3">
             <CopyForm
-              initial={{ ownerUserId: user?.id ?? null, editionNote: null, location: null }}
+              initial={{ ownerUserId: user?.id ?? null, editionNote: null, copyNote: null, location: null }}
               members={members}
               submitLabel="Add copy"
               onCancel={() => setAddingCopy(false)}

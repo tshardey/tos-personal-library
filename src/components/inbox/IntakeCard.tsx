@@ -162,6 +162,7 @@ export default function IntakeCard(props: Props) {
         copy: {
           ownerUserId: owner,
           editionNote: (editionNote ?? defaultNote) || null,
+          copyNote: null,
           location: location || null,
         },
       });

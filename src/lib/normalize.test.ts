@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normalizeBookInput, normalizeCopyInput, splitAuthors, splitList } from "./normalize";
 import { diffPatch, markEdited } from "./edited-fields";
-import { fromBookPatch, fromCopyPatch } from "./types";
+import { fromBookPatch, fromCopyPatch, toCopy } from "./types";
 import type { BookInput } from "./types";
 
 const EDITABLE: (keyof BookInput)[] = ["title", "authors", "synopsis", "pageCount"];
@@ -37,11 +37,21 @@ describe("normalize", () => {
   });
 
   it("normalizeCopyInput trims and nulls blanks", () => {
-    expect(normalizeCopyInput({ ownerUserId: "", editionNote: " x ", location: " " })).toEqual({
+    expect(normalizeCopyInput({ ownerUserId: "", editionNote: " x ", copyNote: " signed ", location: " " })).toEqual({
       ownerUserId: null,
       editionNote: "x",
+      copyNote: "signed",
       location: null,
     });
+  });
+
+  it("toCopy maps copy_note", () => {
+    expect(toCopy({ id: "c", copy_note: "Signed" }).copyNote).toBe("Signed");
+    expect(toCopy({ id: "c" }).copyNote).toBeNull();
+  });
+
+  it("normalizeCopyInput turns a blank copyNote into null", () => {
+    expect(normalizeCopyInput({ ownerUserId: null, editionNote: null, copyNote: "  ", location: null }).copyNote).toBeNull();
   });
 
   it("only a real change is marked edited when imported values are untidy", () => {

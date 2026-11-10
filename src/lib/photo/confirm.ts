@@ -155,7 +155,7 @@ export async function runBulkConfirm(
       await deps.perform(item, { kind: "new_book" }, {
         title: proposal.query.title,
         authors: proposal.query.authors,
-        copy: { ownerUserId: item.ownerUserId, editionNote: clues.join("; ") || null, location: null },
+        copy: { ownerUserId: item.ownerUserId, editionNote: clues.join("; ") || null, copyNote: null, location: null },
       });
       confirmed += 1;
     } catch (e) {

@@ -8,6 +8,7 @@ function copy(ownerUserId: string | null): Copy {
     bookId: "b",
     ownerUserId,
     editionNote: null,
+    copyNote: null,
     location: null,
     origin: "manual",
     libibId: null,

@@ -89,6 +89,11 @@ function item(over: Partial<IntakeItem> = {}, ex: Partial<Extraction> | null = {
     coverPath: `h1/item-${seq}/cover.jpg`,
     titlePagePath: null,
     sourceHash: `hash-${seq}`,
+    source: "photo",
+    scannedIsbn: null,
+    editionLabel: null,
+    extraCopy: false,
+    discardReason: null,
     status: "ready",
     attempts: 1,
     claimedAt: null,
@@ -119,6 +124,7 @@ const copy = (over: Partial<Copy> = {}): Copy => ({
   bookId: "b",
   ownerUserId: "u2",
   editionNote: null,
+  copyNote: null,
   location: null,
   origin: "manual",
   libibId: null,
@@ -274,6 +280,7 @@ describe("InboxPage", () => {
     expect(repo.confirmItem).toHaveBeenCalledWith(it1.id, { bookId: "b1" }, {
       ownerUserId: "u1",
       editionNote: null,
+      copyNote: null,
       location: null,
     });
   });

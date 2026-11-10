@@ -43,7 +43,7 @@ export default function AddBook() {
         <>
           <p className="mb-2 text-sm">First copy of {book.title}</p>
           <CopyForm
-            initial={{ ownerUserId: user?.id ?? null, editionNote: null, location: null }}
+            initial={{ ownerUserId: user?.id ?? null, editionNote: null, copyNote: null, location: null }}
             members={members}
             submitLabel="Add book"
             onSubmit={async (copy) => {

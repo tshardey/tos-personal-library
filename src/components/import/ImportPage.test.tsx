@@ -262,7 +262,7 @@ describe("ImportPage", () => {
           isbn13: [isbn(900)],
           copies: [
             {
-              id: "c1", bookId: "b1", ownerUserId: "u1", editionNote: null, location: null,
+              id: "c1", bookId: "b1", ownerUserId: "u1", editionNote: null, copyNote: null, location: null,
               origin: "libib", libibId: "OLD0000001", photoPath: null, intakeItemId: null, userEditedFields: [],
               createdAt: OLD, updatedAt: OLD,
             },
@@ -403,7 +403,7 @@ describe("ImportPage", () => {
           isbn13: [isbn(900)],
           copies: [
             {
-              id: "c1", bookId: "b1", ownerUserId: "u1", editionNote: null, location: null,
+              id: "c1", bookId: "b1", ownerUserId: "u1", editionNote: null, copyNote: null, location: null,
               origin: "libib", libibId: "OLD0000001", photoPath: null, intakeItemId: null, userEditedFields: [],
               createdAt: OLD, updatedAt: OLD,
             },

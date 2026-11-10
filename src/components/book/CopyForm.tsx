@@ -26,7 +26,7 @@ export default function CopyForm({
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(normalizeCopyInput({ ownerUserId: owner, editionNote, location }));
+      await onSubmit(normalizeCopyInput({ ownerUserId: owner, editionNote, copyNote: initial.copyNote, location }));
     } catch (err) {
       console.error("Failed to save copy", err);
       setError("Couldn't save the copy.");

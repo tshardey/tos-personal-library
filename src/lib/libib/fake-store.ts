@@ -157,6 +157,7 @@ export function createFakeStore(seed: FakeStoreSeed = {}): FakeStore {
           bookId: r.bookId,
           ownerUserId: r.ownerUserId,
           editionNote: r.editionNote,
+          copyNote: null,
           location: null,
           origin: "libib",
           libibId: r.libibId,

@@ -262,7 +262,7 @@ describe("libibStore", () => {
 describe("addCopy", () => {
   it("stays origin manual", async () => {
     h.results.push({ data: { id: "c1", book_id: "b1", origin: "manual" }, error: null });
-    await addCopy("b1", { ownerUserId: null, editionNote: null, location: null });
+    await addCopy("b1", { ownerUserId: null, editionNote: null, copyNote: null, location: null });
     const [[row]] = stepArgs(0, "insert") as [[Record<string, unknown>]];
     expect(row.origin).toBe("manual");
     expect(row).not.toHaveProperty("libib_id");

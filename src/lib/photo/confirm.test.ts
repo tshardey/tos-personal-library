@@ -27,6 +27,11 @@ const item = (over: Partial<IntakeItem> = {}, ex: Partial<Extraction> = {}): Int
   coverPath: "h1/x/cover.jpg",
   titlePagePath: null,
   sourceHash: `hash-${seq}`,
+  source: "photo",
+  scannedIsbn: null,
+  editionLabel: null,
+  extraCopy: false,
+  discardReason: null,
   status: "ready",
   attempts: 1,
   claimedAt: null,
@@ -43,6 +48,7 @@ const copy = (over: Partial<Copy> = {}): Copy => ({
   bookId: "b",
   ownerUserId: A,
   editionNote: null,
+  copyNote: null,
   location: null,
   origin: "manual",
   libibId: null,
@@ -88,7 +94,7 @@ const lookup = (over: Partial<LookupResult> = {}): LookupResult => ({
   ...over,
 });
 
-const COPY = { ownerUserId: A, editionNote: null, location: null };
+const COPY = { ownerUserId: A, editionNote: null, copyNote: null, location: null };
 
 function deps(over: Partial<ConfirmDeps> = {}): ConfirmDeps {
   return {
@@ -355,7 +361,7 @@ describe("runBulkConfirm", () => {
       {
         title: "Copper Lantern",
         authors: ["Ana Vale"],
-        copy: { ownerUserId: A, editionNote: "first edition; signed", location: null },
+        copy: { ownerUserId: A, editionNote: "first edition; signed", copyNote: null, location: null },
       },
     ]);
   });
