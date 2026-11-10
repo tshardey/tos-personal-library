@@ -77,7 +77,10 @@ const BACKOFF_MS = [2000, 8000, 30000];
 
 interface Flight {
   promise: Promise<void>;
+  /** Set by a call that joins this flight; the flight then makes another pass with `deps`. */
   again: boolean;
+  /** The latest caller's deps; a joiner's replace the first caller's. */
+  deps: FlushDeps;
 }
 
 /** One flush per household (D6); module state, so another tab has its own. */
@@ -95,12 +98,12 @@ function abortable(sleep: Promise<void>, signal: AbortSignal | undefined): Promi
   });
 }
 
-async function runFlush(householdId: string, deps: FlushDeps, flight: Flight): Promise<void> {
+/** One pass: sends until nothing unsent is left, offline, or aborted. Reads `flight.deps` at each step. */
+async function runPass(householdId: string, flight: Flight): Promise<void> {
   let failures = 0;
   for (;;) {
+    const deps = flight.deps;
     if (deps.signal?.aborted || !deps.online()) return;
-    // A call made meanwhile set `again`; reading storage fresh before each entry is what honours it.
-    flight.again = false;
     const next = readOutbox(householdId).find((e) => !e.failed);
     if (!next) return;
     const args: ScanItemArgs = {
@@ -116,38 +119,60 @@ async function runFlush(householdId: string, deps: FlushDeps, flight: Flight): P
       await deps.create(args);
       removeOutboxEntry(householdId, next.id);
       failures = 0;
-      deps.onSaved(next.id);
+      flight.deps.onSaved(next.id);
     } catch (err) {
       const e = err as Partial<ScanSaveError>;
       if (isRejection({ code: e.code ?? null, status: e.status ?? null })) {
         markOutboxRejected(householdId, next.id);
         failures = 0;
-        deps.onRejected(next.id);
+        flight.deps.onRejected(next.id);
         continue;
       }
       const delay = BACKOFF_MS[Math.min(failures, BACKOFF_MS.length - 1)];
       failures += 1;
-      if (deps.signal?.aborted) return;
-      await abortable(deps.sleep(delay), deps.signal);
+      const now = flight.deps;
+      if (now.signal?.aborted) continue;
+      await abortable(now.sleep(delay), now.signal);
     }
   }
 }
 
 /**
+ * Passes until one ends with no call having joined it (or the latest caller has aborted). The
+ * flight leaves the map in the same synchronous step as that check, so no call can join a flight
+ * that has already decided to stop.
+ */
+async function runFlight(householdId: string, flight: Flight): Promise<void> {
+  try {
+    for (;;) {
+      flight.again = false;
+      await runPass(householdId, flight);
+      if (!flight.again || flight.deps.signal?.aborted) {
+        flights.delete(householdId);
+        return;
+      }
+    }
+  } catch (err) {
+    flights.delete(householdId);
+    throw err;
+  }
+}
+
+/**
  * Sends unsent entries one at a time until none is left. A call while a flush runs for this
- * household returns the running promise (its deps are the first caller's) and asks it to look again.
+ * household returns the running promise, makes its deps the flight's, and sets the run-again flag,
+ * so the call is never lost even if the flight was about to stop. Creates never overlap.
  */
 export function flushOutbox(householdId: string, deps: FlushDeps): Promise<void> {
   const running = flights.get(householdId);
   if (running) {
+    running.deps = deps;
     running.again = true;
     return running.promise;
   }
-  const flight: Flight = { promise: Promise.resolve(), again: false };
-  flight.promise = runFlush(householdId, deps, flight).finally(() => {
-    flights.delete(householdId);
-  });
+  const flight: Flight = { promise: Promise.resolve(), again: false, deps };
   flights.set(householdId, flight);
+  flight.promise = runFlight(householdId, flight);
   return flight.promise;
 }
 

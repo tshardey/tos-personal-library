@@ -226,6 +226,77 @@ describe("flushOutbox (Review Focus 2)", () => {
     expect(maxInFlight).toBe(1);
   });
 
+  it("hands an aborted flight to a joiner with a fresh signal (Done → inbox)", async () => {
+    const [a, b] = [entry(), entry()];
+    [a, b].forEach(appendOutbox);
+    const first = deferred<"created">();
+    const ctl1 = new AbortController();
+    const one = deps(() => first.promise, { signal: ctl1.signal });
+    const p1 = flushOutbox(H, one.d);
+    await Promise.resolve();
+    expect(one.d.create).toHaveBeenCalledTimes(1);
+
+    // ScanPage unmounts (abort) and the inbox mounts (flush) in the same commit.
+    ctl1.abort();
+    const two = deps(async () => "created", { signal: new AbortController().signal });
+    const p2 = flushOutbox(H, two.d);
+    expect(p2).toBe(p1);
+    expect(two.d.create).not.toHaveBeenCalled();
+
+    first.resolve("created");
+    await p2;
+    expect(one.d.create).toHaveBeenCalledTimes(1);
+    expect(two.d.create).toHaveBeenCalledTimes(1);
+    expect(two.d.create).toHaveBeenCalledWith(expect.objectContaining({ id: b.id }));
+    expect(two.saved).toEqual([a.id, b.id]);
+    expect(readOutbox(H)).toEqual([]);
+  });
+
+  it("does not drop a join that lands just as a flight finds nothing left", async () => {
+    const a = entry();
+    const b = entry();
+    appendOutbox(a);
+    const two = deps(async () => "created");
+    let p2: Promise<void> | null = null;
+    const one = deps(async () => "created", {
+      // Runs after the flight's final empty read, before the flight has settled.
+      onSaved: () =>
+        queueMicrotask(() => {
+          appendOutbox(b);
+          p2 = flushOutbox(H, two.d);
+        }),
+    });
+    const p1 = flushOutbox(H, one.d);
+    await p1;
+    await p2;
+    expect(p2).toBe(p1);
+    expect(two.d.create).toHaveBeenCalledWith(expect.objectContaining({ id: b.id }));
+    expect(readOutbox(H)).toEqual([]);
+  });
+
+  it("resumes with a joiner that is online after the first caller went offline", async () => {
+    const a = entry();
+    appendOutbox(a);
+    const gate = deferred<void>();
+    let online = true;
+    const one = deps(
+      async () => {
+        online = false;
+        throw new ScanSaveError(null, null);
+      },
+      { online: () => online, sleep: () => gate.promise },
+    );
+    const p1 = flushOutbox(H, one.d);
+    await Promise.resolve();
+    const two = deps(async () => "created");
+    expect(flushOutbox(H, two.d)).toBe(p1);
+    gate.resolve();
+    await p1;
+    expect(one.d.create).toHaveBeenCalledTimes(1);
+    expect(two.saved).toEqual([a.id]);
+    expect(readOutbox(H)).toEqual([]);
+  });
+
   it("keeps an entry appended while the first is removed", async () => {
     const [a, b] = [entry(), entry()];
     appendOutbox(a);
