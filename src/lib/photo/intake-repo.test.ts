@@ -309,16 +309,16 @@ describe("confirmItem", () => {
   };
 
   it("sends the lookup's ids in p_book only when the lookup agrees", async () => {
-    const extraction = parseExtraction(EXTRACTION);
+    const withLookup = (lookup: LookupResult) => toIntakeItem({ id: "i", extraction: EXTRACTION, lookup });
     h.rpcResults.push({ data: [{ book_id: "b3", copy_id: "c3" }], error: null });
-    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], extraction, LOOKUP) }, copy);
+    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], withLookup(LOOKUP)) }, copy);
     expect(h.rpcCalls[0][1]).toMatchObject({
       p_book: { openlibrary_id: "OL1W", google_books_id: "gb-synthetic-1" },
     });
 
     h.rpcResults.push({ data: [{ book_id: "b4", copy_id: "c4" }], error: null });
     const miss = { ...LOOKUP, agrees: false };
-    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], extraction, miss) }, copy);
+    await confirmItem("i", { book: lookupAsBookInput("Sample Title", [], withLookup(miss)) }, copy);
     const pBook = (h.rpcCalls[1][1] as Record<string, Record<string, unknown>>).p_book;
     expect(pBook).not.toHaveProperty("openlibrary_id");
     expect(pBook).not.toHaveProperty("google_books_id");

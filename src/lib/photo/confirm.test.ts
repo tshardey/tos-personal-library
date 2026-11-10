@@ -110,7 +110,7 @@ function deps(over: Partial<ConfirmDeps> = {}): ConfirmDeps {
 
 describe("lookupAsBookInput", () => {
   it("takes nothing from a lookup that doesn't agree", () => {
-    const input = lookupAsBookInput("Salt Road", ["Ana Vale"], extraction(), lookup({ agrees: false }));
+    const input = lookupAsBookInput("Salt Road", ["Ana Vale"], item({ lookup: lookup({ agrees: false }) }));
     expect(input).toEqual({
       title: "Salt Road",
       authors: ["Ana Vale"],
@@ -127,7 +127,7 @@ describe("lookupAsBookInput", () => {
   });
 
   it("takes cover, synopsis and page count from an agreeing lookup, but never its matchIsbns", () => {
-    const input = lookupAsBookInput("Salt Road", ["Ana Vale"], extraction(), lookup());
+    const input = lookupAsBookInput("Salt Road", ["Ana Vale"], item({ lookup: lookup() }));
     expect(input.coverUrl).toBe("https://covers.example.test/1.jpg");
     expect(input.synopsis).toBe("A synthetic synopsis.");
     expect(input.pageCount).toBe(321);
@@ -142,8 +142,7 @@ describe("lookupAsBookInput", () => {
     const input = lookupAsBookInput(
       "Edited",
       ["Someone Else"],
-      extraction({ isbn: "1-23456789-X", publisher: "Synthetic Press" }),
-      null,
+      item({}, { isbn: "1-23456789-X", publisher: "Synthetic Press" }),
     );
     expect(input.title).toBe("Edited");
     expect(input.authors).toEqual(["Someone Else"]);
@@ -152,8 +151,31 @@ describe("lookupAsBookInput", () => {
     expect(input.publisher).toBe("Synthetic Press");
   });
 
+  it("a scan stores its scanned ISBN-13 and the byIsbn lookup's cover", () => {
+    const scan = item({
+      source: "scan",
+      coverPath: null,
+      sourceHash: null,
+      scannedIsbn: "9780000000002",
+      extraction: null,
+      lookup: lookup({ byIsbn: true, matchIsbns: ["9780000000002", "9780000000019"] }),
+    });
+    const input = lookupAsBookInput("Salt Road", ["Ana Vale"], scan);
+    expect(input.isbn13).toEqual(["9780000000002"]);
+    expect(input.isbn10).toEqual([]);
+    expect(input.coverUrl).toBe("https://covers.example.test/1.jpg");
+    expect(input.publisher).toBeNull();
+  });
+
+  it("a photo with both a scanned and an extracted ISBN stores only the scanned one", () => {
+    const photo = item({ scannedIsbn: "9780000000002" }, { isbn: "9780000000019" });
+    const input = lookupAsBookInput("Salt Road", ["Ana Vale"], photo);
+    expect(input.isbn13).toEqual(["9780000000002"]);
+    expect(input.isbn10).toEqual([]);
+  });
+
   it("drops a photo ISBN that fails its checksum", () => {
-    const input = lookupAsBookInput("Salt Road", [], extraction({ isbn: "1234567890" }), null);
+    const input = lookupAsBookInput("Salt Road", [], item({}, { isbn: "1234567890" }));
     expect(input.isbn10).toEqual([]);
     expect(input.isbn13).toEqual([]);
   });
@@ -339,10 +361,10 @@ describe("runBulkConfirm", () => {
     expect(refresh).toHaveBeenCalledTimes(2);
   });
 
-  it("only ever performs new_book, with the extracted title, authors and edition clues", async () => {
+  it("only ever performs new_book, with the extracted title, authors and the item's edition label", async () => {
     const items = [
-      item({}, { title: "Copper Lantern", editionClues: ["first edition", "signed"] }),
-      item({}, { title: "Silent Harbor" }),
+      item({ editionLabel: "Invented hardcover" }, { title: "Copper Lantern", editionClues: ["first edition"] }),
+      item({}, { title: "Silent Harbor", editionClues: ["Invented foil"] }),
       item({}, { title: "Northern Kettle" }),
     ];
     const perform = vi.fn(async () => ({ bookId: "x" }));
@@ -361,8 +383,51 @@ describe("runBulkConfirm", () => {
       {
         title: "Copper Lantern",
         authors: ["Ana Vale"],
-        copy: { ownerUserId: A, editionNote: "first edition; signed", copyNote: null, location: null },
+        copy: { ownerUserId: A, editionNote: "Invented hardcover", copyNote: null, location: null },
       },
+    ]);
+    // Claude's clues are only a hint: nothing prefills the edition from them (D12).
+    expect((perform.mock.calls[1] as unknown[])[2]).toEqual({
+      title: "Silent Harbor",
+      authors: ["Ana Vale"],
+      copy: { ownerUserId: A, editionNote: null, copyNote: null, location: null },
+    });
+  });
+
+  it("bulk-confirms a found scan as new_book with the lookup's title and authors", async () => {
+    const scan = item({
+      source: "scan",
+      coverPath: null,
+      sourceHash: null,
+      scannedIsbn: "9780000000002",
+      editionLabel: "Invented foil",
+      extraction: null,
+      lookup: lookup({ byIsbn: true, title: "Salt Road", authors: ["A. Writer"] }),
+    });
+    const notFound = item({
+      source: "scan",
+      coverPath: null,
+      sourceHash: null,
+      scannedIsbn: "9780000000019",
+      extraction: null,
+      lookup: lookup({ source: "none", agrees: false, title: null, authors: [], matchIsbns: [] }),
+    });
+    const perform = vi.fn(async () => ({ bookId: "x" }));
+    const r = await runBulkConfirm([scan.id, notFound.id], () => ({ catalog: [], openItems: [scan, notFound] }), {
+      perform,
+      refresh: async () => {},
+    });
+    expect(r).toEqual({ confirmed: 1, skipped: 1 });
+    expect(perform.mock.calls).toEqual([
+      [
+        scan,
+        { kind: "new_book" },
+        {
+          title: "Salt Road",
+          authors: ["A. Writer"],
+          copy: { ownerUserId: A, editionNote: "Invented foil", copyNote: null, location: null },
+        },
+      ],
     ]);
   });
 

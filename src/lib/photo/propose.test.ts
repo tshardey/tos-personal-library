@@ -3,7 +3,7 @@ import type { BookWithCopies, Copy } from "../types";
 import { titleKey } from "../libib/match-keys";
 import type { Extraction, IntakeItem, LookupResult } from "./types";
 import { trigramSimilarity } from "./similarity";
-import { bulkEligible, proposeMatch, sameOwner, type ProposeInput } from "./propose";
+import { bulkEligible, itemConfidence, proposeMatch, sameOwner, type ProposeInput } from "./propose";
 
 const A = "member-a";
 const B = "member-b";
@@ -415,5 +415,218 @@ describe("purity", () => {
     expect(run(i)).toEqual(p1);
     expect(bulkEligible(i, p1)).toBe(false);
     expect(i).toEqual(before);
+  });
+  it("still holds with scans, scanned ISBNs, edition labels and extra copies", () => {
+    const s = scan({ extraCopy: true, editionLabel: "Invented foil" });
+    const twin = scan({ batchId: s.batchId });
+    const photo = item(
+      { scannedIsbn: SCANNED, lookup: lookup({ byIsbn: true, title: "Other Name" }) },
+      { title: "Glass Orchard" },
+    );
+    const cat = [book("x", "Salt Road", { isbn13: [SCANNED] })];
+    for (const it of [s, photo]) {
+      const i = input(it, cat, [twin, it === s ? photo : s]);
+      const before = structuredClone(i);
+      const p1 = run(i);
+      expect(run(i)).toEqual(p1);
+      expect(itemConfidence(i.item, p1)).toBe(itemConfidence(i.item, run(i)));
+      expect(bulkEligible(i, p1)).toBe(false);
+      expect(i).toEqual(before);
+    }
+  });
+});
+
+const SCANNED = "9780000000002";
+const OTHER = "9780000000019";
+/** A scan: no extraction, no photo; by default a found byIsbn lookup "Salt Road" by "A. Writer". */
+function scan(over: Partial<IntakeItem> = {}): IntakeItem {
+  return item(
+    {
+      source: "scan",
+      coverPath: null,
+      sourceHash: null,
+      scannedIsbn: SCANNED,
+      lookup: lookup({ byIsbn: true, title: "Salt Road", authors: ["A. Writer"], matchIsbns: [SCANNED] }),
+      ...over,
+    },
+    null,
+  );
+}
+const notFound = (): LookupResult =>
+  lookup({ source: "none", agrees: false, title: null, authors: [], matchIsbns: [] });
+
+describe("scan query (D9)", () => {
+  it("a found scan with an empty catalog proposes a high-confidence, bulk-eligible new book", () => {
+    const i = input(scan());
+    const p = run(i);
+    expect(p.query).toEqual({ title: "Salt Road", authors: ["A. Writer"], isbns: [SCANNED] });
+    expect(p.defaultAction).toEqual({ kind: "new_book" });
+    expect(p.needsTitle).toBe(false);
+    expect(p.isbnConflict).toBe(false);
+    expect(p.repeatScan).toBe(false);
+    expect(itemConfidence(i.item, p)).toBe("high");
+    expect(bulkEligible(i, p)).toBe(true);
+  });
+  it("a not-found scan needs a title, is low and never eligible", () => {
+    const i = input(scan({ lookup: notFound() }));
+    const p = run(i);
+    expect(p.needsTitle).toBe(true);
+    expect(itemConfidence(i.item, p)).toBe("low");
+    expect(bulkEligible(i, p)).toBe(false);
+  });
+  it("a scan not yet looked up isn't eligible", () => {
+    const i = input(scan({ lookup: null }));
+    const p = run(i);
+    expect(itemConfidence(i.item, p)).toBe("low");
+    expect(bulkEligible(i, p)).toBe(false);
+  });
+  it("a typed title still wins over the lookup's", () => {
+    expect(run(input(scan(), [], [], { titleOverride: "Glass Orchard" })).query.title).toBe("Glass Orchard");
+  });
+  it("a photo's lookup title is still ignored unless the lookup was by ISBN", () => {
+    const it = item({ lookup: lookup({ title: "Other Name" }) }, { title: null });
+    expect(run(input(it)).needsTitle).toBe(true);
+  });
+});
+
+describe("the ISBN wins (D9)", () => {
+  it("a scan of a catalog book's ISBN matches by isbn", () => {
+    const p = run(input(scan(), [book("b1", "Zzz Unrelated", { isbn13: [SCANNED] })]));
+    expect(p.candidates[0]).toEqual({ bookId: "b1", reason: "isbn", score: 1 });
+  });
+  it("a photo's scanned ISBN comes first and matches over a different title and extraction ISBN", () => {
+    const it = item({ scannedIsbn: SCANNED }, { title: "Copper Lantern", isbn: OTHER });
+    const p = run(input(it, [book("b1", "Zzz Unrelated", { isbn13: [SCANNED] })]));
+    expect(p.query.isbns[0]).toBe(SCANNED);
+    expect(p.candidates[0]).toMatchObject({ bookId: "b1", reason: "isbn" });
+  });
+});
+
+describe("isbnConflict (Review Focus 4)", () => {
+  it("is set when Claude's title disagrees with the byIsbn lookup, capping confidence at medium", () => {
+    const it = item(
+      { scannedIsbn: SCANNED, lookup: lookup({ byIsbn: true, title: "Salt Road", matchIsbns: [SCANNED] }) },
+      { title: "Glass Orchard", confidence: "high" },
+    );
+    const i = input(it);
+    const p = run(i);
+    expect(p.isbnConflict).toBe(true);
+    expect(itemConfidence(it, p)).toBe("medium");
+    expect(bulkEligible(i, p)).toBe(false);
+  });
+  it("is not set when the byIsbn lookup agrees with Claude's title", () => {
+    const it = item(
+      { scannedIsbn: SCANNED, lookup: lookup({ byIsbn: true, title: "The Glass Orchard", matchIsbns: [SCANNED] }) },
+      { title: "Glass Orchard" },
+    );
+    const i = input(it);
+    const p = run(i);
+    expect(p.isbnConflict).toBe(false);
+    expect(itemConfidence(it, p)).toBe("high");
+    expect(bulkEligible(i, p)).toBe(true);
+  });
+  it("uses the catalog book matched by isbn when there is no byIsbn lookup", () => {
+    const it = item({ scannedIsbn: SCANNED, lookup: null }, { title: "Glass Orchard" });
+    const p = run(input(it, [book("b1", "Salt Road", { isbn13: [SCANNED] })]));
+    expect(p.candidates[0]).toMatchObject({ bookId: "b1", reason: "isbn" });
+    expect(p.isbnConflict).toBe(true);
+    const same = run(input(it, [book("b1", "The Glass Orchard", { isbn13: [SCANNED] })]));
+    expect(same.isbnConflict).toBe(false);
+  });
+  it("is not set when Claude read no title, or there is no scanned ISBN", () => {
+    const blank = item(
+      { scannedIsbn: SCANNED, lookup: lookup({ byIsbn: true, title: "Salt Road" }) },
+      { title: "   " },
+    );
+    expect(run(input(blank)).isbnConflict).toBe(false);
+    const noScan = item({}, { title: "Glass Orchard", isbn: SCANNED });
+    expect(run(input(noScan, [book("b1", "Salt Road", { isbn13: [SCANNED] })])).isbnConflict).toBe(false);
+  });
+  it("is never set for a scan", () => {
+    expect(run(input(scan(), [book("b1", "Glass Orchard", { isbn13: [SCANNED] })])).isbnConflict).toBe(false);
+  });
+});
+
+describe("ISBN twins and repeat scans (D9)", () => {
+  it("two open scans of one ISBN in different batches are twins, and neither is eligible", () => {
+    const a = scan({ batchId: "batch-1" });
+    const b = scan({ batchId: "batch-2" });
+    const ia = input(a, [], [b]);
+    const ib = input(b, [], [a]);
+    expect(run(ia).inBatchTwins).toEqual([b.id]);
+    expect(run(ib).inBatchTwins).toEqual([a.id]);
+    expect(run(ia).repeatScan).toBe(false);
+    expect(bulkEligible(ia, run(ia))).toBe(false);
+    expect(bulkEligible(ib, run(ib))).toBe(false);
+  });
+  it("a same-batch twin where either is extraCopy is a repeat scan", () => {
+    const a = scan();
+    const b = scan({ extraCopy: true });
+    expect(run(input(a, [], [b])).repeatScan).toBe(true);
+    expect(run(input(b, [], [a])).repeatScan).toBe(true);
+    expect(run(input(a, [], [scan()])).repeatScan).toBe(false);
+    expect(run(input(scan({ batchId: "batch-2", extraCopy: true }), [], [a])).repeatScan).toBe(false);
+  });
+  it("a photo whose extraction ISBN equals an open scan's ISBN is a twin", () => {
+    const s = scan({ lookup: notFound() });
+    const photo = item({}, { title: "Copper Lantern", isbn: SCANNED });
+    expect(run(input(photo, [], [s])).inBatchTwins).toEqual([s.id]);
+    expect(run(input(s, [], [photo])).inBatchTwins).toEqual([photo.id]);
+  });
+  it("ignores closed items and different ISBNs", () => {
+    const a = scan();
+    const replaced = scan({ status: "discarded", discardReason: "replaced_by_photo" });
+    const other = scan({
+      scannedIsbn: OTHER,
+      lookup: lookup({ byIsbn: true, title: "Copper Lantern", matchIsbns: [OTHER] }),
+    });
+    expect(run(input(a, [], [replaced, other])).inBatchTwins).toEqual([]);
+  });
+  it("a found scan and a photo of the same title are twins both ways", () => {
+    const s = scan({ lookup: lookup({ byIsbn: true, title: "Salt Road", matchIsbns: [SCANNED] }) });
+    const photo = item({}, { title: "Salt Road" });
+    expect(run(input(s, [], [photo])).inBatchTwins).toEqual([photo.id]);
+    expect(run(input(photo, [], [s])).inBatchTwins).toEqual([s.id]);
+  });
+});
+
+describe("extraCopy default (Review Focus 5)", () => {
+  const owned = () => [
+    book("x", "Salt Road", { isbn13: [SCANNED], copies: [copy({ bookId: "x", ownerUserId: A })] }),
+  ];
+  it("an extraCopy scan for an owner who has a copy defaults to add_copy", () => {
+    const i = input(scan({ ownerUserId: A, extraCopy: true }), owned());
+    const p = run(i);
+    expect(p.candidates[0].reason).toBe("isbn");
+    expect(p.defaultAction).toEqual({ kind: "add_copy", bookId: "x" });
+    expect(bulkEligible(i, p)).toBe(false);
+  });
+  it("the same scan without extraCopy is already recorded", () => {
+    expect(run(input(scan({ ownerUserId: A }), owned())).defaultAction).toEqual({
+      kind: "already_recorded",
+      bookId: "x",
+    });
+  });
+  it("extraCopy doesn't turn a same_title match into add_copy", () => {
+    const c = [book("x", "Salt Road", { copies: [copy({ bookId: "x", ownerUserId: A })] })];
+    expect(run(input(item({ ownerUserId: A, extraCopy: true }), c)).defaultAction.kind).toBe("already_recorded");
+  });
+});
+
+describe("itemConfidence", () => {
+  it("is a photo's extraction confidence, and low without an extraction", () => {
+    for (const c of ["high", "medium", "low"] as const) {
+      const it = item({}, { confidence: c });
+      expect(itemConfidence(it, run(input(it)))).toBe(c);
+    }
+    const none = item({}, null);
+    expect(itemConfidence(none, run(input(none)))).toBe("low");
+  });
+  it("leaves low at low when there is a conflict", () => {
+    const it = item(
+      { scannedIsbn: SCANNED, lookup: lookup({ byIsbn: true, title: "Salt Road" }) },
+      { title: "Glass Orchard", confidence: "low" },
+    );
+    expect(itemConfidence(it, run(input(it)))).toBe("low");
   });
 });

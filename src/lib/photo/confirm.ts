@@ -4,7 +4,7 @@ import { canonicalIsbns, isbn10To13, normalizeIsbn10, normalizeIsbn13 } from "..
 import type { BookWithCopies, CopyInput } from "../types";
 import type { confirmItem, discardItem, NewBookInput } from "./intake-repo";
 import { bulkEligible, proposeMatch, type IntakeAction } from "./propose";
-import type { Extraction, IntakeItem, LookupResult } from "./types";
+import type { IntakeItem } from "./types";
 
 export interface ConfirmForm {
   title: string;
@@ -30,24 +30,27 @@ function photoIsbns(raw: string | null | undefined): { isbn13: string[]; isbn10:
   return i10 ? { isbn13: [isbn10To13(i10)], isbn10: [i10] } : { isbn13: [], isbn10: [] };
 }
 
+/** D9: the scanned ISBN wins; otherwise the photo's checksum-valid ISBN. */
+function itemIsbns(item: IntakeItem): { isbn13: string[]; isbn10: string[] } {
+  const scanned = item.scannedIsbn === null ? null : normalizeIsbn13(item.scannedIsbn);
+  return scanned ? { isbn13: [scanned], isbn10: [] } : photoIsbns(item.extraction?.isbn);
+}
+
 /**
- * D8: title and authors as the person left them; ISBNs only from the photo; stock details only
- * from a lookup that agrees, and never its ISBNs (a title search returns every edition's). The
- * OpenLibrary id is the work id (`OL…W`, without `/works/`), as lookup.ts stores it.
+ * D8: title and authors as the person left them; ISBNs only from the item itself (its scanned
+ * ISBN, else the photo's); stock details only from a lookup that agrees (a byIsbn lookup always
+ * does), and never its ISBNs (a title search returns every edition's). The OpenLibrary id is the
+ * work id (`OL…W`, without `/works/`), as lookup.ts stores it.
  */
-export function lookupAsBookInput(
-  title: string,
-  authors: string[],
-  extraction: Extraction | null,
-  lookup: LookupResult | null,
-): NewBookInput {
+export function lookupAsBookInput(title: string, authors: string[], item: IntakeItem): NewBookInput {
+  const { extraction, lookup } = item;
   const ok = lookup?.agrees === true ? lookup : null;
   return {
     title,
     authors,
     synopsis: ok?.synopsis ?? null,
     coverUrl: ok?.coverUrl ?? null,
-    ...photoIsbns(extraction?.isbn),
+    ...itemIsbns(item),
     pageCount: ok?.pageCount ?? null,
     publisher: extraction?.publisher ?? null,
     publishDate: ok?.publishDate ?? null,
@@ -82,7 +85,7 @@ export async function performConfirm(
     return { bookId: null };
   }
 
-  const input = lookupAsBookInput(form.title, form.authors, item.extraction, item.lookup);
+  const input = lookupAsBookInput(form.title, form.authors, item);
   let toEnrich: BookWithCopies | null = null;
   let bookId: string;
   if (action.kind === "add_copy") {
@@ -150,12 +153,12 @@ export async function runBulkConfirm(
       skipped += 1;
       continue;
     }
-    const clues = item.extraction?.editionClues ?? [];
     try {
+      // D12: the edition is the item's own label; Claude's clues are only a hint and never prefill it.
       await deps.perform(item, { kind: "new_book" }, {
         title: proposal.query.title,
         authors: proposal.query.authors,
-        copy: { ownerUserId: item.ownerUserId, editionNote: clues.join("; ") || null, copyNote: null, location: null },
+        copy: { ownerUserId: item.ownerUserId, editionNote: item.editionLabel, copyNote: null, location: null },
       });
       confirmed += 1;
     } catch (e) {
