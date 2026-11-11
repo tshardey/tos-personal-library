@@ -93,6 +93,8 @@ function seededBook(over: Partial<BookWithCopies> & { id: string }): BookWithCop
     pageCount: null,
     publisher: null,
     publishDate: null,
+    seriesName: null,
+    seriesVolume: null,
     userEditedFields: [],
     createdAt: OLD,
     updatedAt: OLD,

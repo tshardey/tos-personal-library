@@ -33,3 +33,15 @@ describe("scan route", () => {
     expect(parseHash(routeToHash({ name: "scan" }))).toEqual({ name: "scan" });
   });
 });
+
+describe("series route", () => {
+  it("parses and round-trips #/series/<name>", () => {
+    expect(parseHash("#/series/Salt%20Road")).toEqual({ name: "library", series: "Salt Road" });
+    expect(routeToHash({ name: "library", series: "Salt Road" })).toBe("#/series/Salt%20Road");
+    expect(parseHash(routeToHash({ name: "library", series: "A/B ?" }))).toEqual({ name: "library", series: "A/B ?" });
+  });
+  it("keeps plain library routes", () => {
+    expect(parseHash("#/")).toEqual({ name: "library" });
+    expect(routeToHash({ name: "library" })).toBe("#/");
+  });
+});

@@ -18,6 +18,8 @@ function make(coverUrl: string | null): BookWithCopies {
     pageCount: null,
     publisher: null,
     publishDate: null,
+    seriesName: null,
+    seriesVolume: null,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",

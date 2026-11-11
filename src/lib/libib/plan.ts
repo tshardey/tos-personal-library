@@ -107,6 +107,8 @@ function pendingBook(input: BookInput): Book {
     householdId: "",
     openlibraryId: null,
     googleBooksId: null,
+    seriesName: null,
+    seriesVolume: null,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 export type Route =
-  | { name: "library" }
+  | { name: "library"; series?: string }
   | { name: "book"; id: string }
   | { name: "add" }
   | { name: "import" }
@@ -14,6 +14,14 @@ export function parseHash(hash: string): Route {
   if (path === "/import") return { name: "import" };
   if (path === "/inbox") return { name: "inbox" };
   if (path === "/scan") return { name: "scan" };
+  const sm = /^\/series\/(.+)$/.exec(path);
+  if (sm) {
+    try {
+      return { name: "library", series: decodeURIComponent(sm[1]) };
+    } catch {
+      return { name: "library" };
+    }
+  }
   const m = /^\/book\/(.+)$/.exec(path);
   if (m) {
     try {
@@ -37,6 +45,8 @@ export function routeToHash(route: Route): string {
       return "#/scan";
     case "book":
       return `#/book/${encodeURIComponent(route.id)}`;
+    case "library":
+      return route.series ? `#/series/${encodeURIComponent(route.series)}` : "#/";
     default:
       return "#/";
   }

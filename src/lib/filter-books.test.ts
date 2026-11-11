@@ -35,6 +35,8 @@ function book(title: string, authors: string[], owners: (string | null)[] = []):
     pageCount: null,
     publisher: null,
     publishDate: null,
+    seriesName: null,
+    seriesVolume: null,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",
@@ -86,5 +88,27 @@ describe("filterBooks", () => {
   });
   it("edition null filters nothing", () => {
     expect(filterBooks(all, { query: "", owner: "all", edition: null })).toEqual(all);
+  });
+});
+
+describe("filterBooks tags and series", () => {
+  const saga = { ...book("Saga One", ["A"], ["u1"]), seriesName: "Saga" };
+  const plain = book("Plain", ["B"], ["u1"]);
+  const tagsByBook = new Map([
+    [saga.id, ["epistolary", "fantasy"]],
+    [plain.id, ["fantasy"]],
+  ]);
+  const set = [saga, plain];
+  it("requires every selected tag", () => {
+    expect(filterBooks(set, { query: "", owner: "all", tags: ["epistolary", "fantasy"], tagsByBook })).toEqual([saga]);
+    expect(filterBooks(set, { query: "", owner: "all", tags: ["fantasy"], tagsByBook })).toEqual(set);
+  });
+  it("matches series case-insensitively", () => {
+    expect(filterBooks(set, { query: "", owner: "all", series: "saga" })).toEqual([saga]);
+  });
+  it("combines with owner and edition", () => {
+    expect(filterBooks(set, { query: "", owner: "u2", series: "saga" })).toEqual([]);
+    expect(filterBooks(set, { query: "", owner: "u1", edition: "nope", tags: ["fantasy"], tagsByBook })).toEqual([]);
+    expect(filterBooks(set, { query: "", owner: "u1", series: "Saga", tags: ["fantasy"], tagsByBook })).toEqual([saga]);
   });
 });

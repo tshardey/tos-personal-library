@@ -18,7 +18,7 @@ vi.mock("@/lib/supabase", () => ({
           else reject(new Error("no result queued"));
         },
       };
-      for (const method of ["select", "eq", "order", "range", "insert", "update", "upsert", "single"]) {
+      for (const method of ["select", "eq", "order", "range", "insert", "update", "upsert", "delete", "single"]) {
         builder[method] = (...args: unknown[]) => {
           query.steps.push([method, args]);
           return builder;
@@ -29,8 +29,17 @@ vi.mock("@/lib/supabase", () => ({
   },
 }));
 
-import { addCopy, libibStore, listBooks, listLibibLedger } from "./library-repo";
-import type { BookInput } from "./types";
+import {
+  addBookTag,
+  addCopy,
+  createBook,
+  libibStore,
+  listBooks,
+  listBookTags,
+  listLibibLedger,
+  removeBookTag,
+} from "./library-repo";
+import { fromBookPatch, toBook, type BookInput } from "./types";
 
 const bookRows = (count: number, start = 0) =>
   Array.from({ length: count }, (_, i) => ({ id: `b${start + i}`, title: "T", copies: [] }));
@@ -266,5 +275,79 @@ describe("addCopy", () => {
     const [[row]] = stepArgs(0, "insert") as [[Record<string, unknown>]];
     expect(row.origin).toBe("manual");
     expect(row).not.toHaveProperty("libib_id");
+  });
+});
+
+describe("series columns", () => {
+  it("toBook maps series_name and series_volume, absent gives null", () => {
+    expect(toBook({ id: "b", series_name: "Saga", series_volume: 2.5 })).toMatchObject({
+      seriesName: "Saga",
+      seriesVolume: 2.5,
+    });
+    expect(toBook({ id: "b" })).toMatchObject({ seriesName: null, seriesVolume: null });
+  });
+  it("fromBookPatch maps seriesName and skips undefined", () => {
+    expect(fromBookPatch({ seriesName: "Saga" })).toEqual({ series_name: "Saga" });
+    expect(fromBookPatch({ seriesVolume: 3, seriesName: null })).toEqual({ series_volume: 3, series_name: null });
+  });
+  it("createBook and libib insertBooks send no series keys (safe before the db push)", async () => {
+    h.results.push({ data: { id: "b1" }, error: null }, { data: { id: "c1" }, error: null });
+    await createBook("h1", INPUT, { ownerUserId: null, editionNote: null, copyNote: null, location: null });
+    const [[created]] = stepArgs(0, "insert") as [[Record<string, unknown>]];
+    expect(created).not.toHaveProperty("series_name");
+    expect(created).not.toHaveProperty("series_volume");
+
+    h.results.push({ data: null, error: null });
+    await libibStore.insertBooks([{ id: "b2", householdId: "h1", input: INPUT }]);
+    const [[row]] = stepArgs(2, "insert") as [[Record<string, unknown>[]]];
+    expect(row[0]).not.toHaveProperty("series_name");
+    expect(row[0]).not.toHaveProperty("series_volume");
+  });
+});
+
+describe("book tags", () => {
+  it("listBookTags groups by book, filters by household and orders by book_id then tag_id", async () => {
+    h.results.push({
+      data: [
+        { book_id: "b1", tag_id: "a" },
+        { book_id: "b1", tag_id: "b" },
+        { book_id: "b2", tag_id: "a" },
+      ],
+      error: null,
+    });
+    h.results.push({ data: [], error: null });
+    const tags = await listBookTags("h1");
+    expect(tags).toEqual(
+      new Map([
+        ["b1", ["a", "b"]],
+        ["b2", ["a"]],
+      ]),
+    );
+    expect(h.queries[0].table).toBe("book_tags");
+    expect(stepArgs(0, "select")).toEqual([["book_id, tag_id"]]);
+    expect(stepArgs(0, "eq")).toEqual([["household_id", "h1"]]);
+    expect(stepArgs(0, "order")).toEqual([["book_id"], ["tag_id"]]);
+  });
+  it("listBookTags rejects when a later page errors", async () => {
+    const error = new Error("page 2");
+    h.results.push({ data: [{ book_id: "b1", tag_id: "a" }], error: null });
+    h.results.push({ data: null, error });
+    await expect(listBookTags("h1")).rejects.toBe(error);
+  });
+  it("addBookTag upserts ignoring duplicates", async () => {
+    h.results.push({ data: null, error: null });
+    await addBookTag("b1", "h1", "fantasy");
+    expect(h.queries[0].table).toBe("book_tags");
+    expect(stepArgs(0, "upsert")).toEqual([
+      [{ book_id: "b1", household_id: "h1", tag_id: "fantasy" }, { onConflict: "book_id,tag_id", ignoreDuplicates: true }],
+    ]);
+  });
+  it("removeBookTag deletes by book and tag, and surfaces errors", async () => {
+    h.results.push({ data: null, error: null });
+    await removeBookTag("b1", "fantasy");
+    expect(stepArgs(0, "eq")).toEqual([["book_id", "b1"], ["tag_id", "fantasy"]]);
+    const error = new Error("nope");
+    h.results.push({ data: null, error });
+    await expect(removeBookTag("b1", "fantasy")).rejects.toBe(error);
   });
 });

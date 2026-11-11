@@ -1,23 +1,50 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { editionLabels } from "@/lib/editions";
 import { filterBooks, type OwnerFilter } from "@/lib/filter-books";
 import { navigate } from "@/lib/router";
+import { seriesNames } from "@/lib/series";
+import { loadTosTags, type TosTag } from "@/lib/tos-tags";
 import CoverWall from "./CoverWall";
 import LibraryFilters from "./LibraryFilters";
 
-export default function LibraryPage() {
+export default function LibraryPage({ series: routeSeries }: { series?: string } = {}) {
   const { members } = useHousehold();
-  const { books, loading, error, reload } = useCatalog();
+  const { books, tags, loading, error, tagsError, reload } = useCatalog();
   const [query, setQuery] = useState("");
   const [owner, setOwner] = useState<OwnerFilter>("all");
   const [edition, setEdition] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [series, setSeries] = useState<string | null>(routeSeries ?? null);
+  const [tosTags, setTosTags] = useState<TosTag[]>([]);
+  useEffect(() => {
+    setSeries(routeSeries ?? null);
+  }, [routeSeries]);
+  useEffect(() => {
+    let cancelled = false;
+    void loadTosTags().then((r) => {
+      if (!cancelled) setTosTags(r.tags);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const labels = useMemo(() => editionLabels(books, []), [books]);
-  const visible = useMemo(
-    () => filterBooks(books, { query, owner, edition }),
-    [books, query, owner, edition],
-  );
+  const names = useMemo(() => seriesNames(books), [books]);
+  const visible = useMemo(() => {
+    const found = filterBooks(books, { query, owner, edition, tags: tagFilter, tagsByBook: tags, series });
+    if (!series) return found;
+    // D5: within a series, volume order (nulls last), so 2.5 sorts between 2 and 3.
+    return [...found].sort(
+      (a, b) =>
+        (a.seriesVolume ?? Infinity) - (b.seriesVolume ?? Infinity) || a.title.localeCompare(b.title),
+    );
+  }, [books, query, owner, edition, tagFilter, tags, series]);
+  function changeSeries(next: string | null) {
+    setSeries(next);
+    navigate({ name: "library", series: next ?? undefined });
+  }
 
   if (loading) return <p className="p-6">Loading…</p>;
   if (error) {
@@ -62,11 +89,18 @@ export default function LibraryPage() {
         query={query}
         owner={owner}
         edition={edition}
+        tagFilter={tagFilter}
+        series={series}
+        tosTags={tosTags}
+        seriesNames={names}
         labels={labels}
         members={members}
         onQuery={setQuery}
         onOwner={setOwner}
         onEdition={setEdition}
+        onTagFilter={setTagFilter}
+        onSeries={changeSeries}
+        tagsUnavailable={tagsError !== null}
       />
       {visible.length === 0 ? (
         <p className="p-6 text-center">No matching books</p>

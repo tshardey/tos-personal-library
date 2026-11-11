@@ -129,6 +129,8 @@ export function createFakeStore(seed: FakeStoreSeed = {}): FakeStore {
           householdId,
           openlibraryId: null,
           googleBooksId: null,
+          seriesName: null,
+          seriesVolume: null,
           userEditedFields: [],
           createdAt: stamp,
           updatedAt: stamp,

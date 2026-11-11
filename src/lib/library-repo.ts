@@ -5,6 +5,7 @@ import {
   fromCopyPatch,
   toBook,
   toCopy,
+  type Book,
   type BookInput,
   type BookWithCopies,
   type Copy,
@@ -82,7 +83,7 @@ export async function createBook(
 
 export async function updateBook(
   id: string,
-  patch: Partial<BookInput>,
+  patch: Partial<BookInput> & Partial<Pick<Book, "seriesName" | "seriesVolume">>,
   editedFields: string[],
 ): Promise<void> {
   const { error } = await supabase
@@ -169,3 +170,38 @@ export const libibStore: ImportStore = {
     if (error) throw error;
   },
 };
+
+/** Tag ids per book for the household; any page's error rejects, so a partial map is never returned. */
+export async function listBookTags(householdId: string): Promise<Map<string, string[]>> {
+  const rows = await readAllPages<{ book_id: string; tag_id: string }>((from, to) =>
+    supabase
+      .from("book_tags")
+      .select("book_id, tag_id")
+      .eq("household_id", householdId)
+      .order("book_id")
+      .order("tag_id")
+      .range(from, to),
+  );
+  const tags = new Map<string, string[]>();
+  for (const row of rows) {
+    const list = tags.get(row.book_id) ?? [];
+    list.push(row.tag_id);
+    tags.set(row.book_id, list);
+  }
+  return tags;
+}
+
+export async function addBookTag(bookId: string, householdId: string, tagId: string): Promise<void> {
+  const { error } = await supabase
+    .from("book_tags")
+    .upsert(
+      { book_id: bookId, household_id: householdId, tag_id: tagId },
+      { onConflict: "book_id,tag_id", ignoreDuplicates: true },
+    );
+  if (error) throw error;
+}
+
+export async function removeBookTag(bookId: string, tagId: string): Promise<void> {
+  const { error } = await supabase.from("book_tags").delete().eq("book_id", bookId).eq("tag_id", tagId);
+  if (error) throw error;
+}
