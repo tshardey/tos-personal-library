@@ -40,11 +40,11 @@ describe("SeriesPicker", () => {
     expect(onChange).toHaveBeenCalledWith("Saga", 2.5);
   });
 
-  it("applies a volume change to the current series on blur", () => {
+  it("saves a changed volume once when the sheet is closed", () => {
     const onChange = setup("Saga", 1);
-    const input = screen.getByLabelText("Volume");
-    fireEvent.change(input, { target: { value: "2.5" } });
-    fireEvent.blur(input);
+    fireEvent.change(screen.getByLabelText("Volume"), { target: { value: "2.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith("Saga", 2.5);
   });
 
@@ -60,19 +60,27 @@ describe("SeriesPicker volume edits", () => {
     const onChange = setup("Saga", 1);
     const input = screen.getByLabelText("Volume");
     fireEvent.change(input, { target: { value: "3" } });
-    const none = screen.getByRole("button", { name: "None" });
-    fireEvent.blur(input, { relatedTarget: none });
-    fireEvent.click(none);
+    fireEvent.blur(input, { relatedTarget: null });
+    fireEvent.click(screen.getByRole("button", { name: "None" }));
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith(null, null);
+  });
+
+  it("saves the edited volume on Escape", () => {
+    const onChange = setup("Saga", 1);
+    const input = screen.getByLabelText("Volume");
+    fireEvent.change(input, { target: { value: "4" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("Saga", 4);
   });
 
   it("keeps the saved volume when the typed one is out of range", () => {
     const onChange = setup("Saga", 1);
     const input = screen.getByLabelText("Volume");
     fireEvent.change(input, { target: { value: "10000" } });
-    fireEvent.blur(input);
-    expect(onChange).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent("Volume must be between 0 and 9999.5.");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

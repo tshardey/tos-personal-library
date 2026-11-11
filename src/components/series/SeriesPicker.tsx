@@ -16,7 +16,6 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
   const [vol, setVol] = useState(volume === null ? "" : String(volume));
   const filterRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) filterRef.current?.focus();
@@ -43,13 +42,11 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
     onChange(next, next === null ? null : (n ?? null));
     close();
   }
-  function commitVolume(e: React.FocusEvent<HTMLInputElement>) {
-    // Moving focus to a choice in this sheet: that choice saves the volume itself, once.
-    if (e.relatedTarget instanceof Node && dialogRef.current?.contains(e.relatedTarget)) return;
-    if (value === null) return;
+  /** Closing the sheet saves a changed, valid volume draft for the current series, once. */
+  function dismiss() {
     const n = parsedVolume();
-    if (n === undefined) return;
-    if (n !== volume) onChange(value, n);
+    if (value !== null && n !== undefined && n !== volume) onChange(value, n);
+    close();
   }
 
   const trimmed = typed.trim();
@@ -75,14 +72,13 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
       {open && (
         <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
           <div
-            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Series"
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 e.stopPropagation();
-                close();
+                dismiss();
               }
             }}
             className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-white p-4 sm:rounded"
@@ -97,7 +93,6 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
                 max={9999.5}
                 value={vol}
                 onChange={(e) => setVol(e.target.value)}
-                onBlur={commitVolume}
                 className="mt-1 block w-full rounded border p-2"
               />
             </label>
@@ -141,7 +136,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
               )}
             </ul>
             {tooLong && <p className="mt-2 text-sm text-red-700">{`Series names are at most ${MAX_SERIES} characters.`}</p>}
-            <button type="button" onClick={close} className="mt-3 rounded border px-3 py-2">
+            <button type="button" onClick={dismiss} className="mt-3 rounded border px-3 py-2">
               Close
             </button>
           </div>
