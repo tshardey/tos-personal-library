@@ -27,7 +27,7 @@
   - All ToS work is done in **one new worktree**, `C:/Users/tierr/Github/tome-of-secrets-plan4`, created off ToS `origin/main` (Task 1). It holds four stacked feature branches, `plan4-1-groundwork` → `plan4-2-book-types` → `plan4-3-shelf-link` → `plan4-4-tidy-review`.
   - Never edit in the ToS main checkout (`C:/Users/tierr/Github/tome-of-secrets`), `C:/Users/tierr/Github/tome-of-secrets-library-schema`, `C:/Users/tierr/Github/tome-of-secrets-lqt0-docs`, or any other existing worktree.
   - The library repo adds no migrations and no `supabase/` directory.
-- **Every PR is opened, and none is merged by agents.** PR k is opened with base branch k−1, so its diff shows only its own work, and its body names the merge order.
+- **Every PR is opened, and none is merged by agents.** PR k is opened with base branch k−1, so its diff shows only its own work, and its body names the merge order. Every stacked PR body also says: `If an earlier PR in this stack is squash-merged, retarget this PR to main and rebase it onto main (git rebase --onto origin/main <old base branch>) before merging; otherwise its diff will repeat the earlier commits.`
 - **ToS code follows its `AGENTS.md`:**
   - controllers, StateAdapter, services and pure renderers;
   - validator allowlists (every new book field goes into `validateBook` in the same change, and is tested at the `validateCharacterState` seam);
@@ -71,6 +71,12 @@ These settle what spec §7 leaves to the builder and the brief's points. Where t
 
   Nothing is cached across reloads. Offline means "On our shelf unavailable", exactly as spec §6.7 says, and the save keeps shelf records' own title/cover/tags, so play goes on. *(Rejected: a localStorage copy of the catalogue. It would offer shelf links offline, but it adds a second stale source of truth and a cache-invalidation story for a rare case.)*
 - **Two queries, so a tag failure never hides the shelf:** `books` with `copies(edition_note)`, and `book_tags` for the household, run in parallel. If only the tag query fails, for example before the `db push` or because of a PostgREST error, shelf results still show, `tagsAvailable` is false, and no tag merge runs.
+- **Paging is stable:**
+  - `books` is ordered by `id`;
+  - `book_tags` by `book_id`, then `tag_id`;
+  - both are read in pages of 1000 until a page comes back empty.
+
+  **If any `book_tags` page fails, the whole tag set is discarded and `tagsAvailable` is false.** A partial read is never used, because a tag missing from a partial read would look like a removal to the three-way merge (D4) and would be deleted locally.
 - **Signed out, or no household:** `status: 'signed-out' | 'no-household'`. Pickers hide the shelf group, no tags are shared, and the review is the simple version (D9). Types and the new Library tab still apply.
 - **A player who left the household mid-session:** RLS answers empty or `42501`. The catalogue goes `no-household`, shelf records keep working from their own fields, and pending tag changes stay pending (D4). Nothing is retried in a loop.
 
@@ -123,7 +129,13 @@ These settle what spec §7 leaves to the builder and the brief's points. Where t
 **D3. Effective tags and tag scope.**
 - **`bookTags.json` gets two optional, data-only fields** (PR 1, so the library app can rely on them whichever ships first):
   - `"derivedFromType": "audiobook"` on `audio`;
-  - `"scope": "reader"` on the tags that describe the reading or the reader, not the book. The default list is `new-author`, `new-country`, `re-read`, `picked-back-up`, `long-tbr`, `recommended` and `genre-stretch` (see Open question 1).
+  - `"scope": "reader"` on the tags that describe the reading or the reader, not the book. The default list is `new-author`, `new-country`, `re-read`, `picked-back-up`, `long-tbr`, `recommended` and `genre-stretch` (see Open question 1, **pending the user**).
+- **The `scope` field is the only place the reader-tag list lives**, so the user's answer to Open question 1 is a data edit to `bookTags.json` and nothing else:
+  - no JS or TS file names a reader tag id;
+  - no test pins the list: tests build their own fixture tags with and without `scope`, and `bookTags.test.js` checks only that `scope` is absent or `"reader"`;
+  - the library app reads the same field from the published JSON.
+
+  Changing the list later moves no data. Reader tags already pushed to the library before a tag became reader-scoped stay there, shown read-only as `set in Tome of Secrets`.
 - **`utils/bookTagRules.js`** is the one place that knows the rules:
   - `effectiveBookTags(book)` = `book.tags` ∪ the ids whose `derivedFromType === book.type`;
   - `isTypeDerivedTag(id)`;
@@ -193,6 +205,7 @@ These settle what spec §7 leaves to the builder and the brief's points. Where t
 - **No index:** filtering is client-side over at most a few thousand rows.
 - **The ToS fill rule:**
   - when a `shelf` record is in a ToS series, ToS calls `fillSeries(libraryBookId, series.name)`, which runs the conditional update in D1;
+  - `fillSeries` trims the name and clips it to 200 characters, the column limit. A blank name makes no call. A `23514` check violation counts as `'kept'` and is never retried;
   - it runs when the book is added to a series (Task 8's chip and the book drawer), and on every refresh for shelf records already in one;
   - ToS never writes a series that is already set, never clears one, and never writes a volume.
 
@@ -256,12 +269,14 @@ These settle what spec §7 leaves to the builder and the brief's points. Where t
   - `trigramSimilarity` from `src/lib/photo/similarity.ts`;
   - the classify step of `src/lib/photo/propose.ts`.
 - **Thresholds pinned:** `SIMILAR_WITH_AUTHORS = 0.5`, `SIMILAR_ANY_AUTHORS = 0.8`, `MAX_CANDIDATES = 3`.
-- **Authors:** ToS keeps one string. `splitAuthorString` splits it on `,`, `;`, ` & ` and ` and `, then rejoins name suffixes (`Jr`, `Sr`, `II`, `III`, `IV`, `PhD`, `MD`), as the library's `joinNameSuffixes` does.
+- **Authors:** ToS keeps one string. `splitAuthorString` splits it on `;`, ` & ` and ` and ` first, then on `,`, and then:
+  - rejoins name suffixes (`Jr`, `Sr`, `II`, `III`, `IV`, `PhD`, `MD`), as the library's `joinNameSuffixes` does;
+  - **handles "Surname, First":** a part with exactly two comma pieces, where the first is one word and the second is one or two words or initials and not a suffix, becomes one name `First Surname`. So `"Writer, Ada"` gives `["Ada Writer"]`, and `"Ada Writer, Ben Other"` gives two names.
 - **`matchToLibrary(tosBook, libraryBooks)` returns `{ strong, weak }`:**
   - `strong`: library books with `same_title` (equal non-empty `titleKey` **and** `authorsOverlap`);
   - `weak`: `series_sibling` and `similar_title` candidates, best score first, at most 3.
   - A series sibling (same base title, different volume) is **never strong**.
-  - A ToS book without an author has no strong match, so a same-title hit is weak.
+  - **A deliberate deviation from the library app:** a ToS book without an author is never a strong match, so a same-title hit is weak. In the library's `match-keys.ts`, `authorsOverlap([], [])` is true, so there an authorless pair with the same title is `same_title`. The port keeps `authorsOverlap` exactly as it is (the copied vectors pin it). `matchToLibrary` adds the rule `strong requires a non-empty ToS author`. **Why:** a strong match is preselected and, unprotected, removes the book, and a title alone is too thin for that (spec §4, "no silent wrong match").
 - **The test vectors are copied from the library's own tests** (`match-keys.test.ts`, `similarity.test.ts`), so both apps score the same pair the same way. Those fixtures are already public and synthetic. Task 6 adds boundary cases at 0.5 and 0.8.
 
 **D9. The tidy review.**
@@ -288,41 +303,65 @@ These settle what spec §7 leaves to the builder and the brief's points. Where t
   - a banner on character-sheet load offers `Tidy your library` or `Later`. `Later` sets `status 'postponed'` and `postponedAt`, and the banner returns once `TIDY_REMIND_AFTER_DAYS = 7` have passed.
 - **Signed out, no household, or library unavailable:** the simple version. There is no matching, each row offers only the four types (and `drop` when not protected), and nothing needs the network.
 - **Undo:**
-  - removed records are kept whole in `bookTidy.removedBooks`;
-  - `Restore removed books` in the panel puts them back (by id, skipping ids already present) and returns `status` to `pending`;
+  - removed records are kept in `bookTidy.removedBooks`, whole except that a `data:` cover is set to `null` (`stripInlineCovers`). `bookTidy` is localStorage-backed, so a multi-MB inline cover could fill the quota, and `stripInlineImages` in `cloudSync.js` only cleans `books`, so it would also reach the cloud. An http(s) cover is kept;
+  - **`removedBooks` only ever grows by id.** Every apply merges the newly removed records into the existing map (an id already there is overwritten with the newer record), and no apply ever replaces or clears the map. Only `restoreRemovedBooks` deletes entries, and only the ones it restored;
+  - `Restore removed books` in the panel puts them back (by id, skipping ids already present in `books`) and returns `status` to `pending`;
   - spec §6.5 says removed books "live in the library app", and this adds the reversibility that lqt0 asks for (D10).
-- **Write order on apply:** `bookTidy` first, then `books`, in `stateAdapter.applyBookTidy`, with one `BOOKS_CHANGED` event. If the tab dies between the two, the books are still there and still Unsorted. The next apply puts them into `removedBooks` by id again (no duplicate), and restore skips ids that exist (Review Focus 3).
+- **Write order on apply** (`stateAdapter.applyBookTidy(nextBooks, nextTidy)`, which is **async**):
+  1. `setBookTidy(nextTidy)`, checking `safeSetJSON`'s return value. It returns `false` on a full quota without throwing. If the write fails, apply stops with `blocked 'storage'` **before `books` is touched**;
+  2. `await setStateKey(BOOKS, nextBooks)`. This doesn't use `_persistBooks`, which fires `void setStateKey` without waiting. If the write rejects, apply stops with `blocked 'storage'`. Removed records then sit in `removedBooks` while still in `books`, which is the interrupted case below;
+  3. update `characterState` and emit one `BOOKS_CHANGED`.
+
+  The push (D10 step 5) runs only after both writes have resolved, because `buildLocalSnapshot` reads from storage, not RAM.
+- **An interrupted apply.** If the tab dies between the two writes, the books are still in `books` and still Unsorted. The next apply puts them into `removedBooks` by id again (no duplicate), and restore skips ids that exist (Review Focus 3).
+- **The status heals itself.** On every load, after validation, `healTidyStatus(state)` sets `bookTidy.status` back to `pending` (keeping `postponedAt`) when any book is Unsorted, even if the stored status is `done`. An interrupted apply, a restore elsewhere, or an older snapshot can therefore never hide the review for good. It writes only when the status actually changes.
 
 **D10. Sync safety, and compatibility with lqt0.**
 - **The migration never shrinks a save.** v20 removes no book, so its first auto-push differs in shape but not in count.
-- **Only the review removes books, and it never does so through auto-sync.** `applyTidy` runs inside `runExclusiveSync` (Task 5, the lock `cloudAuth`'s `syncInProgress` becomes), in this order:
-  1. **Precheck** (`checkReadyForDeliberateChange`), when the player is signed in, has a cloud save, and the decisions remove anything: the cloud must equal `lastSyncedHash`. If the cloud changed since this device last synced, the player is asked to `Sync now` first. Offline means removals wait; type choices still apply.
+- **Only the review removes books, and it never does so through auto-sync.** `applyTidy` runs inside `runExclusiveSync` (Task 5).
+  - **The lock covers every tab, not just one.** `runExclusiveSync` takes the Web Locks API lock `navigator.locks.request('tos-cloud-sync', …)` when `navigator.locks` exists. Without it (old browsers, jsdom) it falls back to an in-tab promise queue.
+  - **Who takes it:** `syncAuto`, `syncNow` and `applyTidy` all take it.
+  - **Why every tab matters:** `bookTidy` is localStorage-backed, so a write to it fires a `storage` event in every other tab. `cloudAuth` then requests a sync there (`CLOUD_SYNCED_KEYS`, `cloudAuth.js` ~104-109 and ~174-179). That tab's `syncAuto` now waits for the lock instead of pushing a half-applied snapshot.
+
+  The steps, in order:
+  1. **Recheck and precheck, inside the lock.**
+     - **Protection is recomputed from live state.** For every `link` or `drop` decision, `isProtected` is recomputed now. A book that gained a quest, prompt, completion or series after `planTidy` ran becomes `shelf` for a `link` decision, and its `drop` is refused with `blocked 'protected'`.
+     - **The cloud precheck** (`checkReadyForDeliberateChange`) runs when the player is signed in, has a cloud save, and the decisions remove anything. The cloud must equal `lastSyncedHash`.
+     - **One rule for every blocked outcome: a blocked apply writes nothing at all.** Type choices aren't saved separately. The panel keeps every choice on screen, so the player can press `Apply` again once the cause is fixed. A save made only of type choices needs no precheck, so it isn't blocked offline.
+     - **The blocked reasons are a closed list**, shared by `checkReadyForDeliberateChange` and `applyTidy`: `'unsynced'` (the cloud changed since this device last synced; `Sync now` first), `'offline'`, `'newer-schema'` (D10 forward-compatibility; reload first), `'library'`, `'protected'` and `'storage'`.
   2. **Confirm in-page** (`ui/confirmDialog.js`, which follows lqt0 §4):
      - it can't be suppressed;
      - it has no default action; Escape and the backdrop cancel;
      - it states the counts: `Remove 45 books from Tome of Secrets. They stay in the household library. Your save goes from 52 to 7 books. You can restore them from this panel.`;
      - the destructive button says what it does: `Remove 45 books`.
   3. **Push the tag unions** to the library. A failure aborts, with nothing changed locally.
-  4. **One local write** (D9 order).
+  4. **The local writes,** in D9's order. Both are awaited and checked before step 5.
   5. **`pushDeliberateChange(supabase, { reason: 'library-tidy', booksBefore, booksAfter })`:**
      - a manual-class push that upserts only if the cloud still equals `lastSyncedHash`;
      - it logs `tos_sync_events` `push` with detail `library-tidy: books 52→7`;
      - if it can't push, the panel says `Saved on this device. It will upload with your next sync.`
-  - Auto-sync can't run between steps 3 and 5, because the lock is held.
-- **Forward compatibility, which also covers the rollback case** (PR 1, before any v20 code ships):
-  - `migrateState` **never lowers** the stored schema version: a stored version above `SCHEMA_VERSION` returns the state untouched and skips `saveSchemaVersion`;
-  - `validateBook` passes the v20 fields through (`type`, `libraryBookId`, `libraryTagsBase`, `shelfMatchDismissed`);
-  - sync returns `{ action: 'blocked' }` without pushing or applying when the local stored version or the cloud snapshot's version is above `SCHEMA_VERSION`. The hint says `This save was made by a newer Tome of Secrets. Reload to update; cloud sync is paused until then.`;
-  - `applySnapshot` refuses such a snapshot as a second guard.
+  - No sync in any tab can run between steps 1 and 5, because the cross-tab lock is held throughout.
+- **Forward compatibility, which also covers the rollback case** (PR 1, before any v20 code ships). The danger isn't only `migrateState`. `state.js` `saveState` (~95-112) writes **every** key from RAM, then calls `saveSchemaVersion()` unconditionally. And `loadState` writes every `LARGE_STATE_KEY` back on load. A tab still holding v19-shaped books in RAM would overwrite a v20 save written by another tab and relabel it 19. So PR 1 adds one **write gate** to `dataValidator.js`:
+  - `rememberLoadedSchemaVersion()` records the stored version when `loadState` starts. Every version this tab writes itself also updates the record;
+  - `isSchemaWriteSafe()` is true only when the stored version is ≤ `SCHEMA_VERSION` **and** equals the version this tab last loaded or wrote. So only another tab's change closes it;
+  - **`saveSchemaVersion` never lowers the version:** it writes only when the stored version is null or below `SCHEMA_VERSION`;
+  - **`saveState` and the `loadState` writeback** do nothing when `isSchemaWriteSafe()` is false. RAM stays as it is, and the player is shown the reload banner below;
+  - **sync** returns `{ action: 'blocked' }` when the write gate is closed, or when the local stored version or the cloud snapshot's version is above `SCHEMA_VERSION`. It neither pushes nor applies. The hint says `This save was made by a newer Tome of Secrets. Reload to update; cloud sync is paused until then.`;
+  - `applySnapshot` refuses such a snapshot as a second guard;
+  - **a `storage` listener on `tomeOfSecrets_schemaVersion`** shows an unclosable banner when another tab changes the version: `Tome of Secrets was updated in another tab. Reload this tab to keep playing.`, with a `Reload` button;
+  - `migrateState` with a stored version above `SCHEMA_VERSION` returns the state untouched and skips `saveSchemaVersion`;
+  - `validateBook` passes the v20 fields through (`type`, `libraryBookId`, `libraryTagsBase`, `shelfMatchDismissed`).
 
-  So a stale tab, or a reverted deploy, can neither strip v20 fields, nor push them away, nor relabel the save v19.
+  So a stale tab running PR 1 or later, or a reverted deploy, can neither strip v20 fields, nor push them away, nor relabel the save v19.
+- **What the gate can't reach: a tab opened before PR 1 deployed.** It runs code with no gate at all (`cloudSync.js` ~378-386 pushes whatever it holds). The only protection is procedural. **After each ToS deploy, and before the next ToS PR merges, the user reloads or closes every ToS tab on every device.** That is an explicit rollout step. It matters most between PR 1 and PR 2: the PR 1 reload is what puts the gate into every open tab before any v20 save exists.
 - **How this stays compatible with lqt0** (PR #138, not built yet), point by point:
   - **Collapse definition untouched:** `LARGE_STATE_KEYS` is unchanged, and `bookTidy` is localStorage-backed. lqt0's "collapsed" definition (all IndexedDB collection keys empty), shared verbatim by `tos_snapshot_is_collapsed`, is unaffected. A tidy can't collapse a save: removal needs a matched library book, and protected books are never removed.
   - **Shrink guard satisfied:** lqt0's planned guard (`syncAuto` never pushes a shrinking collection) is already met, because the tidy's shrink never goes through `syncAuto`. Its push is a manual-class push with an explicit declaration (`reason`, `booksBefore`, `booksAfter`), the hook a future guard can honour or turn into its own confirm.
   - **Matching the dialog spec:** `confirmDialog.js` is built to lqt0 §4's dialog requirements, so lqt0 can adopt it instead of building another.
   - **`window.confirm` left alone:** this plan adds no new use of it and doesn't rewrite the existing conflict prompts; that's lqt0's job.
   - **Reversible:** removed books stay recoverable in `removedBooks` (lqt0's reversibility property).
-  - **`getStateKey` and `loadState` writeback untouched:** both are lqt0's to change. This plan adds no new writeback path.
+  - **`getStateKey` untouched, and the `loadState` writeback only gated:** lqt0 owns reworking both. This plan only adds a refusal (the write gate above) to the existing writeback, and adds no new writeback path. lqt0's per-key writeback can keep the same gate as one extra condition.
+  - **One lock:** lqt0's sync guards can live inside the same `tos-cloud-sync` lock.
   - **Self-heal interaction:** lqt0's planned self-heal merges IndexedDB keys from history with local localStorage keys. It could bring back pre-tidy `books` next to a post-tidy `removedBooks`. The id-based restore and the re-runnable review handle that without duplicates (Task 9 test).
 
 **D11. PR split, order, and what users see between merges.**
@@ -372,7 +411,7 @@ git -C C:/Users/tierr/Github/tome-of-secrets fetch origin
 git -C C:/Users/tierr/Github/tome-of-secrets worktree add C:/Users/tierr/Github/tome-of-secrets-plan4 -b plan4-1-groundwork origin/main
 ```
 - **First:** load the `supabase:supabase` and `supabase:supabase-postgres-best-practices` skills.
-- **Before `start`:** stop any local stack running from another ToS worktree (`npx supabase@2.122.1 stop --workdir <that wt>`).
+- **Before `start`:** run `docker ps --filter name=supabase`. If a local stack from another ToS worktree is running, **don't stop it yourself.** Ask the coordinator (`orca orchestration ask`, or the user when not under Orca), and wait for a yes before running `npx supabase@2.122.1 stop --workdir <that wt>`. Another agent or the user may be using it.
 - Copy `_config.supabase.yml.example` to `_config.supabase.yml` with the local stack's URL and publishable key from `npx supabase@2.122.1 status --workdir <tos-wt>` (git-ignored).
 
 **Interfaces — Produces:** exactly the SQL in D4 and D5, plus:
@@ -380,14 +419,28 @@ git -C C:/Users/tierr/Github/tome-of-secrets worktree add C:/Users/tierr/Github/
 - the index `book_tags_household_id_idx (household_id)`;
 - `revoke all on library.book_tags from public, anon, authenticated; grant select, insert, delete ... to authenticated`.
 
-It is idempotent like the earlier library migrations: `add column if not exists`, `create table if not exists`, `drop constraint if exists` before each `add constraint`, and `drop policy if exists`.
+It is idempotent like the earlier library migrations: `add column if not exists`, `create table if not exists`, `drop constraint if exists` before each `add constraint` (the series checks), and `drop policy if exists`.
+
+**One exception: `books_id_household_key`.** The `book_tags` foreign key depends on it, so on a rerun `drop constraint if exists books_id_household_key` fails with `2BP01` (dependent objects). Add it instead in a guard:
+
+```sql
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conname = 'books_id_household_key' and conrelid = 'library.books'::regclass) then
+    alter table library.books add constraint books_id_household_key unique (id, household_id);
+  end if;
+end $$;
+```
+
+The `book_tags` table's own constraints are inline in `create table if not exists`, so they need no drop.
 
 - [ ] **Step 1: Write the failing pgTAP test**, in the setup style of `library_scan_intake.test.sql`. Users A (in households H1 and H2) and B (in neither). `test_vals`. Invented titles only. One assertion each:
   - **Schema:**
     - `has_table('library','book_tags')`;
     - `has_column` for `series_name` and `series_volume`;
     - `col_is_pk` on `(book_id, tag_id)`;
-    - the unique constraint `books_id_household_key` exists.
+    - the unique constraint `books_id_household_key` exists;
+    - RLS is enabled on `book_tags`: `select relrowsecurity from pg_class where oid = 'library.book_tags'::regclass` is true.
   - **Member writes:**
     - A inserts `('fantasy')` on an H1 book with `household_id = H1`: `lives_ok`;
     - the same row again throws `23505`;
@@ -413,21 +466,32 @@ It is idempotent like the earlier library migrations: `add column if not exists`
 - [ ] **Step 3: Create the migration** with `npx supabase@2.122.1 migration new library-book-tags-series --workdir <tos-wt>`, then write it per D4, D5 and Interfaces.
 - [ ] **Step 4: Verify.**
   - `npx supabase@2.122.1 db reset --workdir <tos-wt>`, then `test db`. Expected: all five library test files pass, the four existing ones unchanged.
+  - **Rerun:** apply the new migration file a second time to the local database: `psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/migrations/<timestamp>_library-book-tags-series.sql`, using the DB URL from `status`. Expected: no error. Then run `test db` again: still green.
   - `npx supabase@2.122.1 db advisors --local --workdir <tos-wt>` (check `--help` for the flags first). Expected: no new `library` findings.
 - [ ] **Step 5: Review and commit.** A subagent reviews the migration diff for: a policy that tests the wrong household, a missing revoke, a path that writes `audio`, and series checks that reject valid values. Commit `feat(library): shared Tome of Secrets tags and book series`. Don't push yet (Task 2 completes the PR).
 
 ### Task 2: ToS — forward-compatible saves and tag-scope data (ToS PR 1, part 2)
 
 **Files:**
-- Modify: `assets/js/character-sheet/dataMigrator.js` (`migrateState`), `assets/js/character-sheet/dataValidator.js` (`validateBook`), `assets/js/services/cloudSync.js`, `assets/js/auth/cloudAuth.js` (the `blocked` hint), `assets/data/bookTags.json`, `tests/bookTags.test.js`
+- Modify: `assets/js/character-sheet/dataMigrator.js` (`migrateState`), `assets/js/character-sheet/dataValidator.js` (`validateBook`, `saveSchemaVersion`, the write gate), `assets/js/character-sheet/state.js` (`loadState` start and writeback, `saveState`), `assets/js/services/cloudSync.js`, `assets/js/auth/cloudAuth.js` (the `blocked` hint), `assets/js/character-sheet.js` (the version `storage` listener and reload banner), `assets/data/bookTags.json`, `tests/bookTags.test.js`
 - Create: `tests/forwardCompat.test.js`
 
 **Interfaces — Produces:**
 ```js
+// dataValidator.js (D10 write gate)
+export function rememberLoadedSchemaVersion() // called first thing in loadState; records getStoredSchemaVersion()
+export function isSchemaWriteSafe() /* -> boolean: stored <= SCHEMA_VERSION && stored === remembered (null === null ok) */
+// saveSchemaVersion(): writes only when stored is null or < SCHEMA_VERSION; returns false otherwise (never lowers).
+//   When it writes, it also updates the remembered version, so this tab's own migration (loadState, applySnapshot)
+//   keeps the gate open; only a change made by ANOTHER tab closes it.
+// state.js: saveState(form) and the loadState writeback return early, writing nothing, when !isSchemaWriteSafe(),
+//   and dispatch 'tos:schemaChangedElsewhere' once
+// character-sheet.js: window 'storage' listener for key 'tomeOfSecrets_schemaVersion' (and the event above) shows
+//   the unclosable banner "Tome of Secrets was updated in another tab. Reload this tab to keep playing." + Reload
 // cloudSync.js
 export function schemaGate(localVersion /* number|null */, remoteVersion /* number|null */)
   // -> 'ok' | 'local-newer' | 'remote-newer'   (newer = > SCHEMA_VERSION)
-// syncNowWithOptions: when schemaGate(...) !== 'ok' -> returns { action: 'blocked', detail: <D10 hint> }
+// syncNowWithOptions: when schemaGate(...) !== 'ok' or !isSchemaWriteSafe() -> returns { action: 'blocked', detail: <D10 hint> }
 //   before any upsert, applySnapshot or confirm prompt.
 // applySnapshot(snapshot): throws Error('newer_schema') when snapshot.version > SCHEMA_VERSION, before any write.
 // validateBook: if present and well-typed, passes through type (string in the D2 list), libraryBookId (string),
@@ -437,6 +501,16 @@ export function schemaGate(localVersion /* number|null */, remoteVersion /* numb
 
 - [ ] **Step 1: Write the failing tests** in `tests/forwardCompat.test.js`. Use `SCHEMA_VERSION + 1` everywhere, so the tests stay valid after Task 3:
   - **Version never lowered:** with `localStorage` version `SCHEMA_VERSION + 1`, `migrateState(state)` returns `state` unchanged and the stored version is still `SCHEMA_VERSION + 1`.
+  - **`saveSchemaVersion`** with a stored `SCHEMA_VERSION + 1` returns false and leaves it; with a stored `SCHEMA_VERSION - 1` or none it writes `SCHEMA_VERSION`.
+  - **`saveState` in this build, with a stored newer version (C1):** with a stored `SCHEMA_VERSION + 1` and v19-shaped books in `characterState`, `saveState(form)`:
+    - calls `setStateKey` zero times and `safeSetJSON` for the form zero times;
+    - leaves the stored version at `SCHEMA_VERSION + 1`;
+    - dispatches `tos:schemaChangedElsewhere`.
+  - **Another tab migrated mid-session:** `loadState` with a stored `SCHEMA_VERSION`; then another tab sets the stored version to `SCHEMA_VERSION + 1`; then `saveState` writes nothing. The same holds when the stored version changes from null to `SCHEMA_VERSION` after load.
+  - **`loadState` writeback:** with a stored newer version, `loadState` populates `characterState` and calls `setStateKey` zero times.
+  - **Own migration keeps the gate open:** a `loadState` from a stored `SCHEMA_VERSION - 1` migrates, stores `SCHEMA_VERSION`, writes back normally, and a following `saveState` writes. The same holds after `applySnapshot` of an older snapshot.
+  - **Sync blocked by the write gate:** with `isSchemaWriteSafe()` false, `syncAuto` returns `'blocked'` with no upsert and no apply.
+  - **Banner:** a `storage` event for `tomeOfSecrets_schemaVersion` shows the reload banner, which has no close button.
   - **Fields survive validation:** `validateCharacterState` keeps a book's `type: 'shelf'`, `libraryBookId`, `libraryTagsBase: ['fantasy']` and `shelfMatchDismissed`, and drops `type: 7` and `libraryTagsBase: 'x'`.
   - **Sync blocked:**
     - `syncNow` with a remote snapshot at `SCHEMA_VERSION + 1` returns `action 'blocked'`; the mocked `upsert` isn't called and no `setStateKey` runs;
@@ -447,7 +521,7 @@ export function schemaGate(localVersion /* number|null */, remoteVersion /* numb
     - `scope` is absent or `'reader'`;
     - `derivedFromType` is absent or one of `['audiobook']`;
     - `audio` has `derivedFromType 'audiobook'`;
-    - the seven D3 ids have `scope 'reader'`.
+    - **no assertion names the reader-scoped ids** (D3: the list is a data edit only).
 - [ ] **Step 2: Run to verify failure.** `docker compose -p tos-plan4 run --rm dev npm test -- forwardCompat bookTags`. Expected: FAIL.
 - [ ] **Step 3: Implement** per Interfaces and D10. `cloudAuth` shows `result.detail` as the hint for `blocked`, and the auto-sync path shows it once, like `manual_required`. Run `node scripts/generate-data.js` inside the dev container, then `npm run validate-data`.
 - [ ] **Step 4: Verify.** The full `docker compose -p tos-plan4 run --rm dev npm test` and `npm run validate-data`. Expected: green.
@@ -458,7 +532,8 @@ export function schemaGate(localVersion /* number|null */, remoteVersion /* numb
     - the migration and its tests;
     - that nothing changes for players;
     - that production needs the user-approved `db push`;
-    - that this PR must merge before every other Plan 4 PR.
+    - that this PR must merge before every other Plan 4 PR;
+    - that after it deploys, every open ToS tab on every device must be reloaded or closed before ToS PR 2 merges (D10).
 
 ### Task 3: ToS — book types, effective tags and schema 20 (ToS PR 2, part 1)
 
@@ -574,7 +649,9 @@ getBookTidy() -> BookTidy; setBookTidy(next) -> BookTidy   // localStorage via s
 **Interfaces — Produces:**
 ```js
 export function getSupabaseClient() /* -> Promise<SupabaseClient|null>, memoized; null when not configured */
-export function runExclusiveSync(fn) /* -> Promise<T>; waits for the running holder, then runs fn */
+export const SYNC_LOCK_NAME = 'tos-cloud-sync';
+export function runExclusiveSync(fn) /* -> Promise<T>; navigator.locks.request(SYNC_LOCK_NAME, fn) when available
+                                       (cross-tab), else an in-tab promise queue; syncAuto, syncNow, applyTidy use it */
 export function isSyncRunning() /* -> boolean */
 export const LIBRARY_TIMEOUT_MS = 4000, LIBRARY_WRITE_TIMEOUT_MS = 8000,
              CATALOG_TTL_MS = 600000, RETRY_AFTER_MS = 60000;
@@ -609,12 +686,22 @@ export const libraryCatalog = new LibraryCatalogService();
   - **TTL:** a second `getCatalog` within 10 min makes no request; after 10 min it does; `subscribe` fires once per load.
   - **Writes:**
     - `fillSeries` sends `update({ series_name })` with `.eq('id', id).is('series_name', null)`, and returns `'kept'` when 0 rows come back (`select('id')`);
+    - `fillSeries('L', '  Saga  ')` sends `'Saga'`; a 250-character name is sent clipped to 200; a blank name makes no request;
+    - a `23514` error returns `'kept'` and isn't retried on the next refresh.
     - `addTags` sends `upsert(rows, { onConflict: 'book_id,tag_id', ignoreDuplicates: true })`;
     - a write timeout at 8000 ms throws `LibraryUnavailableError('timeout')`.
   - **`syncLock`:** two `runExclusiveSync` calls run in order and never overlap; `isSyncRunning` is true only inside.
+  - **Two tabs (I2):** install a fake `navigator.locks` that one shared object backs (a mutex keyed by name) and load the module twice with `jest.isolateModules`, standing for two tabs. Tab 1 holds the lock in a never-yet-resolved `applyTidy`-like fn. Tab 2 gets a `storage` event for `bookTidy`, which `cloudAuth` turns into `syncAuto`. Then:
+    - tab 2's `upsert` isn't called until tab 1 releases;
+    - when it runs, it builds its snapshot after the release, which the test verifies by having tab 1 write a marker before releasing.
+  - **Fallback:** without `navigator.locks`, the in-tab queue is used and the existing tests pass.
+  - **Paging (I7):**
+    - the `book_tags` query orders by `book_id`, then `tag_id`, and `books` by `id`;
+    - with 2,500 tag rows over three pages it returns them all;
+    - if the second tag page errors, the result has `tagsAvailable false` and every book's `tags` empty, never a partial set.
   - **`cloudAuth`:** the existing `cloudSync`/`eventDrivenSync` tests still pass, and a manual sync started during an auto-sync waits for it.
 - [ ] **Step 2: Run to verify failure.** `docker compose -p tos-plan4 run --rm dev npm test -- libraryCatalogService syncLock`. Expected: FAIL.
-- [ ] **Step 3: Implement** per Interfaces and D1. Catalogue rows are read with `.range()` pages of 1000 until a page comes back empty, as the library app's `readAllPages` does.
+- [ ] **Step 3: Implement** per Interfaces and D1. Catalogue rows are read with `.range()` pages of 1000 until a page comes back empty, as the library app's `readAllPages` does, with the stable ordering in D1. `cloudAuth`'s auto and manual sync both go through `runExclusiveSync`. The `fillSeries` "never retried" rule is kept as an in-memory `Set` of library book ids per page.
 - [ ] **Step 4: Verify.** The full suite. Expected: green.
 - [ ] **Step 5: Commit** `feat(library): household library catalogue service with timeouts`.
 
@@ -644,10 +731,16 @@ export function matchToLibrary(tosBook, libraryBooks)
     - `"The Salt Road (Anniversary Edition)"` / `"A. Writer"` against library `"Salt Road"` / `["A. Writer"]` is strong;
     - `"Salt Road: Book Two"` against `"Salt Road: Book One"` with the same author is weak `series_sibling`, never strong;
     - a ToS book without an author against a same-title library book is weak.
+  - **The deliberate deviation (D8):**
+    - `authorsOverlap([], [])` is still `true` (the copied vector);
+    - but a ToS book with author `""` against a same-title library book with `authors: []` is weak `similar_title` (score 1), not strong.
   - **`splitAuthorString`:**
     - `"A. Writer & B. Other"` gives two names;
     - `"Writer, Jr."` gives `["Writer, Jr."]`;
-    - `"A. Writer and B. Other"` gives two.
+    - `"A. Writer and B. Other"` gives two;
+    - `"Writer, Ada"` gives `["Ada Writer"]`, and is a strong match for a library book by `"Ada Writer"`;
+    - `"Writer, A. B."` gives `["A. B. Writer"]`;
+    - `"Ada Writer, Ben Other"` gives two names.
   - **Ranking:** `weak` is sorted by score descending and capped at 3; two equal strong matches are both returned.
 - [ ] **Step 2: Run to verify failure.** `npm test -- bookMatching`. Expected: FAIL.
 - [ ] **Step 3: Implement** as a line-for-line port. Comments name the TypeScript source of each function.
@@ -813,14 +906,23 @@ export function planTidy(state, catalog /* CatalogResult|null */) /* -> TidyRow[
 // TidyDecision = { bookId, kind: 'link', libraryBookId } | { bookId, kind: 'type', type /* PICKABLE_TYPES */ }
 //              | { bookId, kind: 'drop' }
 export function summarizeTidy(state, decisions) /* -> { remove, shelf, typed, dropped, booksBefore, booksAfter } */
+export const TIDY_BLOCK_REASONS = ['unsynced','offline','newer-schema','library','protected','storage'];
 export async function applyTidy({ stateAdapter, decisions, catalog, service, cloud, confirm })
-  // -> { status: 'applied'|'cancelled'|'blocked', reason?: 'unsynced'|'offline'|'library'|'protected', pushed: boolean }
+  // -> { status: 'applied'|'cancelled'|'blocked', reason?: one of TIDY_BLOCK_REASONS, pushed: boolean }
+  // Rule (D10): 'blocked' and 'cancelled' write NOTHING (no types, no tidy state, no tags beyond step 3's unions).
+  // Inside the lock, isProtected is recomputed from live state for every link/drop decision.
   // cloud = { checkReady(): Promise<{ ok, reason? }>, push({ reason, booksBefore, booksAfter }): Promise<boolean> } | null (signed out)
   // confirm(summary) -> Promise<boolean>  (Task 10 passes confirmDialog)
-export function restoreRemovedBooks(stateAdapter, ids /* string[]|undefined = all */) /* -> number restored */
-// stateAdapter.applyBookTidy(nextBooks, nextTidy): setBookTidy first, then books; one BOOKS_CHANGED
+export function restoreRemovedBooks(stateAdapter, ids /* string[]|undefined = all */) /* -> Promise<number restored> */
+export function mergeRemovedBooks(existing /* {id:Book} */, removed /* Book[] */) /* -> new map; never drops an id (D9) */
+export function stripInlineCovers(book) /* -> copy with a data: cover set to null */
+export function healTidyStatus(state) /* -> state with bookTidy.status 'pending' when any book is unsorted; same object if unchanged */
+// stateAdapter.applyBookTidy(nextBooks, nextTidy) -> Promise<{ ok: true } | { ok: false, reason: 'storage' }>
+//   1) safeSetJSON(bookTidy) must return true, else { ok:false } with books untouched
+//   2) await setStateKey(BOOKS, nextBooks) (rejection -> { ok:false })   3) characterState + one BOOKS_CHANGED
 // cloudSync:
-export async function checkReadyForDeliberateChange(supabase) /* -> { ok: true } | { ok: false, reason: 'unsynced'|'offline'|'blocked' } */
+export async function checkReadyForDeliberateChange(supabase)
+  /* -> { ok: true } | { ok: false, reason: 'unsynced'|'offline'|'newer-schema' } (same strings as TIDY_BLOCK_REASONS) */
 export async function pushDeliberateChange(supabase, { reason, booksBefore, booksAfter }) /* -> { action: 'push'|'manual_required' } */
 ```
 
@@ -839,7 +941,23 @@ export async function pushDeliberateChange(supabase, { reason, booksBefore, book
     - `cloud.push` is called once with `{ reason: 'library-tidy', booksBefore: 52, booksAfter: 7 }`;
     - **the write order:** `setBookTidy` before the books write.
   - **Auto-sync excluded:** during apply, a scheduled `runAutoSyncOnce` (simulated through `runExclusiveSync`) runs only after apply resolves.
-  - **Precheck blocks removal:** `cloud.checkReady` → `{ ok:false, reason:'unsynced' }` gives `blocked 'unsynced'`, no write, no `addTags`. With type-only decisions the same precheck isn't called, and the types apply.
+  - **Precheck blocks removal:** `cloud.checkReady` → `{ ok:false, reason:'unsynced' }` gives `blocked 'unsynced'`, no write, no `addTags`.
+  - **One blocked rule (I6):**
+    - a decision list mixing types and removals, with `checkReady` → `offline`, gives `blocked 'offline'` and writes **nothing**, the type choices included;
+    - type-only decisions never call `checkReady` and apply offline;
+    - `checkReady` → `newer-schema` gives `blocked 'newer-schema'`.
+  - **Protection recomputed inside the lock (I6):**
+    - `planTidy` runs, then the book gets linked to an active quest, then `applyTidy` with a `link` decision for it;
+    - the book becomes `shelf`, not removed, and `summarizeTidy` inside apply counts it under `shelf`;
+    - a `drop` decision for it gives `blocked 'protected'` and writes nothing.
+  - **Storage failure (C2):** with `safeSetJSON` returning false for `bookTidy` (a quota mock), `applyTidy` gives `blocked 'storage'`, `setStateKey(BOOKS, …)` is never called, `books` are unchanged, and no push is made.
+  - **Covers stripped (C2):** a removed book with a `data:image/jpeg;base64,…` cover is stored in `removedBooks` with `cover: null`; an `https:` cover is kept.
+  - **Books written before the push (I1):** a `setStateKey` mock that resolves after a delay; `cloud.push` is called only after it resolves. A `setStateKey` that rejects gives `blocked 'storage'` and no push.
+  - **Merge by id (I4):**
+    - apply removing X and Y, restore Y, then apply removing Z;
+    - `removedBooks` holds X and Z (Y was restored), and X wasn't dropped by the second apply;
+    - `mergeRemovedBooks({X}, [X'])` keeps one X, the newer one.
+  - **Status heals (I3):** a state with `bookTidy.status 'done'` and one Unsorted book gives `healTidyStatus(state).bookTidy.status === 'pending'`. With no Unsorted books it returns the same object, so `loadState` writes nothing.
   - **Library down:** `addTags` rejecting gives `blocked 'library'`, and the save is deep-equal to before.
   - **Cancelled:** `confirm` resolving false gives `cancelled`, with nothing written or pushed.
   - **Drop:** a `drop` on a protected book gives `blocked 'protected'`.
@@ -854,10 +972,10 @@ export async function pushDeliberateChange(supabase, { reason, booksBefore, book
   - **Older snapshot after the tidy:** after an applied tidy, `applySnapshot` of a v19 snapshot that still has the 45 books gives 45+ Unsorted books and `bookTidy.status 'pending'` (as migrated from that snapshot), with no crash, and `planTidy` lists them again.
   - **`cloudSync`:**
     - `checkReadyForDeliberateChange` is ok when the remote hash equals `lastSyncedHash`, and when there is no remote row and no `lastSyncedHash`;
-    - it is `unsynced` when the remote changed since the last sync, `offline` when `getRemoteSave` throws a network error, and `blocked` for a newer schema;
+    - it is `unsynced` when the remote changed since the last sync, `offline` when `getRemoteSave` throws a network error, and `newer-schema` for a newer remote version or a closed write gate;
     - `pushDeliberateChange` upserts and logs `push` with detail `library-tidy: books 52→7`; it returns `manual_required` and doesn't upsert when the remote changed in between.
 - [ ] **Step 2: Run to verify failure.** `npm test -- libraryTidyService cloudSync`. Expected: FAIL.
-- [ ] **Step 3: Implement** per D9, D10 and Interfaces. `applyTidy` runs entirely inside `runExclusiveSync`.
+- [ ] **Step 3: Implement** per D9, D10 and Interfaces. `applyTidy` runs entirely inside `runExclusiveSync`. `healTidyStatus` is called in `loadState` after validation, and in `applySnapshot` after migration.
 - [ ] **Step 4: Verify.** The full suite.
 - [ ] **Step 5: Commit** `feat(library): tidy review service with a deliberate, confirmed push`.
 
@@ -885,8 +1003,12 @@ Screen (Dark Academia, `rpg-panel`, mirroring the Library add panel):
 - **Footer:** `Apply {k} choices`, and `Later` (sets postponed). `Restore removed books ({m})` appears when `removedBooks` is non-empty.
 - **Apply results:**
   - **blocked `unsynced`:** `Your cloud save changed on another device. Use Sync now first, then apply.`;
-  - **blocked `offline`:** `You're offline. Type choices were saved; removals need a connection.`;
+  - **blocked `offline`:** `You're offline. Nothing was changed; removals need a connection. Your choices are still here.`;
+  - **blocked `newer-schema`:** `Tome of Secrets was updated. Reload this tab, then apply.`;
   - **blocked `library`:** `Couldn't reach the household library. Nothing was changed.`;
+  - **blocked `protected`:** `{title} now has quest history, so it can't be dropped. Nothing was changed.`;
+  - **blocked `storage`:** `This browser's storage is full, so nothing was changed. Free some space, or remove uploaded covers, and try again.`;
+  - every blocked state keeps the choices on screen;
   - **applied:** `Done. {r} removed, {s} linked to the library, {t} typed.`, plus the push hint from D10.
 - **The banner:** `Tidy your ToS library — {n} books to sort.`, with `Open` (switches to the Library tab and scrolls to the panel) and `Later`.
 
@@ -928,8 +1050,12 @@ Screen (Dark Academia, `rpg-panel`, mirroring the Library add panel):
 ```ts
 // types.ts: Book + seriesName: string | null; seriesVolume: number | null  (BOOK_COLUMNS series_name, series_volume;
 //           BOOK_EDITABLE gains both; toBook maps them, absent -> null)
+//           BookInput and normalizeBookInput do NOT gain them. Series are written only by the series picker's
+//           updateBook patch, so createBook / libib insertBooks / photo confirm never send series_name or
+//           series_volume (fromBookPatch skips undefined) and keep working before the db push.
 // library-repo.ts
-listBookTags(householdId: string): Promise<Map<string, string[]>>   // paged; select book_id, tag_id; eq household_id
+listBookTags(householdId: string): Promise<Map<string, string[]>>   // readAllPages; select book_id, tag_id; eq household_id;
+                                                                    // order book_id, then tag_id; any page error rejects (no partial map)
 addBookTag(bookId: string, householdId: string, tagId: string): Promise<void>   // upsert ignoreDuplicates
 removeBookTag(bookId: string, tagId: string): Promise<void>
 // useCatalog(): + tags: Map<string,string[]>; tagsError: string | null   (tags load separately; a failure never sets error)
@@ -952,7 +1078,12 @@ canonicalSeries(typed: string, names: string[]): string | null   // <= 200 chars
 
 - [ ] **Step 1: Write the failing tests:**
   - **`toBook`:** maps `series_name` and `series_volume`; a row without them gives nulls; `fromBookPatch({ seriesName: "Saga" })` gives `{ series_name: "Saga" }`.
-  - **`listBookTags`:** groups rows by book. `useCatalog` with `listBookTags` rejecting still returns books, with `tagsError` set and `error` null (D11 rollback matrix).
+  - **Before the push:** `createBook` with a `BookInput` sends no `series_name` or `series_volume` key, and the libib `insertBooks` row mapping sends neither.
+  - **`listBookTags`:**
+    - groups rows by book;
+    - orders by `book_id`, then `tag_id`;
+    - a second-page error rejects.
+    - `useCatalog` with `listBookTags` rejecting still returns books, with `tagsError` set, `error` null and an empty tag map (D11 rollback matrix).
   - **`addBookTag`:** sends `upsert({ book_id, household_id, tag_id }, { onConflict: "book_id,tag_id", ignoreDuplicates: true })`.
   - **`loadTosTags`:**
     - the default URL is `/tome-of-secrets/assets/data/bookTags.json`;
@@ -1077,19 +1208,27 @@ Copy, exact:
 
 **Agents don't run this without the user's explicit go-ahead at that moment.** Approval of this plan isn't approval of this step. The user runs it, or explicitly tells an agent to, in this order:
 
-1. Merge ToS PR 1 (`plan4-1-groundwork`).
-2. **`db push`.** In `C:/Users/tierr/Github/tome-of-secrets-library-schema`, run `git fetch origin` and `git checkout --detach origin/main`.
-   - `npx supabase@2.122.1 db push --dry-run --workdir C:/Users/tierr/Github/tome-of-secrets-library-schema`: confirm the only pending migration is `..._library-book-tags-series`.
+**The reload rule (D10), after every ToS deploy below:** wait for the GitHub Pages deploy to finish. Then, **on every device either player uses, reload or close every open ToS tab**, before the next ToS PR merges. A tab opened before ToS PR 1 deployed has no write gate. If it is still open when v20 arrives, it can overwrite the new save in the old shape.
+
+1. Merge ToS PR 1 (`plan4-1-groundwork`). **Reload rule.**
+2. **`db push`, from a fresh push worktree at the merged `main`.** Don't use `C:/Users/tierr/Github/tome-of-secrets-library-schema` (Global Constraints):
+   ```
+   git -C C:/Users/tierr/Github/tome-of-secrets fetch origin
+   git -C C:/Users/tierr/Github/tome-of-secrets worktree add --detach C:/Users/tierr/Github/tome-of-secrets-plan4-push origin/main
+   npx supabase@2.122.1 link --project-ref cdhorluhpuchzlnahzlt --workdir C:/Users/tierr/Github/tome-of-secrets-plan4-push
+   ```
+   - `npx supabase@2.122.1 db push --dry-run --workdir C:/Users/tierr/Github/tome-of-secrets-plan4-push`: confirm the only pending migration is `..._library-book-tags-series`.
    - Then run it without `--dry-run`.
    - **No function deploy.**
+   - Afterwards: `git -C C:/Users/tierr/Github/tome-of-secrets worktree remove C:/Users/tierr/Github/tome-of-secrets-plan4-push`.
 3. **Library PR.** Merge it (Pages deploys). Spot check: a book page shows `Tome of Secrets` and `Series: none`; tag and untag one book; set and clear a series.
 4. **Before ToS PR 2,** on each player's main device:
    - press `Sync now`;
    - write down the book count, the completed-by-year counts and the active/completed quest counts.
 
-   Then merge ToS PR 2. Reload ToS on each device, and confirm that the counts match, the audiobooks are typed, and the rest are Unsorted.
-5. Merge ToS PR 3. Link one shelf book to a quest from the quest picker; tag it in ToS; see the tag in the library app.
-6. **Merge ToS PR 4, then do the real review of the roughly 50 books** (Tierra first, then AJ on their own save):
+   Then merge ToS PR 2. **Reload rule.** Then, on each device, confirm that the counts match, the audiobooks are typed, and the rest are Unsorted.
+5. Merge ToS PR 3. **Reload rule.** Link one shelf book to a quest from the quest picker; tag it in ToS; see the tag in the library app.
+6. **Merge ToS PR 4 (reload rule), then do the real review of the roughly 50 books** (Tierra first, then AJ on their own save):
    1. `Sync now` first, so the cloud equals this device.
    2. Open `Tidy your ToS library`.
    3. Go through every preselected match: open any whose library title or author looks off, and untick it.
@@ -1120,9 +1259,9 @@ Copy, exact:
 
 Each has a default that the plan builds; answer only to change it.
 
-1. **"Just you" tags (D3).** Tags are shared per book (spec §6.4). But seven tags describe the reader, not the book: `New-to-You Author`, `Author from a New-to-You Country`, `Re-Read`, `Picked Back Up`, `On Your TBR Over a Year`, `Chosen by Someone Else` and `Outside Your Usual Genres`. Shared, one player's "Re-Read" would pay the other player's Re-Read bonuses. The plan keeps them per player, in ToS only, marked `just you`. The list is one `scope` field per tag in `bookTags.json`, so changing it is a data edit. Say if you want any of them shared, or others (for example `Borrowed Copy`) kept personal.
+1. **"Just you" tags (D3). Asked; the answer is pending.** Whatever it is, it lands as an edit to the `scope` fields in `bookTags.json` only. Tags are shared per book (spec §6.4). But seven tags describe the reader, not the book: `New-to-You Author`, `Author from a New-to-You Country`, `Re-Read`, `Picked Back Up`, `On Your TBR Over a Year`, `Chosen by Someone Else` and `Outside Your Usual Genres`. Shared, one player's "Re-Read" would pay the other player's Re-Read bonuses. The plan keeps them per player, in ToS only, marked `just you`. The list is one `scope` field per tag in `bookTags.json`, so changing it is a data edit. Say if you want any of them shared, or others (for example `Borrowed Copy`) kept personal.
 2. **Two lists the spec doesn't name (D7).** `Unsorted`, which spec §6.9 calls "its own list" and which disappears once sorted, and `Not in the library yet`, for books typed "Physical, not in the library yet". Without the second, those books would be invisible until completed.
 3. **Tagging a shelf book that's on an active quest (D7)** happens from `Tags & series` on the quest's selected book, not from the Library tab, which doesn't list in-progress shelf books (spec §6.1).
 4. **Postponing the tidy-up (D9)** brings the banner back after 7 days; the Library tab panel stays until it's done.
-5. **Removed books stay restorable (D9)** in the save, from the tidy panel, until a later tidy replaces the list.
+5. **Removed books stay restorable (D9),** in the save, from the tidy panel, indefinitely. Each tidy adds to the list by id, and only `Restore` takes books off it. Their inline (uploaded) covers are dropped; covers that are web links are kept.
 6. **Online search in the quest picker is a button,** not search-as-you-type, to spare OpenLibrary and the Google key.
