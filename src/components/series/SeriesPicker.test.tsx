@@ -54,3 +54,25 @@ describe("SeriesPicker", () => {
     expect(onChange).toHaveBeenCalledWith(null, null);
   });
 });
+
+describe("SeriesPicker volume edits", () => {
+  it("saves once when the volume is edited and a name is then picked", () => {
+    const onChange = setup("Saga", 1);
+    const input = screen.getByLabelText("Volume");
+    fireEvent.change(input, { target: { value: "3" } });
+    const none = screen.getByRole("button", { name: "None" });
+    fireEvent.blur(input, { relatedTarget: none });
+    fireEvent.click(none);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(null, null);
+  });
+
+  it("keeps the saved volume when the typed one is out of range", () => {
+    const onChange = setup("Saga", 1);
+    const input = screen.getByLabelText("Volume");
+    fireEvent.change(input, { target: { value: "10000" } });
+    fireEvent.blur(input);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Volume must be between 0 and 9999.5.");
+  });
+});

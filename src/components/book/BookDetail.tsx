@@ -71,6 +71,7 @@ export default function BookDetail({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [addingCopy, setAddingCopy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [savingSeries, setSavingSeries] = useState(false);
   const [openLabels, setOpenLabels] = useState<string[]>([]);
   const [tosTags, setTosTags] = useState<{ tags: TosTag[]; stale: boolean }>({ tags: [], stale: false });
   const householdId = household?.id;
@@ -157,8 +158,9 @@ export default function BookDetail({ id }: { id: string }) {
   }
 
   async function saveSeries(name: string | null, volume: number | null) {
-    if (!book) return;
+    if (!book || savingSeries) return;
     setActionError(null);
+    setSavingSeries(true);
     try {
       await updateBook(
         id,
@@ -169,6 +171,8 @@ export default function BookDetail({ id }: { id: string }) {
     } catch (err) {
       console.error("Failed to save series", err instanceof Error ? err.name : "unknown");
       setActionError("Couldn't save the series.");
+    } finally {
+      setSavingSeries(false);
     }
   }
 
@@ -215,6 +219,7 @@ export default function BookDetail({ id }: { id: string }) {
           value={book.seriesName}
           volume={book.seriesVolume}
           names={series}
+          disabled={savingSeries}
           onChange={(name, volume) => void saveSeries(name, volume)}
         />
         {book.seriesName && (

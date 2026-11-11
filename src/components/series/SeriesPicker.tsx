@@ -16,6 +16,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
   const [vol, setVol] = useState(volume === null ? "" : String(volume));
   const filterRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) filterRef.current?.focus();
@@ -29,18 +30,25 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
     setTyped("");
     triggerRef.current?.focus();
   }
-  function parsedVolume(): number | null {
+  /** null for a blank field; undefined for text that is not a valid volume (it never overwrites the saved one). */
+  function parsedVolume(): number | null | undefined {
     if (vol.trim() === "") return null;
     const n = Number(vol);
-    return Number.isFinite(n) && n >= 0 && n <= 9999.5 ? n : null;
+    return Number.isFinite(n) && n >= 0 && n <= 9999.5 ? n : undefined;
   }
+  const volumeInvalid = parsedVolume() === undefined;
   function pick(next: string | null) {
-    onChange(next, next === null ? null : parsedVolume());
+    const n = parsedVolume();
+    if (next !== null && n === undefined) return;
+    onChange(next, next === null ? null : (n ?? null));
     close();
   }
-  function commitVolume() {
+  function commitVolume(e: React.FocusEvent<HTMLInputElement>) {
+    // Moving focus to a choice in this sheet: that choice saves the volume itself, once.
+    if (e.relatedTarget instanceof Node && dialogRef.current?.contains(e.relatedTarget)) return;
     if (value === null) return;
     const n = parsedVolume();
+    if (n === undefined) return;
     if (n !== volume) onChange(value, n);
   }
 
@@ -67,6 +75,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
       {open && (
         <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Series"
@@ -78,6 +87,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
             }}
             className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-white p-4 sm:rounded"
           >
+            {volumeInvalid && <p role="alert" className="mb-2 text-sm text-red-700">Volume must be between 0 and 9999.5.</p>}
             <label className="mb-2 block text-sm">
               Volume
               <input
