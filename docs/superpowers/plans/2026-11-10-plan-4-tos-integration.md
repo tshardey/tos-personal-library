@@ -129,7 +129,7 @@ These settle what spec §7 leaves to the builder and the brief's points. Where t
 **D3. Effective tags and tag scope.**
 - **`bookTags.json` gets two optional, data-only fields** (PR 1, so the library app can rely on them whichever ships first):
   - `"derivedFromType": "audiobook"` on `audio`;
-  - `"scope": "reader"` on the tags that describe the reading or the reader, not the book. The default list is `new-author`, `new-country`, `re-read`, `picked-back-up`, `long-tbr`, `recommended` and `genre-stretch` (see Open question 1, **pending the user**).
+  - `"scope": "reader"` on the tags that describe the reading or the reader, not the book. The list is exactly `new-author`, `new-country`, `re-read`, `picked-back-up`, `long-tbr`, `recommended` and `genre-stretch`, as the user confirmed (Open question 1, resolved). `borrowed` (Borrowed Copy) is shared like any other tag and has no `scope`.
 - **The `scope` field is the only place the reader-tag list lives**, so the user's answer to Open question 1 is a data edit to `bookTags.json` and nothing else:
   - no JS or TS file names a reader tag id;
   - no test pins the list: tests build their own fixture tags with and without `scope`, and `bookTags.test.js` checks only that `scope` is absent or `"reader"`;
@@ -1255,13 +1255,13 @@ Copy, exact:
 - A ToS series with a shelf book: the library book shows that series name if it had none; a series typed in the library is never overwritten.
 - Signed out on a spare browser: ToS works with types and the new Library tab, with no errors.
 
-## Open questions for the user
+## Open questions for the user (all resolved)
 
-Each has a default that the plan builds; answer only to change it.
+All six were answered by the user on 2026-11-11. The plan builds exactly these answers.
 
-1. **"Just you" tags (D3). Asked; the answer is pending.** Whatever it is, it lands as an edit to the `scope` fields in `bookTags.json` only. Tags are shared per book (spec §6.4). But seven tags describe the reader, not the book: `New-to-You Author`, `Author from a New-to-You Country`, `Re-Read`, `Picked Back Up`, `On Your TBR Over a Year`, `Chosen by Someone Else` and `Outside Your Usual Genres`. Shared, one player's "Re-Read" would pay the other player's Re-Read bonuses. The plan keeps them per player, in ToS only, marked `just you`. The list is one `scope` field per tag in `bookTags.json`, so changing it is a data edit. Say if you want any of them shared, or others (for example `Borrowed Copy`) kept personal.
-2. **Two lists the spec doesn't name (D7).** `Unsorted`, which spec §6.9 calls "its own list" and which disappears once sorted, and `Not in the library yet`, for books typed "Physical, not in the library yet". Without the second, those books would be invisible until completed.
-3. **Tagging a shelf book that's on an active quest (D7)** happens from `Tags & series` on the quest's selected book, not from the Library tab, which doesn't list in-progress shelf books (spec §6.1).
-4. **Postponing the tidy-up (D9)** brings the banner back after 7 days; the Library tab panel stays until it's done.
-5. **Removed books stay restorable (D9),** in the save, from the tidy panel, indefinitely. Each tidy adds to the list by id, and only `Restore` takes books off it. Their inline (uploaded) covers are dropped; covers that are web links are kept.
-6. **Online search in the quest picker is a button,** not search-as-you-type, to spare OpenLibrary and the Google key.
+1. **"Just you" tags (D3). Resolved: the seven reader tags stay per player, in ToS only.** They are `New-to-You Author` (`new-author`), `Author from a New-to-You Country` (`new-country`), `Re-Read` (`re-read`), `Picked Back Up` (`picked-back-up`), `On Your TBR Over a Year` (`long-tbr`), `Chosen by Someone Else` (`recommended`) and `Outside Your Usual Genres` (`genre-stretch`), each marked `"scope": "reader"` in `bookTags.json` and shown as `just you`. **`Borrowed Copy` (`borrowed`) is shared** like any other tag: it gets no `scope`. No other tag is reader-scoped.
+2. **Two lists the spec doesn't name (D7). Resolved: the default.** `Unsorted`, which spec §6.9 calls "its own list" and which disappears once sorted, and `Not in the library yet`, for books typed "Physical, not in the library yet".
+3. **Tagging a shelf book that's on an active quest (D7). Resolved: the default.** It happens from `Tags & series` on the quest's selected book, not from the Library tab.
+4. **Postponing the tidy-up (D9). Resolved: the default.** The banner comes back after 7 days; the Library tab panel stays until it's done.
+5. **Removed books stay restorable (D9). Resolved: the default.** In the save, from the tidy panel, indefinitely. Each tidy adds to the list by id, and only `Restore` takes books off it. Inline (uploaded) covers are dropped; web-link covers are kept.
+6. **Online search in the quest picker is a button (D7). Resolved: the default,** not search-as-you-type.
