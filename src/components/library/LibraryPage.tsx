@@ -1,22 +1,40 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { editionLabels } from "@/lib/editions";
 import { filterBooks, type OwnerFilter } from "@/lib/filter-books";
 import { navigate } from "@/lib/router";
+import { seriesNames } from "@/lib/series";
+import { loadTosTags, type TosTag } from "@/lib/tos-tags";
 import CoverWall from "./CoverWall";
 import LibraryFilters from "./LibraryFilters";
 
-export default function LibraryPage() {
+export default function LibraryPage({ series: routeSeries }: { series?: string } = {}) {
   const { members } = useHousehold();
-  const { books, loading, error, reload } = useCatalog();
+  const { books, tags, loading, error, reload } = useCatalog();
   const [query, setQuery] = useState("");
   const [owner, setOwner] = useState<OwnerFilter>("all");
   const [edition, setEdition] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [series, setSeries] = useState<string | null>(routeSeries ?? null);
+  const [tosTags, setTosTags] = useState<TosTag[]>([]);
+  useEffect(() => {
+    setSeries(routeSeries ?? null);
+  }, [routeSeries]);
+  useEffect(() => {
+    let cancelled = false;
+    void loadTosTags().then((r) => {
+      if (!cancelled) setTosTags(r.tags);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const labels = useMemo(() => editionLabels(books, []), [books]);
+  const names = useMemo(() => seriesNames(books), [books]);
   const visible = useMemo(
-    () => filterBooks(books, { query, owner, edition }),
-    [books, query, owner, edition],
+    () => filterBooks(books, { query, owner, edition, tags: tagFilter, tagsByBook: tags, series }),
+    [books, query, owner, edition, tagFilter, tags, series],
   );
 
   if (loading) return <p className="p-6">Loading…</p>;
@@ -62,11 +80,17 @@ export default function LibraryPage() {
         query={query}
         owner={owner}
         edition={edition}
+        tagFilter={tagFilter}
+        series={series}
+        tosTags={tosTags}
+        seriesNames={names}
         labels={labels}
         members={members}
         onQuery={setQuery}
         onOwner={setOwner}
         onEdition={setEdition}
+        onTagFilter={setTagFilter}
+        onSeries={setSeries}
       />
       {visible.length === 0 ? (
         <p className="p-6 text-center">No matching books</p>

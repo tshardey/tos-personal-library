@@ -114,6 +114,16 @@ The Inbox turns photos of book covers into catalog entries. Nothing is written t
 
 **Requires** the Tome of Secrets `library-scan-intake` migration.
 
+## Tome of Secrets
+
+The book page has a Tome of Secrets section with the book's tags, grouped by category. The labels come from ToS's published `bookTags.json` (the app keeps the last good copy if the fetch fails; with no copy, tags show as raw ids). Tags are shared per book: everyone in the household sees the same ones, and the library list can filter by them.
+
+Tags that are "just you" (such as re-reads) and tags ToS works out from a book's type live only in ToS. The library shows them read-only as "set in Tome of Secrets" and never offers them for editing.
+
+Books also have a series name and volume, set from the book page; "Show the rest of this series" and the library's series filter list the others. When a ToS shelf record is in a series, ToS fills the book's series name if it is still empty. It never overwrites a series or a volume you set.
+
+If the database changes for tags and series haven't been applied yet, the book list still loads; the tags section reads "Tome of Secrets tags unavailable." and saving a series fails with an error.
+
 ## Deploy (GitHub Pages)
 
 Pushes to `main` run `.github/workflows/deploy.yml`. Add these repository secrets (Settings > Secrets and variables > Actions):

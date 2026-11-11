@@ -6,6 +6,8 @@ import { useCatalog } from "@/hooks/useCatalog";
 import { addCopy, deleteBook, updateBook } from "@/lib/library-repo";
 import { diffPatch, markEdited } from "@/lib/edited-fields";
 import { editionLabels } from "@/lib/editions";
+import { seriesNames } from "@/lib/series";
+import { loadTosTags, type TosTag } from "@/lib/tos-tags";
 import { listOpenEditionLabels } from "@/lib/photo/intake-repo";
 import { normalizeBookInput } from "@/lib/normalize";
 import { navigate } from "@/lib/router";
@@ -13,6 +15,8 @@ import type { BookInput, BookWithCopies } from "@/lib/types";
 import BookForm from "./BookForm";
 import CopyForm from "./CopyForm";
 import CopyList from "./CopyList";
+import SeriesPicker from "@/components/series/SeriesPicker";
+import TosTagsSection from "./TosTagsSection";
 
 const EDITABLE: (keyof BookInput)[] = [
   "title",
@@ -25,6 +29,8 @@ const EDITABLE: (keyof BookInput)[] = [
   "publisher",
   "publishDate",
 ];
+
+const NO_IDS: string[] = [];
 
 function Cover({ book, photoUrl }: { book: BookWithCopies; photoUrl?: string }) {
   const [failed, setFailed] = useState(false);
@@ -60,12 +66,13 @@ function Cover({ book, photoUrl }: { book: BookWithCopies; photoUrl?: string }) 
 export default function BookDetail({ id }: { id: string }) {
   const { household, members } = useHousehold();
   const { user } = useAuth();
-  const { books, loading, error, reload } = useCatalog();
+  const { books, tags, loading, error, tagsError, reload } = useCatalog();
   const photoUrls = useCopyPhotoUrls(books);
   const [editing, setEditing] = useState(false);
   const [addingCopy, setAddingCopy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [openLabels, setOpenLabels] = useState<string[]>([]);
+  const [tosTags, setTosTags] = useState<{ tags: TosTag[]; stale: boolean }>({ tags: [], stale: false });
   const householdId = household?.id;
   useEffect(() => {
     if (!householdId) return;
@@ -83,6 +90,16 @@ export default function BookDetail({ id }: { id: string }) {
     };
   }, [householdId]);
   const labels = useMemo(() => editionLabels(books, openLabels), [books, openLabels]);
+  const series = useMemo(() => seriesNames(books), [books]);
+  useEffect(() => {
+    let cancelled = false;
+    void loadTosTags().then((r) => {
+      if (!cancelled) setTosTags(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (loading) return <p className="p-6">Loading…</p>;
   if (error) {
@@ -139,6 +156,22 @@ export default function BookDetail({ id }: { id: string }) {
     }
   }
 
+  async function saveSeries(name: string | null, volume: number | null) {
+    if (!book) return;
+    setActionError(null);
+    try {
+      await updateBook(
+        id,
+        { seriesName: name, seriesVolume: volume },
+        markEdited(book.userEditedFields, ["seriesName", "seriesVolume"]),
+      );
+      await reload();
+    } catch (err) {
+      console.error("Failed to save series", err instanceof Error ? err.name : "unknown");
+      setActionError("Couldn't save the series.");
+    }
+  }
+
   return (
     <div className="space-y-4 p-4">
       <a href="#/" className="underline">
@@ -176,6 +209,36 @@ export default function BookDetail({ id }: { id: string }) {
         <p role="alert" className="text-red-700">
           {actionError}
         </p>
+      )}
+      <div className="space-y-1">
+        <SeriesPicker
+          value={book.seriesName}
+          volume={book.seriesVolume}
+          names={series}
+          onChange={(name, volume) => void saveSeries(name, volume)}
+        />
+        {book.seriesName && (
+          <button
+            type="button"
+            onClick={() => navigate({ name: "library", series: book.seriesName ?? undefined })}
+            className="text-sm underline"
+          >
+            Show the rest of this series
+          </button>
+        )}
+      </div>
+      {householdId && (
+        <TosTagsSection
+          bookId={book.id}
+          householdId={householdId}
+          tagIds={tags.get(book.id) ?? NO_IDS}
+          tosTags={tosTags.tags}
+          stale={tosTags.stale}
+          unavailable={tagsError !== null}
+          onChange={() => {
+            // The section keeps its own copy; a reload would unmount it and close the editor.
+          }}
+        />
       )}
       <section>
         <h3 className="mb-2 font-semibold">Copies</h3>

@@ -1,0 +1,56 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import SeriesPicker from "./SeriesPicker";
+
+function setup(value: string | null = null, volume: number | null = null) {
+  const onChange = vi.fn();
+  render(<SeriesPicker value={value} volume={volume} names={["Saga"]} onChange={onChange} />);
+  fireEvent.click(screen.getByRole("button", { name: /^Series:/ }));
+  return onChange;
+}
+
+describe("SeriesPicker", () => {
+  it("shows none, or the name with its volume", () => {
+    const { unmount } = render(<SeriesPicker value={null} volume={null} names={[]} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Series: none" })).toBeInTheDocument();
+    unmount();
+    render(<SeriesPicker value="Saga" volume={2.5} names={[]} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Series: Saga · Vol. 2.5" })).toBeInTheDocument();
+  });
+
+  it("picks the existing name for typed text in another case, with no duplicate Add", () => {
+    const onChange = setup();
+    fireEvent.change(screen.getByLabelText("Filter series"), { target: { value: "saga" } });
+    expect(screen.queryByRole("button", { name: /^Add/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Saga" }));
+    expect(onChange).toHaveBeenCalledWith("Saga", null);
+  });
+
+  it("adds a new series", () => {
+    const onChange = setup();
+    fireEvent.change(screen.getByLabelText("Filter series"), { target: { value: "New Saga" } });
+    fireEvent.click(screen.getByRole("button", { name: 'Add "New Saga"' }));
+    expect(onChange).toHaveBeenCalledWith("New Saga", null);
+  });
+
+  it("passes the volume along", () => {
+    const onChange = setup();
+    fireEvent.change(screen.getByLabelText("Volume"), { target: { value: "2.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Saga" }));
+    expect(onChange).toHaveBeenCalledWith("Saga", 2.5);
+  });
+
+  it("applies a volume change to the current series on blur", () => {
+    const onChange = setup("Saga", 1);
+    const input = screen.getByLabelText("Volume");
+    fireEvent.change(input, { target: { value: "2.5" } });
+    fireEvent.blur(input);
+    expect(onChange).toHaveBeenCalledWith("Saga", 2.5);
+  });
+
+  it("clears with None", () => {
+    const onChange = setup("Saga", 1);
+    fireEvent.click(screen.getByRole("button", { name: "None" }));
+    expect(onChange).toHaveBeenCalledWith(null, null);
+  });
+});

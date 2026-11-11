@@ -137,7 +137,7 @@ describe("owned wording and flash", () => {
   });
 
   it("picks the amber flash for owned or elsewhere, green otherwise", () => {
-    expect(scanFlashKind({ line: "Already in library � Avery's copy", elsewhere: false })).toBe("notice");
+    expect(scanFlashKind({ line: "Already in library — Avery's copy", elsewhere: false })).toBe("notice");
     expect(scanFlashKind({ line: null, elsewhere: true })).toBe("notice");
     expect(scanFlashKind({ line: null, elsewhere: false })).toBe("accept");
   });

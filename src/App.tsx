@@ -68,7 +68,7 @@ function SignedIn() {
           </Suspense>
         </ChunkErrorBoundary>
       ) : (
-        <LibraryPage />
+        <LibraryPage series={route.name === "library" ? route.series : undefined} />
       )}
     </div>
   );
