@@ -1,7 +1,7 @@
 import type { OwnerFilter } from "@/lib/filter-books";
 import type { HouseholdMember } from "@/lib/types";
 import { groupTags, isSharedTag, type TosTag } from "@/lib/tos-tags";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Props {
   query: string;
@@ -11,6 +11,7 @@ interface Props {
   series: string | null;
   tosTags: TosTag[];
   seriesNames: string[];
+  tagsUnavailable?: boolean;
   labels: string[];
   members: HouseholdMember[];
   onQuery(q: string): void;
@@ -28,6 +29,7 @@ export default function LibraryFilters({
   series,
   tosTags,
   seriesNames,
+  tagsUnavailable,
   labels,
   members,
   onQuery,
@@ -37,6 +39,15 @@ export default function LibraryFilters({
   onSeries,
 }: Props) {
   const [tagsOpen, setTagsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (tagsOpen) closeRef.current?.focus();
+  }, [tagsOpen]);
+  function closeTags() {
+    setTagsOpen(false);
+    triggerRef.current?.focus();
+  }
   const shared = tosTags.filter(isSharedTag);
   const groups = groupTags(
     shared.map((t) => t.id),
@@ -92,9 +103,10 @@ export default function LibraryFilters({
           ))}
         </select>
       )}
-      {(shared.length > 0 || tagFilter.length > 0) && (
+      {tagsUnavailable && <p className="text-sm text-stone-700">Tome of Secrets tags unavailable.</p>}
+      {!tagsUnavailable && (shared.length > 0 || tagFilter.length > 0) && (
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setTagsOpen(true)} className="rounded border px-3 py-1 text-sm">
+          <button ref={triggerRef} type="button" onClick={() => setTagsOpen(true)} className="rounded border px-3 py-1 text-sm">
             ToS tags
           </button>
           {tagFilter.map((id) => (
@@ -109,7 +121,7 @@ export default function LibraryFilters({
           )}
         </div>
       )}
-      {tagsOpen && (
+      {tagsOpen && !tagsUnavailable && (
         <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
           <div
             role="dialog"
@@ -118,7 +130,7 @@ export default function LibraryFilters({
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 e.stopPropagation();
-                setTagsOpen(false);
+                closeTags();
               }
             }}
             className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-white p-4 sm:rounded"
@@ -142,7 +154,7 @@ export default function LibraryFilters({
               <button type="button" onClick={() => onTagFilter([])} className="rounded border px-3 py-2">
                 Clear
               </button>
-              <button type="button" onClick={() => setTagsOpen(false)} className="rounded border px-3 py-2">
+              <button ref={closeRef} type="button" onClick={closeTags} className="rounded border px-3 py-2">
                 Close
               </button>
             </div>

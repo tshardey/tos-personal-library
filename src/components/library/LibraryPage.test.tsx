@@ -19,7 +19,12 @@ vi.mock("@/lib/tos-tags", async (importOriginal) => ({
 }));
 import LibraryPage from "./LibraryPage";
 
-function book(id: string, title: string, seriesName: string | null = null): BookWithCopies {
+function book(
+  id: string,
+  title: string,
+  seriesName: string | null = null,
+  seriesVolume: number | null = null,
+): BookWithCopies {
   return {
     id,
     householdId: "h1",
@@ -35,7 +40,7 @@ function book(id: string, title: string, seriesName: string | null = null): Book
     publisher: null,
     publishDate: null,
     seriesName,
-    seriesVolume: null,
+    seriesVolume,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",
@@ -90,9 +95,50 @@ describe("LibraryPage series and tag filters", () => {
     expect(screen.queryAllByText("Paper Tide")).toHaveLength(0);
   });
 
-  it("still lists books when tags are unavailable", () => {
+  it("still lists books when tags are unavailable, without the tag filter", async () => {
     setCatalog({ tags: new Map(), tagsError: "Tome of Secrets tags unavailable" });
     render(<LibraryPage />);
     expect(screen.queryAllByText("Glass Orchard").length).toBeGreaterThan(0);
+    expect(screen.getByText("Tome of Secrets tags unavailable.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "ToS tags" })).not.toBeInTheDocument());
+  });
+
+  it("sorts a series by volume, nulls last, with 2.5 between 2 and 3", () => {
+    setCatalog({
+      books: [
+        book("a", "Alpha", "Saga", 3),
+        book("b", "Bravo", "Saga", 2.5),
+        book("c", "Charlie", "Saga", 2),
+        book("d", "Delta", "Saga"),
+        book("e", "Echo", "Saga", 1),
+      ],
+    });
+    render(<LibraryPage series="Saga" />);
+    const order = screen.getAllByRole("link").map((l) => l.textContent ?? "");
+    const titles = ["Echo", "Charlie", "Bravo", "Alpha", "Delta"];
+    const positions = titles.map((t) => order.findIndex((o) => o.includes(t)));
+    expect(positions.every((p) => p >= 0)).toBe(true);
+    expect([...positions].sort((x, y) => x - y)).toEqual(positions);
+  });
+
+  it("changing the series select updates the hash, including back to All series", () => {
+    setCatalog();
+    render(<LibraryPage series="Saga" />);
+    fireEvent.change(screen.getByLabelText("Series"), { target: { value: "" } });
+    expect(window.location.hash).toBe("#/");
+    fireEvent.change(screen.getByLabelText("Series"), { target: { value: "Saga" } });
+    expect(window.location.hash).toBe("#/series/Saga");
+  });
+
+  it("the ToS tags sheet takes focus, closes on Escape and returns focus", async () => {
+    setCatalog();
+    render(<LibraryPage />);
+    const trigger = await screen.findByRole("button", { name: "ToS tags" });
+    fireEvent.click(trigger);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(trigger);
   });
 });

@@ -10,12 +10,19 @@ const CACHE_KEY = "tpl_tos_book_tags";
 const TIMEOUT_MS = 4000;
 const DEFAULT_URL = "/tome-of-secrets/assets/data/bookTags.json";
 
+function validTags(list: unknown[]): TosTag[] {
+  return list.filter(
+    (t): t is TosTag =>
+      !!t && typeof (t as TosTag).id === "string" && typeof (t as TosTag).label === "string",
+  );
+}
+
 function readCache(storage: Storage | undefined): TosTag[] | null {
   try {
     const raw = storage?.getItem(CACHE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as TosTag[]) : null;
+    return Array.isArray(parsed) ? validTags(parsed) : null;
   } catch {
     return null;
   }
@@ -43,7 +50,7 @@ export async function loadTosTags(
     if (!res.ok) throw new Error(`bookTags.json responded ${res.status}`);
     const body: unknown = await res.json();
     if (!Array.isArray(body)) throw new Error("bookTags.json is not a list");
-    const tags = body as TosTag[];
+    const tags = validTags(body);
     try {
       storage?.setItem(CACHE_KEY, JSON.stringify(tags));
     } catch {

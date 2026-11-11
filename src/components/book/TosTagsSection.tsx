@@ -84,12 +84,12 @@ export default function TosTagsSection({ bookId, householdId, tagIds, tosTags, s
           {error}
         </p>
       )}
-      {!unavailable && !editing && (
+      {!unavailable && !editing && tosTags.length > 0 && (
         <button type="button" onClick={() => setEditing(true)} className="mt-2 text-sm underline">
           Edit tags
         </button>
       )}
-      {!unavailable && editing && (
+      {!unavailable && editing && tosTags.length > 0 && (
         <div className="mt-2 space-y-3 rounded border p-3">
           {editable.map((g) => (
             <fieldset key={g.category}>

@@ -115,3 +115,14 @@ describe("groupTags", () => {
     ]);
   });
 });
+
+describe("loadTosTags element validation", () => {
+  it("drops malformed elements before returning and caching", async () => {
+    const body = [TAGS[0], null, { id: 5, label: "x" }, { id: "no-label" }, TAGS[1]];
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: async () => body });
+    const store = memoryStorage();
+    const result = await loadTosTags({ fetchImpl: fetchImpl as unknown as typeof fetch, storage: store });
+    expect(result.tags).toEqual([TAGS[0], TAGS[1]]);
+    expect(JSON.parse(store.getItem(CACHE_KEY) ?? "[]")).toEqual([TAGS[0], TAGS[1]]);
+  });
+});

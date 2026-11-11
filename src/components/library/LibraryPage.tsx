@@ -11,7 +11,7 @@ import LibraryFilters from "./LibraryFilters";
 
 export default function LibraryPage({ series: routeSeries }: { series?: string } = {}) {
   const { members } = useHousehold();
-  const { books, tags, loading, error, reload } = useCatalog();
+  const { books, tags, loading, error, tagsError, reload } = useCatalog();
   const [query, setQuery] = useState("");
   const [owner, setOwner] = useState<OwnerFilter>("all");
   const [edition, setEdition] = useState<string | null>(null);
@@ -32,10 +32,19 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   }, []);
   const labels = useMemo(() => editionLabels(books, []), [books]);
   const names = useMemo(() => seriesNames(books), [books]);
-  const visible = useMemo(
-    () => filterBooks(books, { query, owner, edition, tags: tagFilter, tagsByBook: tags, series }),
-    [books, query, owner, edition, tagFilter, tags, series],
-  );
+  const visible = useMemo(() => {
+    const found = filterBooks(books, { query, owner, edition, tags: tagFilter, tagsByBook: tags, series });
+    if (!series) return found;
+    // D5: within a series, volume order (nulls last), so 2.5 sorts between 2 and 3.
+    return [...found].sort(
+      (a, b) =>
+        (a.seriesVolume ?? Infinity) - (b.seriesVolume ?? Infinity) || a.title.localeCompare(b.title),
+    );
+  }, [books, query, owner, edition, tagFilter, tags, series]);
+  function changeSeries(next: string | null) {
+    setSeries(next);
+    navigate({ name: "library", series: next ?? undefined });
+  }
 
   if (loading) return <p className="p-6">Loading…</p>;
   if (error) {
@@ -90,7 +99,8 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         onOwner={setOwner}
         onEdition={setEdition}
         onTagFilter={setTagFilter}
-        onSeries={setSeries}
+        onSeries={changeSeries}
+        tagsUnavailable={tagsError !== null}
       />
       {visible.length === 0 ? (
         <p className="p-6 text-center">No matching books</p>

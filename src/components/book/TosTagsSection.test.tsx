@@ -16,14 +16,14 @@ const tosTags: TosTag[] = [
   { id: "audio", label: "Audio", category: "form", derivedFromType: "audiobook" },
 ];
 
-function setup(tagIds: string[], extra: { stale?: boolean; unavailable?: boolean } = {}) {
+function setup(tagIds: string[], extra: { stale?: boolean; unavailable?: boolean; tags?: TosTag[] } = {}) {
   const onChange = vi.fn();
   render(
     <TosTagsSection
       bookId="b1"
       householdId="h1"
       tagIds={tagIds}
-      tosTags={tosTags}
+      tosTags={extra.tags ?? tosTags}
       stale={extra.stale ?? false}
       unavailable={extra.unavailable}
       onChange={onChange}
@@ -85,6 +85,11 @@ describe("TosTagsSection", () => {
     expect(screen.queryByLabelText("Re-read")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Audio")).not.toBeInTheDocument();
     expect(screen.getByText(/Re-read.*set in Tome of Secrets/)).toBeInTheDocument();
+  });
+
+  it("hides Edit tags when no tag list is loaded", () => {
+    setup(["fantasy"], { tags: [], stale: true });
+    expect(screen.queryByRole("button", { name: "Edit tags" })).not.toBeInTheDocument();
   });
 
   it("is read-only when tags are unavailable", () => {

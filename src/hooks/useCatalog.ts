@@ -42,7 +42,11 @@ export function useCatalog(): {
     if (tagsResult.status === "fulfilled") {
       setTags(tagsResult.value);
     } else {
-      console.error("Failed to load book tags", tagsResult.reason);
+      const reason: unknown = tagsResult.reason;
+      console.error(
+        "Failed to load book tags",
+        reason instanceof Error ? reason.name : ((reason as { code?: string } | null)?.code ?? "unknown"),
+      );
       setTags(NO_TAGS);
       setTagsError("Tome of Secrets tags unavailable");
     }
