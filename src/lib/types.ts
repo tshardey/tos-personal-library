@@ -26,6 +26,8 @@ export interface Book {
   pageCount: number | null;
   publisher: string | null;
   publishDate: string | null;
+  seriesName: string | null;
+  seriesVolume: number | null;
   userEditedFields: string[];
   createdAt: string;
   updatedAt: string;
@@ -69,6 +71,8 @@ const BOOK_COLUMNS = {
   pageCount: "page_count",
   publisher: "publisher",
   publishDate: "publish_date",
+  seriesName: "series_name",
+  seriesVolume: "series_volume",
   userEditedFields: "user_edited_fields",
   createdAt: "created_at",
   updatedAt: "updated_at",
@@ -89,6 +93,8 @@ export function toBook(row: Row): Book {
     pageCount: row.page_count ?? null,
     publisher: row.publisher ?? null,
     publishDate: row.publish_date ?? null,
+    seriesName: row.series_name ?? null,
+    seriesVolume: row.series_volume ?? null,
     userEditedFields: row.user_edited_fields ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -126,6 +132,8 @@ const BOOK_EDITABLE: readonly (keyof Book)[] = [
   "pageCount",
   "publisher",
   "publishDate",
+  "seriesName",
+  "seriesVolume",
 ];
 
 /** Maps a camelCase partial book to snake_case columns, skipping undefined values. */

@@ -11,7 +11,16 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  server: { watch: { usePolling: true } },
+  server: {
+    watch: { usePolling: true },
+    // Dev stand-in for the same-origin /tome-of-secrets/ path production serves (bookTags.json).
+    proxy: {
+      "/tome-of-secrets": {
+        target: process.env.TOS_JEKYLL_URL ?? "http://host.docker.internal:4000",
+        changeOrigin: true,
+      },
+    },
+  },
   test: {
     globals: true,
     environment: "jsdom",

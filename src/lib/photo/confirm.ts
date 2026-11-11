@@ -108,6 +108,8 @@ export async function performConfirm(
         householdId: item.householdId,
         openlibraryId: input.openlibraryId ?? null,
         googleBooksId: input.googleBooksId ?? null,
+        seriesName: null,
+        seriesVolume: null,
         userEditedFields: [],
         createdAt: now,
         updatedAt: now,

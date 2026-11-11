@@ -53,6 +53,8 @@ function book(over: Partial<BookWithCopies> = {}): BookWithCopies {
     pageCount: null,
     publisher: null,
     publishDate: null,
+    seriesName: null,
+    seriesVolume: null,
     userEditedFields: [],
     createdAt: "2026-01-01T00:00:00+00:00",
     updatedAt: "2026-01-02T00:00:00+00:00",

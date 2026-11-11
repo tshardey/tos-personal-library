@@ -23,6 +23,8 @@ const book = (n: number, over: Partial<BookWithCopies> = {}): BookWithCopies => 
   pageCount: null,
   publisher: null,
   publishDate: null,
+  seriesName: null,
+  seriesVolume: null,
   userEditedFields: [],
   createdAt: "",
   updatedAt: `u${n}`,
