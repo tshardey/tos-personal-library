@@ -47,6 +47,8 @@ export interface CoverFinderState {
   budget: CoverBudget | null;
   stop: CoverStop;
   gatherPaused: boolean;
+  /** The screening function was unreachable twice in a row; screening resumes after GATHER_PAUSE_MS. */
+  screenPaused: boolean;
   reviewCount: number;
   mark(bookId: string, reasons: CoverReason[], note: string | null): Promise<void>;
   unmark(bookId: string): Promise<void>;
@@ -117,6 +119,7 @@ export const UNAVAILABLE_COVER_FINDER: CoverFinderState = {
   budget: null,
   stop: null,
   gatherPaused: false,
+  screenPaused: false,
   reviewCount: 0,
   mark: async () => {},
   unmark: async () => {},
@@ -152,6 +155,7 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
   const [budget, setBudget] = useState<CoverBudget | null>(null);
   const [stop, setStopState] = useState<CoverStop>(null);
   const [gatherPaused, setGatherPaused] = useState(false);
+  const [screenPaused, setScreenPaused] = useState(false);
 
   const stopRef = useRef<CoverStop>(null);
   const loadedRef = useRef(false);
@@ -159,6 +163,8 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
   const drainingRef = useRef(false);
   const againRef = useRef(false);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Which phases the running pause timer holds back; both clear when it fires. */
+  const pausedRef = useRef({ gather: false, screen: false });
   const mountedRef = useRef(true);
   /** Bumped on unmount, so a drain started before it stops starting work. */
   const generationRef = useRef(0);
@@ -214,7 +220,7 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
         againRef.current = false;
         const rows = await load();
         if (rows === null || !availableRef.current || stopRef.current !== null || !mountedRef.current) continue;
-        const paused = pauseTimerRef.current !== null;
+        const paused = { ...pausedRef.current };
         const generation = generationRef.current;
         let touched = false;
         const result = await d.drain(
@@ -235,17 +241,29 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
             },
             cancelled: () => !mountedRef.current || generationRef.current !== generation,
           },
-          { gatherPaused: paused },
+          { gatherPaused: paused.gather, screenPaused: paused.screen },
         );
         if (!mountedRef.current || generationRef.current !== generation) continue;
         if (result.stop !== null) setStop(result.stop);
-        // Only a drain that gathered can start a pause; a paused drain just echoes it.
-        if (result.gatherPaused && !paused && pauseTimerRef.current === null) {
+        // Only a drain that ran a phase can start its pause; a paused phase just echoes it.
+        // A pause that has meanwhile cleared (the timer fired mid-drain) is not re-armed by the echo.
+        const pauseGather = result.gatherPaused && !paused.gather && !pausedRef.current.gather;
+        const pauseScreen = result.screenPaused && !paused.screen && !pausedRef.current.screen;
+        if (pauseGather) {
+          pausedRef.current.gather = true;
           setGatherPaused(true);
+        }
+        if (pauseScreen) {
+          pausedRef.current.screen = true;
+          setScreenPaused(true);
+        }
+        if ((pauseGather || pauseScreen) && pauseTimerRef.current === null) {
           pauseTimerRef.current = setTimeout(() => {
             pauseTimerRef.current = null;
+            pausedRef.current = { gather: false, screen: false };
             if (!mountedRef.current) return;
             setGatherPaused(false);
+            setScreenPaused(false);
             void run();
           }, GATHER_PAUSE_MS);
         }
@@ -266,6 +284,7 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
       generationRef.current += 1;
       if (pauseTimerRef.current !== null) clearTimeout(pauseTimerRef.current);
       pauseTimerRef.current = null;
+      pausedRef.current = { gather: false, screen: false };
     };
   }, [run]);
 
@@ -386,6 +405,7 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
       budget,
       stop,
       gatherPaused,
+      screenPaused,
       reviewCount: countForReview(searches),
       mark,
       unmark,
@@ -404,6 +424,7 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
       budget,
       stop,
       gatherPaused,
+      screenPaused,
       mark,
       unmark,
       findNow,

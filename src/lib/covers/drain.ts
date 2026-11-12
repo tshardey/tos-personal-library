@@ -10,6 +10,9 @@ export type CoverStop = "budget" | "misconfigured" | "billing" | "rejected" | nu
 export const GATHER_GAP_MS = 1000;
 export const GATHER_PAUSE_MS = 60_000;
 
+/** Consecutive failures (a record RPC, or the screening function unreachable) before that phase pauses. */
+export const FAILURE_PAUSE_AFTER = 2;
+
 const DEFAULT_CONCURRENCY = 2;
 
 export interface DrainDeps {
@@ -29,6 +32,14 @@ export interface DrainDeps {
 export interface DrainOptions {
   concurrency?: number;
   gatherPaused?: boolean;
+  /** Skip the screen phase: the function was unreachable on the last drains. */
+  screenPaused?: boolean;
+}
+
+export interface DrainResult {
+  stop: CoverStop;
+  gatherPaused: boolean;
+  screenPaused: boolean;
 }
 
 export function isScreenDue(s: CoverSearch, now: Date): boolean {
@@ -53,6 +64,14 @@ async function gatherPhase(
   const gathered = new Set<string>();
   const cancelled = () => deps.cancelled?.() === true;
   let first = true;
+  let failures = 0;
+  /** A record or network failure; after FAILURE_PAUSE_AFTER in a row, gathering pauses. */
+  const failed = (id: string, what: string, err: unknown): boolean => {
+    console.warn(what, errorCode(err));
+    deps.onOutcome(id, "error");
+    failures += 1;
+    return failures >= FAILURE_PAUSE_AFTER;
+  };
   for (const s of queued) {
     if (cancelled()) break;
     if (s.book === null) {
@@ -66,6 +85,7 @@ async function gatherPhase(
     first = false;
     try {
       const outcome = await deps.gather(s);
+      failures = 0;
       deps.onOutcome(s.id, outcome);
       if (outcome === "gathered") gathered.add(s.id);
     } catch (err) {
@@ -74,16 +94,15 @@ async function gatherPhase(
         // A 4xx from the source: record nothing found (free) and move on.
         try {
           await deps.recordEmpty(s.id);
+          failures = 0;
           deps.onOutcome(s.id, "nothing_found");
         } catch (recordErr) {
-          console.warn("cover record failed", errorCode(recordErr));
-          deps.onOutcome(s.id, "error");
+          if (failed(s.id, "cover record failed", recordErr)) return { gathered, paused: true };
         }
         continue;
       }
       // Recording failed (network, RPC): leave it queued for the next drain.
-      console.warn("cover gather failed", errorCode(err));
-      deps.onOutcome(s.id, "error");
+      if (failed(s.id, "cover gather failed", err)) return { gathered, paused: true };
     }
   }
   return { gathered, paused: false };
@@ -93,7 +112,7 @@ export async function drainCovers(
   searches: CoverSearch[],
   deps: DrainDeps,
   opts: DrainOptions = {},
-): Promise<{ stop: CoverStop; gatherPaused: boolean }> {
+): Promise<DrainResult> {
   const concurrency = Math.max(1, opts.concurrency ?? DEFAULT_CONCURRENCY);
   const sorted = [...searches].sort(oldestFirst);
 
@@ -109,10 +128,12 @@ export async function drainCovers(
   }
 
   const now = deps.now();
-  const due = sorted.filter((s) => gathered.has(s.id) || isScreenDue(s, now));
+  let screenPaused = opts.screenPaused ?? false;
+  const due = screenPaused ? [] : sorted.filter((s) => gathered.has(s.id) || isScreenDue(s, now));
 
   let stop: CoverStop = null;
   let rejectedRun = 0;
+  let failureRun = 0;
   let budgetRefusals = 0;
   let budgetPending = false;
   let next = 0;
@@ -121,6 +142,13 @@ export async function drainCovers(
 
   const settle = (id: string, outcome: string) => {
     deps.onOutcome(id, outcome);
+    // The function unreachable (5xx, network) or the call threw: neutral for the other runs.
+    if (outcome === "unavailable" || outcome === "error") {
+      failureRun += 1;
+      if (failureRun >= FAILURE_PAUSE_AFTER) screenPaused = true;
+      return;
+    }
+    failureRun = 0;
     if (outcome === "rejected") {
       rejectedRun += 1;
       if (rejectedRun >= 2 && stop === null) stop = "rejected";
@@ -149,7 +177,7 @@ export async function drainCovers(
   };
 
   while (stop === null && !cancelled()) {
-    while (stop === null && !cancelled() && !budgetPending && inFlight.size < concurrency && next < due.length) {
+    while (stop === null && !cancelled() && !budgetPending && !screenPaused && inFlight.size < concurrency && next < due.length) {
       start(due[next++]);
     }
     if (inFlight.size > 0) {
@@ -177,5 +205,5 @@ export async function drainCovers(
   }
 
   await Promise.all(inFlight);
-  return { stop, gatherPaused };
+  return { stop, gatherPaused, screenPaused };
 }

@@ -1,4 +1,4 @@
-import { FunctionsHttpError } from "@supabase/supabase-js";
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
@@ -226,9 +226,25 @@ describe("screenSearch", () => {
     expect(await screenSearch(SEARCH)).toBe("misconfigured");
   });
 
-  it("rejects on other HTTP errors and network errors", async () => {
+  it("maps a 503, a relay error or a fetch error to unavailable", async () => {
+    h.invoke.mockResolvedValue({ data: null, error: new FunctionsHttpError(new Response(null, { status: 503 })) });
+    expect(await screenSearch(SEARCH)).toBe("unavailable");
     h.invoke.mockResolvedValue({ data: null, error: new FunctionsHttpError(new Response(null, { status: 500 })) });
-    await expect(screenSearch(SEARCH)).rejects.toBeDefined();
+    expect(await screenSearch(SEARCH)).toBe("unavailable");
+    h.invoke.mockResolvedValue({ data: null, error: new FunctionsFetchError(new TypeError("Failed to fetch")) });
+    expect(await screenSearch(SEARCH)).toBe("unavailable");
+    h.invoke.mockResolvedValue({ data: null, error: new FunctionsRelayError(new Response(null, { status: 502 })) });
+    expect(await screenSearch(SEARCH)).toBe("unavailable");
+  });
+
+  it("maps a 404 relay error to misconfigured", async () => {
+    h.invoke.mockResolvedValue({ data: null, error: new FunctionsRelayError(new Response(null, { status: 404 })) });
+    expect(await screenSearch(SEARCH)).toBe("misconfigured");
+  });
+
+  it("rejects on other HTTP errors and a thrown invoke", async () => {
+    h.invoke.mockResolvedValue({ data: null, error: new FunctionsHttpError(new Response(null, { status: 400 })) });
+    await expect(screenSearch(SEARCH)).rejects.toBeInstanceOf(FunctionsHttpError);
     h.invoke.mockRejectedValue(new Error("network"));
     await expect(screenSearch(SEARCH)).rejects.toThrow("network");
   });
@@ -264,6 +280,9 @@ describe("unexpected replies", () => {
     h.invoke.mockResolvedValue({ data: null, error: null });
     await expect(screenSearch(SEARCH)).rejects.toMatchObject({ code: "unexpected_reply" });
     h.invoke.mockResolvedValue({ data: { outcome: "weird" }, error: null });
+    await expect(screenSearch(SEARCH)).rejects.toMatchObject({ code: "unexpected_reply" });
+    // "unavailable" is the client's own outcome, never a reply.
+    h.invoke.mockResolvedValue({ data: { outcome: "unavailable" }, error: null });
     await expect(screenSearch(SEARCH)).rejects.toMatchObject({ code: "unexpected_reply" });
   });
 

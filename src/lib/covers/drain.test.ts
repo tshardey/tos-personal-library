@@ -83,7 +83,7 @@ describe("drainCovers", () => {
     const out = await drainCovers(rows, deps);
     expect(deps.gather.mock.calls.map((c) => c[0].id)).toEqual(["s1"]);
     expect(screened(deps).sort()).toEqual(["s1", "s2", "s3"]);
-    expect(out).toEqual({ stop: null, gatherPaused: false });
+    expect(out).toEqual({ stop: null, gatherPaused: false, screenPaused: false });
   });
 
   it("does not screen a search whose gather found nothing", async () => {
@@ -167,7 +167,7 @@ describe("drainCovers", () => {
     expect(screened(deps)).toEqual(["s1", "s2"]);
   });
 
-  it("a screen that throws reports error and continues", async () => {
+  it("a screen that throws reports error and continues once, then pauses screening at two", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const rows = [1, 2].map((n) => row(n, "gathered"));
     const deps = fakeDeps({
@@ -177,10 +177,98 @@ describe("drainCovers", () => {
       }),
     });
     const out = await drainCovers(rows, deps);
-    expect(out.stop).toBeNull();
+    expect(out).toEqual({ stop: null, gatherPaused: false, screenPaused: false });
     expect(deps.onOutcome).toHaveBeenCalledWith("s1", "error");
     expect(deps.onOutcome).toHaveBeenCalledWith("s2", "ready");
     expect(warn).toHaveBeenCalledWith("cover screen failed", "Error");
+
+    const failing = fakeDeps({
+      screen: vi.fn<DrainDeps["screen"]>(async () => {
+        throw new Error("network");
+      }),
+    });
+    const out2 = await drainCovers([1, 2, 3, 4].map((n) => row(n, "gathered")), failing, { concurrency: 1 });
+    expect(out2).toEqual({ stop: null, gatherPaused: false, screenPaused: true });
+    expect(screened(failing)).toEqual(["s1", "s2"]);
+    warn.mockRestore();
+  });
+
+  it.each<[ScreenOutcome | "throw", ScreenOutcome | "throw"]>([
+    ["unavailable", "unavailable"],
+    ["unavailable", "throw"],
+    ["throw", "unavailable"],
+  ])("%s then %s pauses screening and starts nothing more", async (a, b) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const queue = [a, b];
+    const deps = fakeDeps({
+      screen: vi.fn<DrainDeps["screen"]>(async () => {
+        const next = queue.shift() ?? "ready";
+        if (next === "throw") throw new Error("network");
+        return next;
+      }),
+    });
+    const out = await drainCovers([1, 2, 3, 4, 5].map((n) => row(n, "gathered")), deps, { concurrency: 1 });
+    expect(out).toEqual({ stop: null, gatherPaused: false, screenPaused: true });
+    expect(screened(deps)).toEqual(["s1", "s2"]);
+    warn.mockRestore();
+  });
+
+  it("an unavailable between other outcomes does not pause; nor does it count toward rejected", async () => {
+    const queue: ScreenOutcome[] = ["unavailable", "ready", "unavailable", "rejected", "unavailable", "rejected"];
+    const deps = fakeDeps({ screen: vi.fn<DrainDeps["screen"]>(async () => queue.shift()!) });
+    const out = await drainCovers([1, 2, 3, 4, 5, 6].map((n) => row(n, "gathered")), deps, { concurrency: 1 });
+    expect(out.screenPaused).toBe(false);
+    expect(out.stop).toBe("rejected");
+    expect(deps.screen).toHaveBeenCalledTimes(6);
+  });
+
+  it("a screen-paused drain still gathers but screens nothing, and echoes the pause", async () => {
+    const deps = fakeDeps();
+    const out = await drainCovers([row(1, "queued"), row(2, "gathered")], deps, { screenPaused: true });
+    expect(deps.gather.mock.calls.map((c) => c[0].id)).toEqual(["s1"]);
+    expect(deps.screen).not.toHaveBeenCalled();
+    expect(out).toEqual({ stop: null, gatherPaused: false, screenPaused: true });
+  });
+
+  it("one record failure carries on; two in a row pause gathering", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const once = fakeDeps({
+      gather: vi.fn<DrainDeps["gather"]>(async (s: CoverSearch) => {
+        if (s.id === "s1") throw new Error("record");
+        return "gathered" as const;
+      }),
+    });
+    const out = await drainCovers([1, 2, 3].map((n) => row(n, "queued")), once);
+    expect(once.gather).toHaveBeenCalledTimes(3);
+    expect(out.gatherPaused).toBe(false);
+
+    const twice = fakeDeps({
+      gather: vi.fn<DrainDeps["gather"]>(async () => {
+        throw new Error("record");
+      }),
+    });
+    const out2 = await drainCovers([row(1, "queued"), row(2, "queued"), row(3, "queued"), row(4, "gathered")], twice);
+    expect(twice.gather).toHaveBeenCalledTimes(2);
+    expect(twice.onOutcome).toHaveBeenCalledWith("s2", "error");
+    expect(out2).toEqual({ stop: null, gatherPaused: true, screenPaused: false });
+    // Already gathered searches are still screened.
+    expect(screened(twice)).toEqual(["s4"]);
+    warn.mockRestore();
+  });
+
+  it("a failing nothing-found record counts toward the gather pause", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const deps = fakeDeps({
+      gather: vi.fn<DrainDeps["gather"]>(async () => {
+        throw new LookupError("OpenLibrary answered 400", false);
+      }),
+      recordEmpty: vi.fn<DrainDeps["recordEmpty"]>(async () => {
+        throw new Error("record");
+      }),
+    });
+    const out = await drainCovers([1, 2, 3].map((n) => row(n, "queued")), deps);
+    expect(deps.recordEmpty).toHaveBeenCalledTimes(2);
+    expect(out.gatherPaused).toBe(true);
     warn.mockRestore();
   });
 
@@ -213,7 +301,7 @@ describe("drainCovers", () => {
     const out = await drainCovers(rows, deps);
     expect(deps.gather).toHaveBeenCalledTimes(2);
     expect(deps.recordEmpty).not.toHaveBeenCalled();
-    expect(out).toEqual({ stop: null, gatherPaused: true });
+    expect(out).toEqual({ stop: null, gatherPaused: true, screenPaused: false });
     expect(screened(deps)).toEqual(["s1"]);
   });
 

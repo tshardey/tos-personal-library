@@ -1,4 +1,4 @@
-import { FunctionsHttpError } from "@supabase/supabase-js";
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from "@supabase/supabase-js";
 import { readAllPages } from "@/lib/library-repo";
 import { supabase } from "@/lib/supabase";
 import {
@@ -144,11 +144,6 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], source: 
   throw new UnexpectedReplyError(source);
 }
 
-const SCREEN_OUTCOMES = [
-  "ready", "nothing_found", "busy", "done", "retry_later", "failed", "budget",
-  "not_gathered", "misconfigured", "billing", "rejected",
-] as const satisfies readonly string[];
-
 export type ScreenOutcome =
   | "ready"
   | "nothing_found"
@@ -160,15 +155,31 @@ export type ScreenOutcome =
   | "not_gathered"
   | "misconfigured"
   | "billing"
-  | "rejected";
+  | "rejected"
+  /** Client-side only: the function could not be reached (a 5xx, a relay error or a network failure). */
+  | "unavailable";
 
-/** A 404 means the Edge Function is not deployed; any other failure rejects (a transient retry). */
+/** The outcomes the function itself replies with. */
+const SCREEN_OUTCOMES = [
+  "ready", "nothing_found", "busy", "done", "retry_later", "failed", "budget",
+  "not_gathered", "misconfigured", "billing", "rejected",
+] as const satisfies readonly ScreenOutcome[];
+
+const statusOf = (error: { context?: unknown }): number | undefined =>
+  (error.context as Response | undefined)?.status;
+
+/**
+ * A 404 means the Edge Function is not deployed (misconfigured). A 5xx, a relay error or a network
+ * failure means it can't be reached right now (unavailable). Anything else rejects.
+ */
 export async function screenSearch(searchId: string): Promise<ScreenOutcome> {
   const { data, error } = await supabase.functions.invoke("library-covers", { body: { searchId } });
   if (error) {
-    if (error instanceof FunctionsHttpError && (error.context as Response | undefined)?.status === 404) {
-      return "misconfigured";
-    }
+    const httpLike = error instanceof FunctionsHttpError || error instanceof FunctionsRelayError;
+    const status = httpLike ? statusOf(error) : undefined;
+    if (httpLike && status === 404) return "misconfigured";
+    if (error instanceof FunctionsFetchError || error instanceof FunctionsRelayError) return "unavailable";
+    if (error instanceof FunctionsHttpError && status !== undefined && status >= 500) return "unavailable";
     throw error;
   }
   return oneOf((data as { outcome?: unknown } | null)?.outcome, SCREEN_OUTCOMES, "library-covers");

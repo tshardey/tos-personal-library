@@ -60,7 +60,7 @@ type DrainOpts = Parameters<DrainFn>[2];
 
 let searches: CoverSearch[] = [];
 
-function mkDrain(result: Awaited<ReturnType<DrainFn>> = { stop: null, gatherPaused: false }) {
+function mkDrain(result: Awaited<ReturnType<DrainFn>> = { stop: null, gatherPaused: false, screenPaused: false }) {
   return vi.fn<DrainFn>(async () => result);
 }
 
@@ -71,6 +71,7 @@ function Probe() {
       <span data-testid="available">{String(f.available)}</span>
       <span data-testid="review">{f.reviewCount}</span>
       <span data-testid="paused">{String(f.gatherPaused)}</span>
+      <span data-testid="screen-paused">{String(f.screenPaused)}</span>
     </div>
   );
 }
@@ -147,7 +148,7 @@ describe("CoverFinderProvider", () => {
 
   it("with a billing stop, polls at 120 s and does not drain", async () => {
     searches = [mkSearch("s1", "b1", "queued")];
-    const drain = mkDrain({ stop: "billing", gatherPaused: false });
+    const drain = mkDrain({ stop: "billing", gatherPaused: false, screenPaused: false });
     mount({ drain });
     await flush();
     expect(drain).toHaveBeenCalledTimes(1);
@@ -171,7 +172,7 @@ describe("CoverFinderProvider", () => {
     let calls = 0;
     const drain = vi.fn<DrainFn>(async (_rows, _deps, opts?: DrainOpts) => {
       calls += 1;
-      return calls === 1 ? { stop: null, gatherPaused: true } : { stop: null, gatherPaused: opts?.gatherPaused ?? false };
+      return calls === 1 ? { stop: null, gatherPaused: true, screenPaused: false } : { stop: null, gatherPaused: opts?.gatherPaused ?? false, screenPaused: false };
     });
     mount({ drain });
     await flush();
@@ -184,7 +185,7 @@ describe("CoverFinderProvider", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(drain).toHaveBeenCalledTimes(2);
-    expect(drain.mock.calls[1][2]).toEqual({ gatherPaused: true });
+    expect(drain.mock.calls[1][2]).toEqual({ gatherPaused: true, screenPaused: false });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30_000);
@@ -195,6 +196,40 @@ describe("CoverFinderProvider", () => {
     expect(screen.getByTestId("paused")).toHaveTextContent("false");
   });
 
+  it("a screen pause carries into later drains and resumes once after 60 s, with no banner", async () => {
+    searches = [mkSearch("s1", "b1", "gathered")];
+    let calls = 0;
+    const drain = vi.fn<DrainFn>(async (_rows, _deps, opts?: DrainOpts) => {
+      calls += 1;
+      return calls === 1
+        ? { stop: null, gatherPaused: false, screenPaused: true }
+        : { stop: null, gatherPaused: opts?.gatherPaused ?? false, screenPaused: opts?.screenPaused ?? false };
+    });
+    mount({ drain });
+    await flush();
+    expect(drain).toHaveBeenCalledTimes(1);
+    expect(drain.mock.calls[0][2]).toEqual({ gatherPaused: false, screenPaused: false });
+    expect(screen.getByTestId("screen-paused")).toHaveTextContent("true");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    // The 15 s active polls during the pause pass it on, so nothing is screened.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_ACTIVE_MS);
+    });
+    expect(drain).toHaveBeenCalledTimes(2);
+    expect(drain.mock.calls[1][2]).toEqual({ gatherPaused: false, screenPaused: true });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000 - POLL_ACTIVE_MS);
+    });
+    const unpaused = drain.mock.calls.slice(1).filter((c: Parameters<DrainFn>) => c[2]?.screenPaused === false);
+    expect(unpaused.length).toBeGreaterThanOrEqual(1);
+    // The calls between the first drain and the timer firing were all paused.
+    const firstUnpaused = drain.mock.calls.findIndex((c: Parameters<DrainFn>, i: number) => i > 0 && c[2]?.screenPaused === false);
+    expect(drain.mock.calls.slice(1, firstUnpaused).every((c: Parameters<DrainFn>) => c[2]?.screenPaused === true)).toBe(true);
+    expect(screen.getByTestId("screen-paused")).toHaveTextContent("false");
+  });
+
   it("a pause timer firing during a paused drain resumes once, unpaused, without re-arming", async () => {
     searches = [mkSearch("s1", "b1", "ready")];
     let release!: () => void;
@@ -202,10 +237,10 @@ describe("CoverFinderProvider", () => {
     let calls = 0;
     const drain = vi.fn<DrainFn>(async (_rows, _deps, opts?: DrainOpts) => {
       calls += 1;
-      if (calls === 1) return { stop: null, gatherPaused: true };
+      if (calls === 1) return { stop: null, gatherPaused: true, screenPaused: false };
       if (calls === 2) await held;
       // drainCovers echoes the pause it was given.
-      return { stop: null, gatherPaused: opts?.gatherPaused ?? false };
+      return { stop: null, gatherPaused: opts?.gatherPaused ?? false, screenPaused: false };
     });
     mount({ drain });
     await flush();
@@ -215,7 +250,7 @@ describe("CoverFinderProvider", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(drain).toHaveBeenCalledTimes(2);
-    expect(drain.mock.calls[1][2]).toEqual({ gatherPaused: true });
+    expect(drain.mock.calls[1][2]).toEqual({ gatherPaused: true, screenPaused: false });
 
     // The 60 s timer fires while drain 2 is still held.
     await act(async () => {
@@ -227,7 +262,7 @@ describe("CoverFinderProvider", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(drain).toHaveBeenCalledTimes(3);
-    expect(drain.mock.calls[2][2]).toEqual({ gatherPaused: false });
+    expect(drain.mock.calls[2][2]).toEqual({ gatherPaused: false, screenPaused: false });
     expect(screen.getByTestId("paused")).toHaveTextContent("false");
 
     // No new pause timer was armed: nothing else drains before the next idle poll.
@@ -305,7 +340,7 @@ describe("CoverFinderProvider", () => {
 
   it("a budget stop shows its banner without Try again", async () => {
     searches = [mkSearch("s1", "b1", "gathered")];
-    mount({ drain: mkDrain({ stop: "budget", gatherPaused: false }) });
+    mount({ drain: mkDrain({ stop: "budget", gatherPaused: false, screenPaused: false }) });
     await flush();
     expect(screen.getByRole("status")).toHaveTextContent(
       "This month's cover-finding budget is used up. The rest wait for next month or a manual retry.",
@@ -315,13 +350,13 @@ describe("CoverFinderProvider", () => {
 
   it("a rejected stop shows its banner, and Try again drains once more", async () => {
     searches = [mkSearch("s1", "b1", "gathered")];
-    const drain = vi.fn<DrainFn>(async () => ({ stop: "rejected", gatherPaused: false }));
+    const drain = vi.fn<DrainFn>(async () => ({ stop: "rejected", gatherPaused: false, screenPaused: false }));
     mount({ drain });
     await flush();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Cover finding stopped: the requests were refused. Check the Claude workspace limit, then try again.",
     );
-    drain.mockResolvedValue({ stop: null, gatherPaused: false });
+    drain.mockResolvedValue({ stop: null, gatherPaused: false, screenPaused: false });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
       await vi.advanceTimersByTimeAsync(0);
