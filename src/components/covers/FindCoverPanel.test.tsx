@@ -21,7 +21,7 @@ function setState(over: Partial<CoverFinderState> = {}) {
   h.state = { available: true, marks: new Map(), latest: new Map(), budget: null, ...fns, ...over };
 }
 
-const search = (status: string): CoverSearch => ({ id: "s1", bookId: "b1", status }) as CoverSearch;
+const search = (status: string, id = "s1"): CoverSearch => ({ id, bookId: "b1", status }) as CoverSearch;
 const usedUp: CoverBudget = { month: "2026-11", spentMicro: 5000, budgetMicro: 5000, reserveMicro: 1, globalSpentMicro: 0, globalBudgetMicro: 100000 };
 
 beforeEach(() => {
@@ -140,5 +140,48 @@ describe("FindCoverPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("button", { name: "Find a better cover" })).toBeInTheDocument();
     for (const f of Object.values(fns)) expect(f).not.toHaveBeenCalled();
+  });
+
+  it("follows the search to ready after Find now", async () => {
+    const { rerender } = render(<FindCoverPanel book={book} />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Find now" }));
+    expect(await screen.findByText("Looking for covers…")).toBeInTheDocument();
+    setState({ latest: new Map([["b1", search("queued", "s2")]]) });
+    rerender(<FindCoverPanel book={book} />);
+    expect(screen.getByText("Looking for covers…")).toBeInTheDocument();
+    setState({ latest: new Map([["b1", search("ready", "s2")]]) });
+    rerender(<FindCoverPanel book={book} />);
+    expect(screen.queryByText("Looking for covers…")).toBeNull();
+    expect(screen.getByRole("link", { name: "Review covers" })).toBeInTheDocument();
+  });
+
+  it("follows a retried search to nothing found", async () => {
+    setState({ latest: new Map([["b1", search("failed", "s1")]]) });
+    const { rerender } = render(<FindCoverPanel book={book} />);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Looking for covers…")).toBeInTheDocument();
+    setState({ latest: new Map([["b1", search("nothing_found", "s2")]]) });
+    rerender(<FindCoverPanel book={book} />);
+    expect(screen.getByText("Nothing good found.")).toBeInTheDocument();
+    expect(screen.queryByText("Looking for covers…")).toBeNull();
+  });
+
+  it("alerts on a non-queued outcome", async () => {
+    fns.findNow.mockResolvedValue("not_found");
+    render(<FindCoverPanel book={book} />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Find now" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save this. Try again.");
+    expect(screen.queryByText("Looking for covers…")).toBeNull();
+  });
+
+  it("alerts when retry rejects", async () => {
+    fns.retry.mockRejectedValue(new Error("boom"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setState({ latest: new Map([["b1", search("failed")]]) });
+    render(<FindCoverPanel book={book} />);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save this. Try again.");
   });
 });
