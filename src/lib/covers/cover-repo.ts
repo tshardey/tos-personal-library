@@ -127,8 +127,27 @@ export async function recordCoverCandidates(
     p_candidates: candidates,
   });
   if (error) throw error;
-  return data as "gathered" | "nothing_found" | "skipped";
+  return oneOf(data, ["gathered", "nothing_found", "skipped"] as const, "record_cover_candidates");
 }
+
+/** An unexpected reply; never carries the body. */
+export class UnexpectedReplyError extends Error {
+  code = "unexpected_reply";
+  constructor(source: string) {
+    super(`${source} sent an unexpected reply`);
+    this.name = "UnexpectedReplyError";
+  }
+}
+
+function oneOf<T extends string>(value: unknown, allowed: readonly T[], source: string): T {
+  if (typeof value === "string" && (allowed as readonly string[]).includes(value)) return value as T;
+  throw new UnexpectedReplyError(source);
+}
+
+const SCREEN_OUTCOMES = [
+  "ready", "nothing_found", "busy", "done", "retry_later", "failed", "budget",
+  "not_gathered", "misconfigured", "billing", "rejected",
+] as const satisfies readonly string[];
 
 export type ScreenOutcome =
   | "ready"
@@ -152,7 +171,7 @@ export async function screenSearch(searchId: string): Promise<ScreenOutcome> {
     }
     throw error;
   }
-  return (data as { outcome: ScreenOutcome }).outcome;
+  return oneOf((data as { outcome?: unknown } | null)?.outcome, SCREEN_OUTCOMES, "library-covers");
 }
 
 export type ApplyOutcome = "applied" | "cover_changed" | "not_ready" | "invalid_choice";
@@ -168,13 +187,13 @@ export async function applyCover(searchId: string, url: string, expectedCover: s
     if ((error as { code?: string }).code === "42501") return "not_ready";
     throw error;
   }
-  return data as ApplyOutcome;
+  return oneOf(data, ["applied", "cover_changed", "not_ready", "invalid_choice"] as const, "apply_cover");
 }
 
 export async function dismissCoverSearch(searchId: string): Promise<"dismissed" | "not_ready"> {
   const { data, error } = await supabase.rpc("dismiss_cover_search", { p_search: searchId });
   if (error) throw error;
-  return data as "dismissed" | "not_ready";
+  return oneOf(data, ["dismissed", "not_ready"] as const, "dismiss_cover_search");
 }
 
 export async function markResultsSeen(searchIds: string[]): Promise<number> {

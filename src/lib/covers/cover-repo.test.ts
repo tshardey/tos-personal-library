@@ -39,7 +39,10 @@ vi.mock("@/lib/supabase", () => ({
 
 import {
   applyCover,
+  dismissCoverSearch,
   getCoverBudget,
+  markResultsSeen,
+  recordCoverCandidates,
   isMissingFeature,
   listCoverMarks,
   listCoverSearches,
@@ -253,5 +256,50 @@ describe("isMissingFeature", () => {
     expect(isMissingFeature({ code: "PGRST202" })).toBe(true);
     expect(isMissingFeature({ code: "42501" })).toBe(false);
     expect(isMissingFeature(null)).toBe(false);
+  });
+});
+
+describe("unexpected replies", () => {
+  it("screenSearch rejects on a null body or an unknown outcome", async () => {
+    h.invoke.mockResolvedValue({ data: null, error: null });
+    await expect(screenSearch(SEARCH)).rejects.toMatchObject({ code: "unexpected_reply" });
+    h.invoke.mockResolvedValue({ data: { outcome: "weird" }, error: null });
+    await expect(screenSearch(SEARCH)).rejects.toMatchObject({ code: "unexpected_reply" });
+  });
+
+  it("recordCoverCandidates validates and passes outcomes through", async () => {
+    h.rpcResults.push({ data: "gathered", error: null });
+    expect(await recordCoverCandidates(SEARCH, [])).toBe("gathered");
+    expect(h.rpcCalls[0]).toEqual(["record_cover_candidates", { p_search: SEARCH, p_candidates: [] }]);
+    h.rpcResults.push({ data: "bogus", error: null });
+    await expect(recordCoverCandidates(SEARCH, [])).rejects.toMatchObject({ code: "unexpected_reply" });
+    h.rpcResults.push({ data: null, error: null });
+    await expect(recordCoverCandidates(SEARCH, [])).rejects.toMatchObject({ code: "unexpected_reply" });
+  });
+
+  it("applyCover rejects on an unexpected value", async () => {
+    h.rpcResults.push({ data: "bogus", error: null });
+    await expect(applyCover(SEARCH, COVER, null)).rejects.toMatchObject({ code: "unexpected_reply" });
+    h.rpcResults.push({ data: null, error: null });
+    await expect(applyCover(SEARCH, COVER, null)).rejects.toMatchObject({ code: "unexpected_reply" });
+  });
+
+  it("dismissCoverSearch validates and passes outcomes through", async () => {
+    h.rpcResults.push({ data: "dismissed", error: null });
+    expect(await dismissCoverSearch(SEARCH)).toBe("dismissed");
+    h.rpcResults.push({ data: "not_ready", error: null });
+    expect(await dismissCoverSearch(SEARCH)).toBe("not_ready");
+    h.rpcResults.push({ data: "bogus", error: null });
+    await expect(dismissCoverSearch(SEARCH)).rejects.toMatchObject({ code: "unexpected_reply" });
+    h.rpcResults.push({ data: null, error: null });
+    await expect(dismissCoverSearch(SEARCH)).rejects.toMatchObject({ code: "unexpected_reply" });
+  });
+
+  it("markResultsSeen short-circuits on empty and returns the count", async () => {
+    expect(await markResultsSeen([])).toBe(0);
+    expect(h.rpcCalls).toHaveLength(0);
+    h.rpcResults.push({ data: 2, error: null });
+    expect(await markResultsSeen([SEARCH, BOOK])).toBe(2);
+    expect(h.rpcCalls[0]).toEqual(["mark_cover_results_seen", { p_searches: [SEARCH, BOOK] }]);
   });
 });
