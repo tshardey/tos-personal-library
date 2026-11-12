@@ -113,6 +113,7 @@ describe("searchGoogleBooks", () => {
               description: "<p>Hello</p>",
               pageCount: 200,
               publishedDate: "2001",
+              language: "en",
               imageLinks: { thumbnail: "http://example.test/c.jpg?edge=curl" },
               industryIdentifiers: [
                 { type: "ISBN_13", identifier: ISBN13 },
@@ -141,8 +142,27 @@ describe("searchGoogleBooks", () => {
         synopsis: "Hello",
         pageCount: 200,
         publishDate: "2001",
+        language: "en",
       },
     ]);
+  });
+
+  it("adds langRestrict and printType only when opts are given", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => reply({ totalItems: 0 }));
+    await searchGoogleBooks("Glass Orchard", null, KEY, fetchImpl);
+    expect(String(fetchImpl.mock.calls[0][0])).toBe(
+      `https://www.googleapis.com/books/v1/volumes?q=intitle:%22Glass%20Orchard%22&maxResults=5&key=${KEY}`,
+    );
+    await searchGoogleBooks("Glass Orchard", null, KEY, fetchImpl, { langRestrict: "en", printType: "books" });
+    const withOpts = String(fetchImpl.mock.calls[1][0]);
+    expect(withOpts).toContain("&langRestrict=en&printType=books");
+    expect(withOpts).toContain(`key=${KEY}`);
+  });
+
+  it("maps a missing language to null", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => reply({ items: [{ id: "gb3", volumeInfo: { title: "T" } }] }));
+    const hits = await searchGoogleBooks("T", null, KEY, fetchImpl);
+    expect(hits[0].language).toBeNull();
   });
 
   it("omits inauthor when there is no author, and returns [] with no items", async () => {
