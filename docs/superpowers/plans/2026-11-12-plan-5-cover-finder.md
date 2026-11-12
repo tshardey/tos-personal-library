@@ -1283,11 +1283,11 @@ The fake screener calls nothing paid. Gathering calls the real OpenLibrary and G
 2. **Google cover size:** if `fife=w800` proves unreliable, find another way to get Google's larger images, or drop Google as a source.
 3. **A web-search fallback** for books the free sources can't fix, within the $5 budget and respecting site terms (spec §6.3).
 
-## Open questions for the user
+## Open questions for the user (resolved 2026-11-12)
 
-None blocks starting Task 1. Each has a default that the plan builds.
+The user approved every default below on 2026-11-12. None is open.
 
-1. **Keep current, on Apply (D9).** Default: a row set to keep the current cover is **resolved**. Its result is removed and its mark cleared, and the cover is unchanged. The alternative is to leave it in the list until it is dismissed one by one, which keeps the list growing.
-2. **Failed searches (D2).** Default: a search that fails (refused, rejected, or out of attempts) is treated like Nothing good found. It is listed under **Nothing found** as `Search failed`, and is left out of later batches until retried by hand.
-3. **"Nothing good found" rows in the review list (D9).** Default: shown once, then only under the Nothing found filter.
-4. **The measurement run (Task 10).** It needs your yes at that time, at most $2.00 on the shared key, plus about 10 minutes of your judgement. If Haiku misses the gate, switching to Sonnet 5.5 costs about 20× per book. That would be your decision.
+1. **Keep current, on Apply (D9). Resolved: the default.** A row set to keep the current cover is **resolved**. Its result is removed and its mark cleared, and the cover is unchanged.
+2. **Failed searches (D2). Resolved: the default.** A search that fails (refused, rejected, or out of attempts) is treated like Nothing good found. It is listed under **Nothing found** as `Search failed`, and is left out of later batches until retried by hand.
+3. **"Nothing good found" rows in the review list (D9). Resolved: the default.** Shown once in the review list, then only under the Nothing found filter.
+4. **The measurement run (Task 10). Resolved: the default.** It needs the user's yes at the time it runs, at most $2.00 on the shared key, plus about 10 minutes of their judgement. If Haiku misses the gate, switching to Sonnet 5.5 (about 20× per book) is the user's decision, not the builder's.
