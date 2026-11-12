@@ -160,6 +160,8 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
   const againRef = useRef(false);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  /** Bumped on unmount, so a drain started before it stops starting work. */
+  const generationRef = useRef(0);
 
   const setStop = useCallback((s: CoverStop) => {
     stopRef.current = s;
@@ -213,6 +215,7 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
         const rows = await load();
         if (rows === null || !availableRef.current || stopRef.current !== null || !mountedRef.current) continue;
         const paused = pauseTimerRef.current !== null;
+        const generation = generationRef.current;
         let touched = false;
         const result = await d.drain(
           rows,
@@ -230,12 +233,14 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
             onOutcome: () => {
               touched = true;
             },
+            cancelled: () => !mountedRef.current || generationRef.current !== generation,
           },
           { gatherPaused: paused },
         );
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || generationRef.current !== generation) continue;
         if (result.stop !== null) setStop(result.stop);
-        if (result.gatherPaused && pauseTimerRef.current === null) {
+        // Only a drain that gathered can start a pause; a paused drain just echoes it.
+        if (result.gatherPaused && !paused && pauseTimerRef.current === null) {
           setGatherPaused(true);
           pauseTimerRef.current = setTimeout(() => {
             pauseTimerRef.current = null;
@@ -258,6 +263,7 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
     void run();
     return () => {
       mountedRef.current = false;
+      generationRef.current += 1;
       if (pauseTimerRef.current !== null) clearTimeout(pauseTimerRef.current);
       pauseTimerRef.current = null;
     };

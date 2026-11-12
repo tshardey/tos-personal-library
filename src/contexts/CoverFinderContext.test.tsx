@@ -193,6 +193,71 @@ describe("CoverFinderProvider", () => {
     expect(screen.getByTestId("paused")).toHaveTextContent("false");
   });
 
+  it("a pause timer firing during a paused drain resumes once, unpaused, without re-arming", async () => {
+    searches = [mkSearch("s1", "b1", "ready")];
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let calls = 0;
+    const drain = vi.fn<DrainFn>(async (_rows, _deps, opts?: DrainOpts) => {
+      calls += 1;
+      if (calls === 1) return { stop: null, gatherPaused: true };
+      if (calls === 2) await held;
+      // drainCovers echoes the pause it was given.
+      return { stop: null, gatherPaused: opts?.gatherPaused ?? false };
+    });
+    mount({ drain });
+    await flush();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(59_000);
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(drain).toHaveBeenCalledTimes(2);
+    expect(drain.mock.calls[1][2]).toEqual({ gatherPaused: true });
+
+    // The 60 s timer fires while drain 2 is still held.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(drain).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(drain).toHaveBeenCalledTimes(3);
+    expect(drain.mock.calls[2][2]).toEqual({ gatherPaused: false });
+    expect(screen.getByTestId("paused")).toHaveTextContent("false");
+
+    // No new pause timer was armed: nothing else drains before the next idle poll.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(59_000);
+    });
+    expect(drain).toHaveBeenCalledTimes(3);
+    expect(drain.mock.calls.slice(1).filter((c: Parameters<DrainFn>) => c[2]?.gatherPaused === false)).toHaveLength(1);
+  });
+
+  it("unmounting mid-gather makes no further gather or screen calls", async () => {
+    const book = { title: "Glass Orchard", authors: ["Member B"], isbn13: [], isbn10: [], coverUrl: null };
+    searches = [
+      mkSearch("s1", "b1", "queued", { book, createdAt: "2026-11-01T00:00:01Z" }),
+      mkSearch("s2", "b2", "queued", { book, createdAt: "2026-11-01T00:00:02Z" }),
+      mkSearch("s3", "b3", "gathered", { book, createdAt: "2026-11-01T00:00:03Z" }),
+    ];
+    let release!: (c: []) => void;
+    const gather = vi.fn<CoverFinderDeps["gather"]>(() => new Promise((r) => (release = r)));
+    repo.recordCoverCandidates.mockResolvedValue("nothing_found");
+    const { unmount } = mount({ gather, sleep: async () => {} });
+    await flush();
+    expect(gather).toHaveBeenCalledTimes(1);
+    unmount();
+    await act(async () => {
+      release([]);
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(gather).toHaveBeenCalledTimes(1);
+    expect(repo.screenSearch).not.toHaveBeenCalled();
+  });
+
   it("counts ready rows plus unseen nothing found and failed rows", async () => {
     searches = [
       mkSearch("s1", "b1", "ready"),

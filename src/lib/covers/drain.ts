@@ -22,6 +22,8 @@ export interface DrainDeps {
   sleep(ms: number): Promise<void>;
   now(): Date;
   onOutcome(searchId: string, outcome: string): void;
+  /** True once the caller is gone (unmount, sign-out): nothing new starts. */
+  cancelled?(): boolean;
 }
 
 export interface DrainOptions {
@@ -49,13 +51,18 @@ async function gatherPhase(
   deps: DrainDeps,
 ): Promise<{ gathered: Set<string>; paused: boolean }> {
   const gathered = new Set<string>();
+  const cancelled = () => deps.cancelled?.() === true;
   let first = true;
   for (const s of queued) {
+    if (cancelled()) break;
     if (s.book === null) {
       deps.onOutcome(s.id, "skipped");
       continue;
     }
-    if (!first) await deps.sleep(GATHER_GAP_MS);
+    if (!first) {
+      await deps.sleep(GATHER_GAP_MS);
+      if (cancelled()) break;
+    }
     first = false;
     try {
       const outcome = await deps.gather(s);
@@ -109,6 +116,7 @@ export async function drainCovers(
   let budgetRefusals = 0;
   let budgetPending = false;
   let next = 0;
+  const cancelled = () => deps.cancelled?.() === true;
   const inFlight = new Set<Promise<void>>();
 
   const settle = (id: string, outcome: string) => {
@@ -140,15 +148,15 @@ export async function drainCovers(
     inFlight.add(p);
   };
 
-  while (stop === null) {
-    while (stop === null && !budgetPending && inFlight.size < concurrency && next < due.length) {
+  while (stop === null && !cancelled()) {
+    while (stop === null && !cancelled() && !budgetPending && inFlight.size < concurrency && next < due.length) {
       start(due[next++]);
     }
     if (inFlight.size > 0) {
       await Promise.race(inFlight);
       continue;
     }
-    if (!budgetPending) break;
+    if (!budgetPending || cancelled()) break;
     // Every in-flight screen has settled: was the refusal real, or another reservation?
     if (budgetRefusals >= 2) {
       stop = "budget";

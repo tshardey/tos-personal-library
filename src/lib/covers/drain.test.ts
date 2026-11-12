@@ -252,6 +252,45 @@ describe("drainCovers", () => {
     }
   });
 
+  it("stops starting gathers and screens once cancelled", async () => {
+    const rows = [row(1, "queued"), row(2, "queued"), row(3, "gathered")];
+    let gone = false;
+    const deps = fakeDeps({
+      gather: vi.fn<DrainDeps["gather"]>(async () => {
+        gone = true;
+        return "gathered";
+      }),
+    });
+    const out = await drainCovers(rows, { ...deps, cancelled: () => gone });
+    expect(deps.gather).toHaveBeenCalledTimes(1);
+    expect(deps.screen).not.toHaveBeenCalled();
+    expect(out.stop).toBeNull();
+  });
+
+  it("checks the cancel after the gap sleep and before each screen", async () => {
+    let gone = false;
+    const deps = fakeDeps({
+      sleep: vi.fn<DrainDeps["sleep"]>(async () => {
+        gone = true;
+      }),
+    });
+    await drainCovers([row(1, "queued"), row(2, "queued")], { ...deps, cancelled: () => gone });
+    expect(deps.gather).toHaveBeenCalledTimes(1);
+    expect(deps.screen).not.toHaveBeenCalled();
+
+    let screens = 0;
+    const two = fakeDeps({
+      screen: vi.fn<DrainDeps["screen"]>(async () => {
+        screens += 1;
+        return "ready";
+      }),
+    });
+    await drainCovers([1, 2, 3, 4].map((n) => row(n, "gathered")), { ...two, cancelled: () => screens >= 2 }, {
+      concurrency: 1,
+    });
+    expect(two.screen).toHaveBeenCalledTimes(2);
+  });
+
   it("skips a search whose book is gone", async () => {
     const deps = fakeDeps();
     await drainCovers([row(1, "queued", { book: null }), row(2, "queued")], deps);
