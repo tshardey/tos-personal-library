@@ -17,7 +17,12 @@ beforeEach(() => {
 describe("CoverBatchFooter", () => {
   it("shows the count and estimate", () => {
     render(<CoverBatchFooter books={many(3)} />);
-    expect(screen.getByText("3 books · about under $0.01")).toBeInTheDocument();
+    expect(screen.getByText("3 books · under $0.01")).toBeInTheDocument();
+  });
+
+  it("says 1 book, singular", () => {
+    render(<CoverBatchFooter books={many(1)} />);
+    expect(screen.getByText("1 book · under $0.01")).toBeInTheDocument();
   });
 
   it("shows a dollar estimate for 30", () => {
@@ -35,10 +40,22 @@ describe("CoverBatchFooter", () => {
     render(<CoverBatchFooter books={many(5)} />);
     expect(screen.getByText(/^3 books/)).toBeInTheDocument();
     expect(screen.getByText("1 already being searched.")).toBeInTheDocument();
-    expect(screen.getByText("1 tried before with nothing found are left out.")).toBeInTheDocument();
+    expect(screen.getByText("1 tried before with nothing found is left out.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Find covers" }));
     expect(fns.requestBatch).toHaveBeenCalledWith(["b2", "b3", "b4"]);
     await screen.findByText(/^Searching/);
+  });
+
+  it("pluralises two nothing-found books", () => {
+    h.state = finderState({
+      latest: new Map([
+        ["b0", mkSearch("b0", "nothing_found")],
+        ["b1", mkSearch("b1", "failed")],
+      ]),
+    });
+    render(<CoverBatchFooter books={many(3)} />);
+    expect(screen.getByText("1 book · under $0.01")).toBeInTheDocument();
+    expect(screen.getByText("2 tried before with nothing found are left out.")).toBeInTheDocument();
   });
 
   it("shows the near-limit line and keeps the button enabled", () => {
@@ -74,6 +91,16 @@ describe("CoverBatchFooter", () => {
     expect(
       await screen.findByText("Searching 3 books. It carries on whenever either of you has the app open."),
     ).toBeInTheDocument();
+  });
+
+  it("says so when the request fails, and clears it on the next try", async () => {
+    fns.requestBatch.mockRejectedValueOnce(new Error("network"));
+    render(<CoverBatchFooter books={many(3)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Find covers" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't start the search. Try again.");
+    fireEvent.click(screen.getByRole("button", { name: "Find covers" }));
+    await waitFor(() => expect(screen.getByText(/^Searching 3 books/)).toBeInTheDocument());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("calls requestBatch once on a double tap", async () => {

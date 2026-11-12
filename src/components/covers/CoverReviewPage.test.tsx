@@ -94,6 +94,29 @@ describe("CoverReviewPage", () => {
     expect(screen.getByText("Applied 1.")).toBeInTheDocument();
   });
 
+  it("a catalogue reload failure after the apply doesn't claim the apply failed", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    runReview.mockResolvedValue({ applied: 2, changed: 0, gone: 0 });
+    reloadCatalog.mockRejectedValue(new Error("network"));
+    setup();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply 2" }));
+    });
+    expect(screen.getByText("Applied 2.")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't apply those. Try again.")).not.toBeInTheDocument();
+    warn.mockRestore();
+  });
+
+  it("an apply that throws says so and doesn't reload", async () => {
+    runReview.mockRejectedValue(new Error("network"));
+    setup();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply 2" }));
+    });
+    expect(screen.getByText("Couldn't apply those. Try again.")).toBeInTheDocument();
+    expect(reloadCatalog).not.toHaveBeenCalled();
+  });
+
   it("preselects Current when the cover changed after the search, and sends keep", async () => {
     setup({
       books: [mkBook("a", "Glass Orchard", { coverUrl: "https://example.com/hand.jpg" })],
@@ -125,21 +148,57 @@ describe("CoverReviewPage", () => {
     expect(within(r).getByRole("button", { name: "Option 2" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("when every tile fails, offers Search again and sends keep", async () => {
+  it("when every tile fails, offers Search again, and Done leaves that row alone", async () => {
     setup({
-      books: [mkBook("a", "Glass Orchard")],
-      searches: [mkSearch("s1", "a", "ready", { results: [res(1), res(2)] })],
+      books: [mkBook("a", "Glass Orchard"), mkBook("b", "Paper Tide", { coverUrl: null })],
+      searches: [
+        mkSearch("s1", "a", "ready", { results: [res(1), res(2)] }),
+        mkSearch("s2", "b", "ready", { results: [res(3)], createdAt: "2026-11-02T00:00:00Z" }),
+      ],
     });
     const r = row("Glass Orchard");
     for (const img of Array.from(r.querySelectorAll("img"))) fireEvent.error(img);
     expect(screen.getByText("These covers no longer load.")).toBeInTheDocument();
-    expect(screen.getByText("0 picked")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Search again" }));
+    expect(screen.getByText("1 picked")).toBeInTheDocument();
+    expect(within(r).getByRole("button", { name: "Current" })).toHaveAttribute("aria-pressed", "false");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Search again" }));
+    });
     expect(fns.retry).toHaveBeenCalledWith("a");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply 1" }));
+    });
+    // No keep for s1: its search and mark survive.
+    expect(runReview).toHaveBeenCalledWith([{ kind: "apply", searchId: "s2", url: U(3), expectedCover: null }]);
+  });
+
+  it("a dead row is still kept when the person presses Current", async () => {
+    setup({ books: [mkBook("a", "Glass Orchard")], searches: [mkSearch("s1", "a", "ready", { results: [res(1)] })] });
+    const r = row("Glass Orchard");
+    fireEvent.error(r.querySelector("img")!);
+    expect(screen.getByText("0 picked")).toBeInTheDocument();
+    fireEvent.click(within(r).getByRole("button", { name: "Current" }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Done" }));
     });
     expect(runReview).toHaveBeenCalledWith([{ kind: "keep", searchId: "s1" }]);
+  });
+
+  it("says so when Search again fails, and clears it on the next try", async () => {
+    fns.retry.mockRejectedValueOnce(new Error("network"));
+    setup({ books: [mkBook("a", "Glass Orchard")], searches: [mkSearch("s1", "a", "ready", { results: [res(1)] })] });
+    const r = row("Glass Orchard");
+    fireEvent.error(r.querySelector("img")!);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Search again" }));
+    });
+    expect(within(r).getByRole("alert")).toHaveTextContent("Couldn't search again. Try again.");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Search again" }));
+    });
+    expect(fns.retry).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("lists an unseen nothing-found row and Done marks it seen", async () => {

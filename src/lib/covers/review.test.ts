@@ -72,6 +72,18 @@ describe("planApply", () => {
     ]);
     expect(pickedCount(rows, choices)).toBe(1);
   });
+  it("emits no action for a results row with a null choice; pickedCount is unaffected", () => {
+    const rows = buildReviewRows(searches, books);
+    const withNull = new Map<string, RowChoice | null>([
+      ["s1", null],
+      ["s2", U2],
+    ]);
+    expect(planApply(rows, withNull)).toEqual([
+      { kind: "apply", searchId: "s2", url: U2, expectedCover: cover },
+      { kind: "seen", searchId: "s3" },
+    ]);
+    expect(pickedCount(rows, withNull)).toBe(1);
+  });
   it("is pure", () => {
     const rows = buildReviewRows(searches, books);
     const snap = structuredClone(rows);

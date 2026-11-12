@@ -56,7 +56,7 @@ describe("LibraryPage cover filters", () => {
     pick("no_cover");
     expect(screen.queryAllByText("Has Cover")).toHaveLength(0);
     expect(screen.getAllByText("Glass Orchard").length).toBeGreaterThan(0);
-    expect(screen.getByText("3 books · about under $0.01")).toBeInTheDocument();
+    expect(screen.getByText("3 books · under $0.01")).toBeInTheDocument();
   });
 
   it("combines with the owner filter", async () => {
@@ -68,7 +68,7 @@ describe("LibraryPage cover filters", () => {
     await renderPage();
     pick("no_cover");
     fireEvent.click(screen.getByRole("button", { name: "Member B" }));
-    expect(screen.getByText("2 books · about under $0.01")).toBeInTheDocument();
+    expect(screen.getByText("2 books · under $0.01")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Find covers" }));
     expect(fns.requestBatch).toHaveBeenCalledWith(["b", "c"]);
     await screen.findByText(/^Searching/);
@@ -81,7 +81,7 @@ describe("LibraryPage cover filters", () => {
     pick("marked");
     expect(screen.queryAllByText("Glass Orchard")).toHaveLength(0);
     expect(screen.getAllByText("Paper Tide").length).toBeGreaterThan(0);
-    expect(screen.getByText("1 books · about under $0.01")).toBeInTheDocument();
+    expect(screen.getByText("1 book · under $0.01")).toBeInTheDocument();
   });
 
   it("Nothing found shows the list with Try again", async () => {

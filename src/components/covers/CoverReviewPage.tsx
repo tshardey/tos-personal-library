@@ -11,13 +11,19 @@ interface Summary {
   gone: number;
 }
 
-/** The explicit choice if it still loads, else the default; a failed pick moves to the next tile, or keep. */
+/**
+ * The explicit choice if it still loads, else the default; a failed pick moves to the next tile.
+ * When no tile loads, null (Done leaves the row alone) unless the person pressed Current.
+ */
 function effectiveChoice(row: Row, explicit: RowChoice | undefined, failed: ReadonlySet<string>): RowChoice | null {
   if (row.kind !== "results") return null;
+  if (explicit === "keep") return "keep";
+  const firstLoading = row.search.results.find((r) => !failed.has(r.url))?.url ?? null;
+  if (firstLoading === null) return null;
   const wanted = explicit ?? row.defaultChoice;
   if (wanted === "keep") return "keep";
   if (wanted !== null && !failed.has(wanted)) return wanted;
-  return row.search.results.find((r) => !failed.has(r.url))?.url ?? "keep";
+  return firstLoading;
 }
 
 export default function CoverReviewPage() {
@@ -28,15 +34,16 @@ export default function CoverReviewPage() {
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState(false);
+  const [retryFailed, setRetryFailed] = useState<ReadonlySet<string>>(new Set());
   const busy = useRef(false);
 
   const rows = useMemo(() => buildReviewRows(searches, books), [searches, books]);
   const none: ReadonlySet<string> = useMemo(() => new Set<string>(), []);
   const effective = useMemo(() => {
-    const m = new Map<string, RowChoice>();
+    const m = new Map<string, RowChoice | null>();
     for (const row of rows) {
-      const c = effectiveChoice(row, choices.get(row.search.id), failed.get(row.search.id) ?? none);
-      if (c !== null) m.set(row.search.id, c);
+      if (row.kind !== "results") continue;
+      m.set(row.search.id, effectiveChoice(row, choices.get(row.search.id), failed.get(row.search.id) ?? none));
     }
     return m;
   }, [rows, choices, failed, none]);
@@ -50,19 +57,42 @@ export default function CoverReviewPage() {
     });
   }
 
+  async function searchAgain(searchId: string, bookId: string) {
+    const without = (prev: ReadonlySet<string>) => {
+      const next = new Set(prev);
+      next.delete(searchId);
+      return next;
+    };
+    setRetryFailed(without);
+    try {
+      // On success the provider reloads, and the re-queued book's row drops out.
+      await retry(bookId);
+    } catch {
+      setRetryFailed((prev) => new Set(prev).add(searchId));
+    }
+  }
+
   async function apply() {
     if (busy.current) return;
     busy.current = true;
     setRunning(true);
     setError(false);
+    let applied = false;
     try {
       setSummary(await runReview(planApply(rows, effective)));
-      await reload();
+      applied = true;
     } catch {
       setError(true);
     } finally {
       busy.current = false;
       setRunning(false);
+    }
+    if (!applied) return;
+    // A failed catalogue refresh doesn't undo the apply; the next load catches up.
+    try {
+      await reload();
+    } catch {
+      console.warn("catalogue reload failed");
     }
   }
 
@@ -98,7 +128,8 @@ export default function CoverReviewPage() {
               failed={failed.get(row.search.id) ?? none}
               onChoose={(c) => setChoices((prev) => new Map(prev).set(row.search.id, c))}
               onTileError={(url) => tileError(row.search.id, url)}
-              onRetry={() => void retry(row.book.id)}
+              retryFailed={retryFailed.has(row.search.id)}
+              onRetry={() => void searchAgain(row.search.id, row.book.id)}
             />
           ))}
         </ul>

@@ -42,16 +42,21 @@ export type ReviewAction =
   | { kind: "keep"; searchId: string }
   | { kind: "seen"; searchId: string };
 
-export function planApply(rows: ReviewRow[], choices: Map<string, RowChoice>): ReviewAction[] {
-  return rows.map((row): ReviewAction => {
+/**
+ * One action per row. A results row whose choice is null (in `choices`, or as its default) gets no
+ * action at all: its search stays ready and its mark stays, e.g. when none of its covers load.
+ */
+export function planApply(rows: ReviewRow[], choices: Map<string, RowChoice | null>): ReviewAction[] {
+  return rows.flatMap((row): ReviewAction[] => {
     const searchId = row.search.id;
-    if (row.kind !== "results") return { kind: "seen", searchId };
-    const choice = choices.get(searchId) ?? row.defaultChoice;
-    if (choice === null || choice === "keep") return { kind: "keep", searchId };
-    return { kind: "apply", searchId, url: choice, expectedCover: row.book.coverUrl };
+    if (row.kind !== "results") return [{ kind: "seen", searchId }];
+    const choice = choices.has(searchId) ? (choices.get(searchId) ?? null) : row.defaultChoice;
+    if (choice === null) return [];
+    if (choice === "keep") return [{ kind: "keep", searchId }];
+    return [{ kind: "apply", searchId, url: choice, expectedCover: row.book.coverUrl }];
   });
 }
 
-export function pickedCount(rows: ReviewRow[], choices: Map<string, RowChoice>): number {
+export function pickedCount(rows: ReviewRow[], choices: Map<string, RowChoice | null>): number {
   return planApply(rows, choices).filter((a) => a.kind === "apply").length;
 }

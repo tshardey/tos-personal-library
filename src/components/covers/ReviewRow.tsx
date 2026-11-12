@@ -7,6 +7,8 @@ interface Props {
   /** The effective choice, with failed tiles already skipped. */
   choice: RowChoice | null;
   failed: ReadonlySet<string>;
+  /** The last Search again on this row failed. */
+  retryFailed?: boolean;
   onChoose(choice: RowChoice): void;
   onTileError(url: string): void;
   onRetry(): void;
@@ -15,7 +17,7 @@ interface Props {
 const tile = "relative h-32 w-24 shrink-0 overflow-hidden rounded border bg-stone-100 text-xs";
 const ring = "ring-2 ring-stone-800 ring-offset-1";
 
-export default function ReviewRow({ row, choice, failed, onChoose, onTileError, onRetry }: Props) {
+export default function ReviewRow({ row, choice, failed, retryFailed = false, onChoose, onTileError, onRetry }: Props) {
   const { search, book } = row;
   const visible = search.results.filter((r) => !failed.has(r.url));
   const reasons = search.reasons.map((r) => REASON_LABELS[r]).join(" · ");
@@ -45,6 +47,11 @@ export default function ReviewRow({ row, choice, failed, onChoose, onTileError, 
               </button>
             </div>
           ) : null}
+          {visible.length === 0 && retryFailed && (
+            <p role="alert" className="text-sm text-red-700">
+              Couldn't search again. Try again.
+            </p>
+          )}
           <div className="flex gap-2 overflow-x-auto pb-1">
             <button
               type="button"
