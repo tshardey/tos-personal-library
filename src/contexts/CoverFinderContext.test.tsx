@@ -1,0 +1,303 @@
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+
+const repo = vi.hoisted(() => ({
+  listCoverMarks: vi.fn(),
+  listCoverSearches: vi.fn(),
+  getCoverBudget: vi.fn(),
+  markForCover: vi.fn(),
+  unmarkForCover: vi.fn(),
+  requestCoverSearches: vi.fn(),
+  recordCoverCandidates: vi.fn(),
+  screenSearch: vi.fn(),
+  applyCover: vi.fn(),
+  dismissCoverSearch: vi.fn(),
+  markResultsSeen: vi.fn(),
+}));
+
+vi.mock("@/lib/covers/cover-repo", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/covers/cover-repo")>()),
+  ...repo,
+}));
+
+vi.mock("@/contexts/HouseholdContext", () => ({
+  useHousehold: () => ({
+    household: { id: "h1", name: "Home", inviteCode: "abc123", createdAt: "" },
+    members: [],
+    loading: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
+}));
+
+import CoversBadge from "@/components/covers/CoversBadge";
+import CoverStopBanner from "@/components/covers/CoverStopBanner";
+import { mkSearch } from "@/lib/covers/fixtures.test-util";
+import type { drainCovers } from "@/lib/covers/drain";
+import type { CoverBudget, CoverSearch } from "@/lib/covers/types";
+import {
+  CoverFinderProvider,
+  POLL_ACTIVE_MS,
+  POLL_IDLE_MS,
+  useCoverFinder,
+  type CoverFinderDeps,
+} from "./CoverFinderContext";
+
+const BUDGET: CoverBudget = {
+  month: "2026-11-01",
+  spentMicro: 0,
+  budgetMicro: 5_000_000,
+  reserveMicro: 4300,
+  globalSpentMicro: 0,
+  globalBudgetMicro: 5_000_000,
+};
+
+type DrainFn = typeof drainCovers;
+type DrainOpts = Parameters<DrainFn>[2];
+
+let searches: CoverSearch[] = [];
+
+function mkDrain(result: Awaited<ReturnType<DrainFn>> = { stop: null, gatherPaused: false }) {
+  return vi.fn<DrainFn>(async () => result);
+}
+
+function Probe() {
+  const f = useCoverFinder();
+  return (
+    <div>
+      <span data-testid="available">{String(f.available)}</span>
+      <span data-testid="review">{f.reviewCount}</span>
+      <span data-testid="paused">{String(f.gatherPaused)}</span>
+    </div>
+  );
+}
+
+function mount(deps: Partial<CoverFinderDeps> = {}, children: ReactNode = <Probe />) {
+  return render(
+    <CoverFinderProvider deps={deps}>
+      <CoversBadge />
+      <CoverStopBanner />
+      {children}
+    </CoverFinderProvider>,
+  );
+}
+
+const flush = () => act(async () => {
+  await vi.advanceTimersByTimeAsync(0);
+});
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  for (const fn of Object.values(repo)) fn.mockReset();
+  searches = [];
+  repo.listCoverMarks.mockImplementation(async () => new Map());
+  repo.listCoverSearches.mockImplementation(async () => searches);
+  repo.getCoverBudget.mockResolvedValue(BUDGET);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+describe("CoverFinderProvider", () => {
+  it("before the push: a missing table hides everything and never screens", async () => {
+    repo.listCoverSearches.mockRejectedValue({ code: "PGRST205" });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mount();
+    await flush();
+    expect(screen.getByTestId("available")).toHaveTextContent("false");
+    expect(repo.screenSearch).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: /covers to review/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    warn.mockRestore();
+  });
+
+  it("polls every 15 s while a search is queued", async () => {
+    searches = [mkSearch("s1", "b1", "queued")];
+    const drain = mkDrain();
+    mount({ drain });
+    await flush();
+    const loads = repo.listCoverSearches.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_ACTIVE_MS);
+    });
+    expect(POLL_ACTIVE_MS).toBe(15_000);
+    expect(repo.listCoverSearches.mock.calls.length).toBeGreaterThan(loads);
+  });
+
+  it("polls every 120 s when nothing is active", async () => {
+    searches = [mkSearch("s1", "b1", "ready")];
+    mount({ drain: mkDrain() });
+    await flush();
+    const loads = repo.listCoverSearches.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_ACTIVE_MS * 2);
+    });
+    expect(repo.listCoverSearches.mock.calls.length).toBe(loads);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_IDLE_MS - POLL_ACTIVE_MS * 2);
+    });
+    expect(POLL_IDLE_MS).toBe(120_000);
+    expect(repo.listCoverSearches.mock.calls.length).toBeGreaterThan(loads);
+  });
+
+  it("with a billing stop, polls at 120 s and does not drain", async () => {
+    searches = [mkSearch("s1", "b1", "queued")];
+    const drain = mkDrain({ stop: "billing", gatherPaused: false });
+    mount({ drain });
+    await flush();
+    expect(drain).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Cover finding stopped: the Claude account's spending limit is reached.",
+    );
+    const loads = repo.listCoverSearches.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_ACTIVE_MS * 2);
+    });
+    expect(repo.listCoverSearches.mock.calls.length).toBe(loads);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_IDLE_MS);
+    });
+    expect(repo.listCoverSearches.mock.calls.length).toBeGreaterThan(loads);
+    expect(drain).toHaveBeenCalledTimes(1);
+  });
+
+  it("a gather pause carries into later drains and resumes once after 60 s", async () => {
+    searches = [mkSearch("s1", "b1", "ready")];
+    let calls = 0;
+    const drain = vi.fn<DrainFn>(async (_rows, _deps, opts?: DrainOpts) => {
+      calls += 1;
+      return calls === 1 ? { stop: null, gatherPaused: true } : { stop: null, gatherPaused: opts?.gatherPaused ?? false };
+    });
+    mount({ drain });
+    await flush();
+    expect(drain).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("paused")).toHaveTextContent("true");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(drain).toHaveBeenCalledTimes(2);
+    expect(drain.mock.calls[1][2]).toEqual({ gatherPaused: true });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    const unpaused = drain.mock.calls.slice(1).filter((c: Parameters<DrainFn>) => c[2]?.gatherPaused === false);
+    expect(unpaused).toHaveLength(1);
+    expect(drain).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId("paused")).toHaveTextContent("false");
+  });
+
+  it("counts ready rows plus unseen nothing found and failed rows", async () => {
+    searches = [
+      mkSearch("s1", "b1", "ready"),
+      mkSearch("s2", "b2", "nothing_found"),
+      mkSearch("s3", "b3", "failed"),
+      mkSearch("s4", "b4", "nothing_found", { seenAt: "2026-11-02T00:00:00Z" }),
+      mkSearch("s5", "b5", "queued"),
+    ];
+    mount({ drain: mkDrain() });
+    await flush();
+    expect(screen.getByTestId("review")).toHaveTextContent("3");
+    expect(screen.getByRole("link", { name: "Covers to review (3)" })).toHaveAttribute("href", "#/covers");
+  });
+
+  it("runReview sums outcomes, marks seen once, then reloads", async () => {
+    repo.applyCover.mockResolvedValueOnce("applied").mockResolvedValueOnce("cover_changed");
+    repo.dismissCoverSearch.mockResolvedValue("not_ready");
+    repo.markResultsSeen.mockResolvedValue(2);
+    let api!: ReturnType<typeof useCoverFinder>;
+    function Grab() {
+      api = useCoverFinder();
+      return null;
+    }
+    mount({ drain: mkDrain() }, <Grab />);
+    await flush();
+    const loads = repo.listCoverSearches.mock.calls.length;
+    let out!: { applied: number; changed: number; gone: number };
+    await act(async () => {
+      out = await api.runReview([
+        { kind: "apply", searchId: "s1", url: "https://covers.openlibrary.org/b/id/1000001-L.jpg", expectedCover: null },
+        { kind: "apply", searchId: "s2", url: "https://covers.openlibrary.org/b/id/1000002-L.jpg", expectedCover: null },
+        { kind: "keep", searchId: "s3" },
+        { kind: "seen", searchId: "s4" },
+        { kind: "seen", searchId: "s5" },
+      ]);
+    });
+    expect(out).toEqual({ applied: 1, changed: 1, gone: 1 });
+    expect(repo.applyCover).toHaveBeenCalledTimes(2);
+    expect(repo.markResultsSeen.mock.calls).toEqual([[["s4", "s5"]]]);
+    expect(repo.listCoverSearches.mock.calls.length).toBeGreaterThan(loads);
+  });
+
+  it("a budget stop shows its banner without Try again", async () => {
+    searches = [mkSearch("s1", "b1", "gathered")];
+    mount({ drain: mkDrain({ stop: "budget", gatherPaused: false }) });
+    await flush();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "This month's cover-finding budget is used up. The rest wait for next month or a manual retry.",
+    );
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+  });
+
+  it("a rejected stop shows its banner, and Try again drains once more", async () => {
+    searches = [mkSearch("s1", "b1", "gathered")];
+    const drain = vi.fn<DrainFn>(async () => ({ stop: "rejected", gatherPaused: false }));
+    mount({ drain });
+    await flush();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Cover finding stopped: the requests were refused. Check the Claude workspace limit, then try again.",
+    );
+    drain.mockResolvedValue({ stop: null, gatherPaused: false });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(drain).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("requestBatch counts outcomes with a fresh batch id, then reloads and drains", async () => {
+    repo.requestCoverSearches.mockResolvedValue(
+      new Map([
+        ["b1", "queued"],
+        ["b2", "already_open"],
+        ["b3", "nothing_found"],
+        ["b4", "queued"],
+      ]),
+    );
+    const drain = mkDrain();
+    let api!: ReturnType<typeof useCoverFinder>;
+    function Grab() {
+      api = useCoverFinder();
+      return null;
+    }
+    mount({ drain }, <Grab />);
+    await flush();
+    let out!: { queued: number; alreadyOpen: number; nothingFound: number };
+    await act(async () => {
+      out = await api.requestBatch(["b1", "b2", "b3", "b4"]);
+    });
+    expect(out).toEqual({ queued: 2, alreadyOpen: 1, nothingFound: 1 });
+    const [household, ids, batch, manual] = repo.requestCoverSearches.mock.calls[0];
+    expect(household).toBe("h1");
+    expect(ids).toEqual(["b1", "b2", "b3", "b4"]);
+    expect(batch).toMatch(/^[0-9a-f-]{36}$/);
+    expect(manual).toBe(false);
+    expect(drain).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useCoverFinder without a provider", () => {
+  it("returns the unavailable state instead of throwing", async () => {
+    const { result } = renderHook(() => useCoverFinder());
+    expect(result.current.available).toBe(false);
+    expect(result.current.marks.size).toBe(0);
+    await expect(result.current.requestBatch(["b1"])).resolves.toEqual({ queued: 0, alreadyOpen: 0, nothingFound: 0 });
+  });
+});

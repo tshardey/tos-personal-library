@@ -35,6 +35,18 @@ vi.mock("@/hooks/useCatalog", () => ({
   useCatalog: () => ({ books: [], loading: false, error: null, reload: vi.fn() }),
 }));
 
+const coverRepo = vi.hoisted(() => ({
+  listCoverMarks: vi.fn(async () => new Map()),
+  listCoverSearches: vi.fn(async () => []),
+  getCoverBudget: vi.fn(async () => null),
+  screenSearch: vi.fn(),
+}));
+
+vi.mock("@/lib/covers/cover-repo", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/covers/cover-repo")>()),
+  ...coverRepo,
+}));
+
 import App from "./App";
 
 beforeEach(() => {
@@ -55,6 +67,25 @@ describe("App", () => {
     auth.user = null;
     render(<App />);
     expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
+  });
+
+  it("does not mount the cover finder when signed out", async () => {
+    auth.user = null;
+    for (const fn of Object.values(coverRepo)) fn.mockClear();
+    render(<App />);
+    await act(async () => {});
+    expect(coverRepo.listCoverMarks).not.toHaveBeenCalled();
+    expect(coverRepo.listCoverSearches).not.toHaveBeenCalled();
+    expect(coverRepo.getCoverBudget).not.toHaveBeenCalled();
+  });
+
+  it("renders the covers review page on #/covers under the Library tab", async () => {
+    signedIn();
+    window.location.hash = "#/covers";
+    render(<App />);
+    await act(async () => {});
+    expect(screen.getByRole("heading", { name: "Covers to review" })).toBeInTheDocument();
+    expect(coverRepo.listCoverSearches).toHaveBeenCalled();
   });
 
   it("shows the shell with email and sign out when signed in", () => {
@@ -79,6 +110,7 @@ describe("App", () => {
       ["#/import", "Import"],
       ["#/add", "Library"],
       ["#/book/b1", "Library"],
+      ["#/covers", "Library"],
     ])("marks the tab for %s as current", (hash, name) => {
       signedIn();
       window.location.hash = hash;

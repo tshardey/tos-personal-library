@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { HouseholdProvider, useHousehold } from "@/contexts/HouseholdContext";
+import { CoverFinderProvider } from "@/contexts/CoverFinderContext";
 import SignIn from "@/components/auth/SignIn";
 import HouseholdSetup from "@/components/household/HouseholdSetup";
 import InviteCode from "@/components/household/InviteCode";
@@ -10,6 +11,9 @@ import AddBook from "@/components/book/AddBook";
 import ImportPage from "@/components/import/ImportPage";
 import InboxPage from "@/components/inbox/InboxPage";
 import ChunkErrorBoundary from "@/components/common/ChunkErrorBoundary";
+import CoverReviewPage from "@/components/covers/CoverReviewPage";
+import CoverStopBanner from "@/components/covers/CoverStopBanner";
+import CoversBadge from "@/components/covers/CoversBadge";
 import AccountMenu from "@/components/nav/AccountMenu";
 import TabBar from "@/components/nav/TabBar";
 import { useRoute } from "@/lib/router";
@@ -40,37 +44,45 @@ function SignedIn() {
   }
   if (!household) return <HouseholdSetup />;
   return (
-    <div>
-      <header className="flex items-center justify-between gap-2 px-3 py-2 sm:px-4">
-        <h1 className="text-lg font-semibold sm:text-xl">
-          <a href="#/">Our Library</a>
-        </h1>
-        <AccountMenu email={user?.email} onSignOut={() => void signOut()} />
-      </header>
-      <TabBar route={route} />
-      {route.name === "library" && (
-        <div className="border-b p-3 sm:p-4">
-          <InviteCode />
-        </div>
-      )}
-      {route.name === "book" ? (
-        <BookDetail key={route.id} id={route.id} />
-      ) : route.name === "add" ? (
-        <AddBook />
-      ) : route.name === "import" ? (
-        <ImportPage />
-      ) : route.name === "inbox" ? (
-        <InboxPage />
-      ) : route.name === "scan" ? (
-        <ChunkErrorBoundary>
-          <Suspense fallback={<p className="p-6">Loading…</p>}>
-            <ScanPage />
-          </Suspense>
-        </ChunkErrorBoundary>
-      ) : (
-        <LibraryPage series={route.name === "library" ? route.series : undefined} />
-      )}
-    </div>
+    <CoverFinderProvider>
+      <div>
+        <header className="flex items-center justify-between gap-2 px-3 py-2 sm:px-4">
+          <h1 className="text-lg font-semibold sm:text-xl">
+            <a href="#/">Our Library</a>
+          </h1>
+          <div className="flex items-center gap-2">
+            <CoversBadge />
+            <AccountMenu email={user?.email} onSignOut={() => void signOut()} />
+          </div>
+        </header>
+        <TabBar route={route} />
+        <CoverStopBanner />
+        {route.name === "library" && (
+          <div className="border-b p-3 sm:p-4">
+            <InviteCode />
+          </div>
+        )}
+        {route.name === "book" ? (
+          <BookDetail key={route.id} id={route.id} />
+        ) : route.name === "add" ? (
+          <AddBook />
+        ) : route.name === "import" ? (
+          <ImportPage />
+        ) : route.name === "inbox" ? (
+          <InboxPage />
+        ) : route.name === "covers" ? (
+          <CoverReviewPage />
+        ) : route.name === "scan" ? (
+          <ChunkErrorBoundary>
+            <Suspense fallback={<p className="p-6">Loading…</p>}>
+              <ScanPage />
+            </Suspense>
+          </ChunkErrorBoundary>
+        ) : (
+          <LibraryPage series={route.name === "library" ? route.series : undefined} />
+        )}
+      </div>
+    </CoverFinderProvider>
   );
 }
 
