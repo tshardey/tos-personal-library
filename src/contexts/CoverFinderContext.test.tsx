@@ -44,6 +44,8 @@ import {
   type CoverFinderDeps,
 } from "./CoverFinderContext";
 
+const R1 = { url: "https://covers.openlibrary.org/b/id/1000001-L.jpg", source: "openlibrary" as const, width: 400, height: 600 };
+
 const BUDGET: CoverBudget = {
   month: "2026-11-01",
   spentMicro: 0,
@@ -258,9 +260,10 @@ describe("CoverFinderProvider", () => {
     expect(repo.screenSearch).not.toHaveBeenCalled();
   });
 
-  it("counts ready rows plus unseen nothing found and failed rows", async () => {
+  it("counts ready rows with a result (an empty one is not listed) plus unseen nothing found and failed rows", async () => {
     searches = [
-      mkSearch("s1", "b1", "ready"),
+      mkSearch("s1", "b1", "ready", { results: [R1] }),
+      mkSearch("s0", "b0", "ready"),
       mkSearch("s2", "b2", "nothing_found"),
       mkSearch("s3", "b3", "failed"),
       mkSearch("s4", "b4", "nothing_found", { seenAt: "2026-11-02T00:00:00Z" }),

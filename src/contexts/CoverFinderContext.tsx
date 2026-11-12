@@ -135,7 +135,7 @@ const errorCode = (err: unknown): string =>
 
 function countForReview(searches: CoverSearch[]): number {
   return searches.filter(
-    (s) => s.status === "ready" || ((s.status === "nothing_found" || s.status === "failed") && s.seenAt === null),
+    (s) => (s.status === "ready" && s.results.length > 0) || ((s.status === "nothing_found" || s.status === "failed") && s.seenAt === null),
   ).length;
 }
 
