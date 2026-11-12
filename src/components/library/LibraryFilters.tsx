@@ -1,3 +1,4 @@
+import type { CoverFilter } from "@/lib/covers/eligibility";
 import type { OwnerFilter } from "@/lib/filter-books";
 import type { HouseholdMember } from "@/lib/types";
 import { groupTags, isSharedTag, type TosTag } from "@/lib/tos-tags";
@@ -19,6 +20,9 @@ interface Props {
   onEdition(e: string | null): void;
   onTagFilter(ids: string[]): void;
   onSeries(s: string | null): void;
+  coverFilter: CoverFilter;
+  coversAvailable: boolean;
+  onCoverFilter(f: CoverFilter): void;
 }
 
 export default function LibraryFilters({
@@ -37,6 +41,9 @@ export default function LibraryFilters({
   onEdition,
   onTagFilter,
   onSeries,
+  coverFilter,
+  coversAvailable,
+  onCoverFilter,
 }: Props) {
   const [tagsOpen, setTagsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -101,6 +108,19 @@ export default function LibraryFilters({
               {n}
             </option>
           ))}
+        </select>
+      )}
+      {coversAvailable && (
+        <select
+          aria-label="Covers"
+          value={coverFilter}
+          onChange={(e) => onCoverFilter(e.target.value as CoverFilter)}
+          className="w-full rounded border px-3 py-2"
+        >
+          <option value="all">All books</option>
+          <option value="no_cover">No cover</option>
+          <option value="marked">Marked for cover</option>
+          <option value="nothing_found">Nothing found</option>
         </select>
       )}
       {tagsUnavailable && <p className="text-sm text-stone-700">Tome of Secrets tags unavailable.</p>}
