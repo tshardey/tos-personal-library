@@ -20,9 +20,10 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  // The search id seen when a request was accepted; the local "looking" state lasts until the latest search differs.
-  const [requestedFrom, setRequestedFrom] = useState<{ id: string | null } | null>(null);
-  const requested = requestedFrom !== null && (search?.id ?? null) === requestedFrom.id;
+  // The search id seen when a request was accepted; the local "looking" state lasts until the latest search differs in id or status.
+  const [requestedFrom, setRequestedFrom] = useState<{ id: string | null; status: string | null } | null>(null);
+  const requested = requestedFrom !== null && (search?.id ?? null) === requestedFrom.id &&
+    (search?.status ?? null) === requestedFrom.status;
 
   const status = search?.status;
   const looking = requested || (status !== undefined && ACTIVE.has(status));
@@ -66,7 +67,7 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
     guarded(async () => {
       const out = await findNow(book.id, reasons, sentNote());
       if (out !== "queued" && out !== "already_open") return false;
-      setRequestedFrom({ id: search?.id ?? null });
+      setRequestedFrom({ id: search?.id ?? null, status: search?.status ?? null });
       setOpen(false);
       return true;
     });
@@ -75,7 +76,7 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
     guarded(async () => {
       const out = await retry(book.id);
       if (out !== "queued" && out !== "already_open") return false;
-      setRequestedFrom({ id: search?.id ?? null });
+      setRequestedFrom({ id: search?.id ?? null, status: search?.status ?? null });
       return true;
     });
 

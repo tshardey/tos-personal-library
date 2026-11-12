@@ -184,4 +184,19 @@ describe("FindCoverPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save this. Try again.");
   });
+
+  it("follows an already open search when it finishes", async () => {
+    fns.findNow.mockResolvedValue("already_open");
+    const { rerender } = render(<FindCoverPanel book={book} />);
+    open();
+    // Another device starts a search while the panel is open.
+    setState({ latest: new Map([["b1", search("queued", "x")]]) });
+    rerender(<FindCoverPanel book={book} />);
+    fireEvent.click(screen.getByRole("button", { name: "Find now" }));
+    expect(await screen.findByText("Looking for covers…")).toBeInTheDocument();
+    setState({ latest: new Map([["b1", search("ready", "x")]]) });
+    rerender(<FindCoverPanel book={book} />);
+    expect(screen.queryByText("Looking for covers…")).toBeNull();
+    expect(screen.getByRole("link", { name: "Review covers" })).toBeInTheDocument();
+  });
 });
