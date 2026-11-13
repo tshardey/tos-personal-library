@@ -18,6 +18,7 @@ const book = (over: Partial<Book> = {}): Book => ({
   publishDate: null,
   seriesName: null,
   seriesVolume: null,
+  onShelf: true,
   userEditedFields: [],
   createdAt: "",
   updatedAt: "",

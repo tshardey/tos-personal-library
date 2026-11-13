@@ -109,6 +109,7 @@ function pendingBook(input: BookInput): Book {
     googleBooksId: null,
     seriesName: null,
     seriesVolume: null,
+    onShelf: true,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",

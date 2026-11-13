@@ -20,6 +20,7 @@ function make(coverUrl: string | null): BookWithCopies {
     publishDate: null,
     seriesName: null,
     seriesVolume: null,
+    onShelf: true,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",

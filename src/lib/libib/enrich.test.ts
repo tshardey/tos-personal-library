@@ -25,6 +25,7 @@ const book = (n: number, over: Partial<BookWithCopies> = {}): BookWithCopies => 
   publishDate: null,
   seriesName: null,
   seriesVolume: null,
+  onShelf: true,
   userEditedFields: [],
   createdAt: "",
   updatedAt: `u${n}`,

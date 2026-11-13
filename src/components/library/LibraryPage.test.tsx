@@ -41,6 +41,7 @@ function book(
     publishDate: null,
     seriesName,
     seriesVolume,
+    onShelf: true,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",

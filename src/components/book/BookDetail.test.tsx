@@ -48,6 +48,7 @@ function book(over: Partial<BookWithCopies> = {}): BookWithCopies {
     publishDate: null,
     seriesName: null,
     seriesVolume: null,
+    onShelf: true,
     userEditedFields: ["title"],
     createdAt: "",
     updatedAt: "",

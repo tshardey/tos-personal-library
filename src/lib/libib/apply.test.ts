@@ -28,6 +28,9 @@ function seededCopy(over: Partial<Copy> & { id: string; bookId: string }): Copy 
     libibId: null,
     photoPath: null,
     intakeItemId: null,
+    unhauledAt: null,
+    deluxe: false,
+    signed: false,
     userEditedFields: [],
     createdAt: OLD,
     updatedAt: OLD,
@@ -52,6 +55,7 @@ function seededBook(over: Partial<BookWithCopies> & { id: string }): BookWithCop
     publishDate: null,
     seriesName: null,
     seriesVolume: null,
+    onShelf: true,
     userEditedFields: [],
     createdAt: OLD,
     updatedAt: OLD,
@@ -631,5 +635,65 @@ describe("fake store", () => {
     await apply(planFor(two, { rows: [...rows].reverse() }), two, ["y1", "y2"]);
     expect(one.snapshot()).toEqual(two.snapshot());
     expect(JSON.stringify(one.snapshot())).not.toContain("x1");
+  });
+});
+
+describe("applyImportPlan: copy flags survive a re-import (D2)", () => {
+  const UNHAULED_AT = "2026-05-01T00:00:00Z";
+  const flagged = (over: Partial<Copy> = {}) =>
+    seededCopy({ id: "c1", bookId: "b1", unhauledAt: UNHAULED_AT, deluxe: true, signed: true, ...over });
+  const flagsOf = (store: FakeStore) =>
+    store.listBooks().flatMap((b) => b.copies.map((c) => [c.unhauledAt, c.deluxe, c.signed]));
+
+  it("an unhauled copy with its id: nothing is planned and the flags stay", async () => {
+    const store = createFakeStore({
+      books: [seededBook({ id: "b1", isbn13: [isbn(7)], onShelf: false, copies: [flagged({ libibId: "L" })] })],
+      ledger: [["L", 1]],
+    });
+    const decisions = new Map<string, ReviewDecision>([["L", { action: "link", copyId: "c1" }]]);
+    const plan = planFor(store, { rows: [{ id: "L", ean_isbn13: isbn(7), title: "Sample Title" }], decisions });
+    expect(plan.newCopies).toEqual([]);
+    expect(plan.links).toEqual([]);
+    await apply(plan, store);
+    expect(flagsOf(store)).toEqual([[UNHAULED_AT, true, true]]);
+  });
+
+  it("an unhauled copy without an id is linked: only libib_id changes", async () => {
+    const store = createFakeStore({
+      books: [seededBook({ id: "b1", isbn13: [isbn(7)], onShelf: false, copies: [flagged()] })],
+    });
+    const decisions = new Map<string, ReviewDecision>([["L", { action: "link", copyId: "c1" }]]);
+    const plan = planFor(store, { rows: [{ id: "L", ean_isbn13: isbn(7), title: "Sample Title" }], decisions });
+    expect(plan.newCopies).toEqual([]);
+    expect(plan.links).toEqual([{ copyId: "c1", libibId: "L" }]);
+    await apply(plan, store);
+    const [c] = store.listBooks()[0].copies;
+    expect(c).toMatchObject({ libibId: "L", unhauledAt: UNHAULED_AT, deluxe: true, signed: true });
+    expect(store.listBooks()[0].copies).toHaveLength(1);
+  });
+
+  it("a deluxe, signed copy keeps both flags while the import fills the book", async () => {
+    const store = createFakeStore({
+      books: [seededBook({ id: "b1", isbn13: [isbn(7)], copies: [flagged({ libibId: "L", unhauledAt: null })] })],
+      ledger: [["L", 1]],
+    });
+    const plan = planFor(store, { rows: [{ id: "L", ean_isbn13: isbn(7), title: "Sample Title", description: "Filled synopsis" }] });
+    expect(plan.bookPatches).toHaveLength(1);
+    await apply(plan, store);
+    expect(store.listBooks()[0].synopsis).toBe("Filled synopsis");
+    expect(flagsOf(store)).toEqual([[null, true, true]]);
+  });
+
+  it("a rise to 2 copies adds one on-shelf copy with default flags", async () => {
+    const store = createFakeStore({
+      books: [seededBook({ id: "b1", isbn13: [isbn(7)], onShelf: false, copies: [flagged({ libibId: "L" })] })],
+      ledger: [["L", 1]],
+    });
+    await apply(planFor(store, { rows: [{ id: "L", ean_isbn13: isbn(7), title: "Sample Title", copies: "2" }] }), store);
+    expect(store.listBooks()[0].copies).toHaveLength(2);
+    expect(flagsOf(store)).toEqual([
+      [UNHAULED_AT, true, true],
+      [null, false, false],
+    ]);
   });
 });
