@@ -396,6 +396,47 @@ describe("CoverFinderProvider", () => {
   });
 });
 
+describe("unhauled outcome", () => {
+  function grab() {
+    const ref = {} as { api: ReturnType<typeof useCoverFinder> };
+    function Grab() {
+      ref.api = useCoverFinder();
+      return null;
+    }
+    mount({ drain: mkDrain() }, <Grab />);
+    return ref;
+  }
+
+  it("requestBatch counts an unhauled row in no bucket", async () => {
+    repo.requestCoverSearches.mockResolvedValue(
+      new Map([
+        ["b1", "queued"],
+        ["b2", "unhauled"],
+        ["b3", "queued"],
+      ]),
+    );
+    const ref = grab();
+    await flush();
+    let out!: { queued: number; alreadyOpen: number; nothingFound: number };
+    await act(async () => {
+      out = await ref.api.requestBatch(["b1", "b2", "b3"]);
+    });
+    expect(out).toEqual({ queued: 2, alreadyOpen: 0, nothingFound: 0 });
+  });
+
+  it("findNow still requests with p_manual true, and returns the outcome", async () => {
+    repo.requestCoverSearches.mockResolvedValue(new Map([["u1", "queued"]]));
+    const ref = grab();
+    await flush();
+    let out;
+    await act(async () => {
+      out = await ref.api.findNow("u1", [], null);
+    });
+    expect(out).toBe("queued");
+    expect(repo.requestCoverSearches.mock.calls[0][3]).toBe(true);
+  });
+});
+
 describe("useCoverFinder without a provider", () => {
   it("returns the unavailable state instead of throwing", async () => {
     const { result } = renderHook(() => useCoverFinder());

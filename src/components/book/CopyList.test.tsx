@@ -7,8 +7,9 @@ vi.mock("@/lib/library-repo", () => ({
   deleteCopy: vi.fn().mockResolvedValue(undefined),
   deleteBook: vi.fn().mockResolvedValue(undefined),
   updateCopy: vi.fn().mockResolvedValue(undefined),
+  setCopyFlags: vi.fn().mockResolvedValue(undefined),
 }));
-import { deleteBook, deleteCopy, updateCopy } from "@/lib/library-repo";
+import { deleteBook, deleteCopy, setCopyFlags, updateCopy } from "@/lib/library-repo";
 
 const members: HouseholdMember[] = [
   { householdId: "h", userId: "u1", displayName: "Tierra", createdAt: "" },
@@ -25,6 +26,9 @@ function copy(id: string, ownerUserId: string | null): Copy {
     libibId: null,
     photoPath: null,
     intakeItemId: null,
+    unhauledAt: null,
+    deluxe: false,
+    signed: false,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",
@@ -96,5 +100,85 @@ describe("CopyList", () => {
   it("shows the copy note under the edition", () => {
     renderList([{ ...copy("c1", "u1"), editionNote: "Invented Box", copyNote: "Sprayed edges" }]);
     expect(screen.getByText("Sprayed edges")).toBeInTheDocument();
+  });
+
+  describe("flag toggles", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 10, 12, 15, 0, 0));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("Deluxe sets and clears the flag, then reloads", async () => {
+      const c = copy("c1", "u1");
+      const { unmount } = render(
+        <CopyList copies={[c]} members={members} labels={[]} onChanged={onChanged} onBookDeleted={onBookDeleted} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Deluxe" }));
+      await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+      expect(setCopyFlags).toHaveBeenCalledTimes(1);
+      expect(setCopyFlags).toHaveBeenCalledWith(c, { deluxe: true });
+      unmount();
+      const d = { ...c, deluxe: true };
+      renderList([d]);
+      const btn = screen.getByRole("button", { name: "Deluxe" });
+      expect(btn).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(btn);
+      await waitFor(() => expect(setCopyFlags).toHaveBeenLastCalledWith(d, { deluxe: false }));
+    });
+
+    it("Signed sets and clears the flag", async () => {
+      const c = copy("c1", "u1");
+      const { unmount } = render(
+        <CopyList copies={[c]} members={members} labels={[]} onChanged={onChanged} onBookDeleted={onBookDeleted} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Signed" }));
+      await waitFor(() => expect(setCopyFlags).toHaveBeenCalledWith(c, { signed: true }));
+      unmount();
+      const d = { ...c, signed: true };
+      renderList([d]);
+      fireEvent.click(screen.getByRole("button", { name: "Signed" }));
+      await waitFor(() => expect(setCopyFlags).toHaveBeenLastCalledWith(d, { signed: false }));
+    });
+
+    it("Unhaul sends the current time as an ISO string", async () => {
+      const c = copy("c1", "u1");
+      renderList([c]);
+      fireEvent.click(screen.getByRole("button", { name: "Unhaul" }));
+      await waitFor(() =>
+        expect(setCopyFlags).toHaveBeenCalledWith(c, { unhauledAt: new Date(2026, 10, 12, 15, 0, 0).toISOString() }),
+      );
+    });
+
+    it("shows an unhauled copy muted with its day and Undo unhaul", async () => {
+      const c = { ...copy("c1", "u1"), unhauledAt: new Date(2026, 10, 12, 9, 0, 0).toISOString() };
+      const { container } = render(
+        <CopyList copies={[c]} members={members} labels={[]} onChanged={onChanged} onBookDeleted={onBookDeleted} />,
+      );
+      expect(container.querySelector('[data-unhauled="true"]')).not.toBeNull();
+      expect(screen.getByText("Unhauled Nov 12")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Unhaul" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Undo unhaul" }));
+      await waitFor(() => expect(setCopyFlags).toHaveBeenCalledWith(c, { unhauledAt: null }));
+    });
+
+    it("writes once on a double tap", async () => {
+      renderList([copy("c1", "u1")]);
+      const btn = screen.getByRole("button", { name: "Unhaul" });
+      fireEvent.click(btn);
+      fireEvent.click(btn);
+      await waitFor(() => expect(onChanged).toHaveBeenCalled());
+      expect(setCopyFlags).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows an error and re-enables the button when the write fails", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.mocked(setCopyFlags).mockRejectedValueOnce(new Error("boom"));
+      renderList([copy("c1", "u1")]);
+      fireEvent.click(screen.getByRole("button", { name: "Unhaul" }));
+      expect(await screen.findByText("Couldn't save the copy.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Unhaul" })).toBeEnabled();
+      expect(onChanged).not.toHaveBeenCalled();
+    });
   });
 });

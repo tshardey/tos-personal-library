@@ -26,6 +26,7 @@ function isNothingFound(s: CoverSearch | undefined): boolean {
   return s !== undefined && (s.status === "nothing_found" || s.status === "failed");
 }
 
+/** Unhauled books (onShelf false) are left out of No cover, Marked and batches (D5). */
 export function applyCoverFilter(
   books: BookWithCopies[],
   f: CoverFilter,
@@ -34,9 +35,9 @@ export function applyCoverFilter(
 ): BookWithCopies[] {
   switch (f) {
     case "no_cover":
-      return books.filter((b) => !hasStockCover(b));
+      return books.filter((b) => b.onShelf && !hasStockCover(b));
     case "marked":
-      return books.filter((b) => marks.has(b.id));
+      return books.filter((b) => b.onShelf && marks.has(b.id));
     case "nothing_found":
       return books.filter((b) => isNothingFound(latest.get(b.id)));
     default:
@@ -52,6 +53,7 @@ export function batchSelection(
   let alreadyOpen = 0;
   let nothingFound = 0;
   for (const b of books) {
+    if (!b.onShelf) continue;
     const s = latest.get(b.id);
     if (!s) eligible.push(b.id);
     else if (OPEN_STATUSES.has(s.status)) alreadyOpen += 1;

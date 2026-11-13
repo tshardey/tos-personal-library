@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BookWithCopies } from "@/lib/types";
+import { bookFixture, copyFixture } from "@/lib/flag-fixtures.test-util";
 
 const h = vi.hoisted(() => ({ catalog: {} as Record<string, unknown> }));
 
@@ -41,6 +42,7 @@ function book(
     publishDate: null,
     seriesName,
     seriesVolume,
+    onShelf: true,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",
@@ -140,5 +142,165 @@ describe("LibraryPage series and tag filters", () => {
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe("LibraryPage copy flag filters", () => {
+  const D12 = "2026-11-12";
+  const at = (day: string, hh = "12") => `${day}T${hh}:00:00`;
+  const card = (c: HTMLElement, id: string) => c.querySelector(`[data-book-id="${id}"]`) as HTMLElement | null;
+
+  function flagBooks() {
+    const P = bookFixture(
+      "The Salt Road",
+      [
+        copyFixture({ deluxe: true, createdAt: at(D12) }),
+        copyFixture({ createdAt: at(D12, "13") }),
+        copyFixture({ unhauledAt: at(D12, "20"), createdAt: at(D12, "14") }),
+      ],
+      { publishDate: "2015" },
+    );
+    const U = bookFixture("Glass Orchard", [copyFixture({ unhauledAt: at(D12, "20"), createdAt: at(D12, "15") })]);
+    const Z = bookFixture(
+      "Paper Tide",
+      [copyFixture({ signed: true, createdAt: at(D12, "16") }), copyFixture({ createdAt: at("2026-11-10") })],
+      { publishDate: "2010-05-01" },
+    );
+    const fillers = Array.from({ length: 40 }, (_, i) => bookFixture(`Filler ${i}`, []));
+    return [P, U, Z, ...fillers];
+  }
+  const count = () => document.querySelector("p[aria-live='polite']")?.textContent;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.location.hash = "";
+    setCatalog({ books: flagBooks(), tags: new Map() });
+  });
+
+  it("main view counts 42 books and hides the unhauled one", () => {
+    const { container } = render(<LibraryPage />);
+    expect(count()).toBe("42 books");
+    expect(card(container, "Glass Orchard")).toBeNull();
+  });
+
+  it("a search shows the unhauled book with its badge", () => {
+    const { container } = render(<LibraryPage />);
+    fireEvent.change(screen.getByLabelText("Search books"), { target: { value: "Glass Orchard" } });
+    expect(within(card(container, "Glass Orchard")!).getByText("Unhauled")).toBeInTheDocument();
+    expect(count()).toBe("1 book");
+  });
+
+  it("the Unhauled chip shows books with an unhauled copy", () => {
+    const { container } = render(<LibraryPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Unhauled" }));
+    expect(card(container, "The Salt Road")).not.toBeNull();
+    expect(card(container, "Glass Orchard")).not.toBeNull();
+    expect(count()).toBe("2 books");
+  });
+
+  it("the Deluxe chip shows books with an on-shelf deluxe copy and their badge", () => {
+    const { container } = render(<LibraryPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Deluxe" }));
+    expect(count()).toBe("1 book");
+    expect(within(card(container, "The Salt Road")!).getByText("Deluxe")).toBeInTheDocument();
+  });
+
+  it("the Signed chip shows signed books", () => {
+    const { container } = render(<LibraryPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Signed" }));
+    expect(count()).toBe("1 book");
+    expect(within(card(container, "Paper Tide")!).getByText("Signed")).toBeInTheDocument();
+  });
+
+  it("Date added lists the newest day first and filters by it", () => {
+    const { container } = render(<LibraryPage />);
+    const select = screen.getByLabelText("Date added") as HTMLSelectElement;
+    const opts = Array.from(select.options).map((o) => o.textContent);
+    expect(opts[0]).toBe("Any day");
+    expect(opts[1]).toBe("Nov 12 · 3");
+    fireEvent.change(select, { target: { value: D12 } });
+    expect(count()).toBe("2 books");
+    expect(card(container, "The Salt Road")).not.toBeNull();
+    expect(card(container, "Paper Tide")).not.toBeNull();
+  });
+
+  it("keeps a selected day listed at 0 when its copies are unhauled, and says no matching books", () => {
+    const { rerender } = render(<LibraryPage />);
+    fireEvent.change(screen.getByLabelText("Date added"), { target: { value: D12 } });
+    const P = bookFixture("The Salt Road", [
+      copyFixture({ unhauledAt: at(D12, "20"), createdAt: at(D12) }),
+      copyFixture({ createdAt: at("2026-11-10") }),
+    ]);
+    setCatalog({ books: [P], tags: new Map() });
+    rerender(<LibraryPage />);
+    const select = screen.getByLabelText("Date added") as HTMLSelectElement;
+    expect(select.value).toBe(D12);
+    expect(Array.from(select.options).map((o) => o.textContent)).toContain("Nov 12 · 0");
+    expect(screen.getByText("No matching books")).toBeInTheDocument();
+  });
+
+  it("filters by published range, trims, ignores letters and swaps reversed ends", () => {
+    render(<LibraryPage />);
+    const from = screen.getByLabelText("Published from");
+    const to = screen.getByLabelText("Published to");
+    fireEvent.change(from, { target: { value: "2010" } });
+    fireEvent.change(to, { target: { value: "2020" } });
+    expect(count()).toBe("2 books");
+    fireEvent.change(from, { target: { value: " 2015 " } });
+    fireEvent.change(to, { target: { value: "" } });
+    expect(count()).toBe("1 book");
+    fireEvent.change(from, { target: { value: "abc" } });
+    expect(count()).toBe("42 books");
+    expect(from).toHaveValue("abc");
+    fireEvent.change(from, { target: { value: "2020" } });
+    fireEvent.change(to, { target: { value: "2010" } });
+    expect(count()).toBe("2 books");
+  });
+
+  it("a partly typed year is no bound", () => {
+    render(<LibraryPage />);
+    const to = screen.getByLabelText("Published to");
+    fireEvent.change(to, { target: { value: "202" } });
+    expect(count()).toBe("42 books");
+    expect(to).toHaveValue("202");
+  });
+
+  it("combines the Unhauled chip with a day", () => {
+    const { container } = render(<LibraryPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Unhauled" }));
+    fireEvent.change(screen.getByLabelText("Date added"), { target: { value: D12 } });
+    expect(count()).toBe("2 books");
+    expect(card(container, "Paper Tide")).toBeNull();
+    expect(card(container, "Glass Orchard")).not.toBeNull();
+  });
+});
+
+describe("LibraryPage keeps its view across leaving the page (D9)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.location.hash = "";
+    setCatalog();
+  });
+
+  it("restores the search box and the Deluxe chip after unmount and remount", () => {
+    const first = render(<LibraryPage />);
+    fireEvent.change(screen.getByLabelText("Search books"), { target: { value: "Salt" } });
+    fireEvent.click(screen.getByRole("button", { name: "Deluxe" }));
+    first.unmount();
+
+    render(<LibraryPage />);
+    expect(screen.getByLabelText("Search books")).toHaveValue("Salt");
+    expect(screen.getByRole("button", { name: "Deluxe" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("clicking a card saves an anchor keyed to the view and the series", async () => {
+    const { takeScrollAnchor } = await import("@/lib/library-view");
+    const { container } = render(<LibraryPage series="Saga" />);
+    const link = container.querySelector('[data-book-id="a"]') as HTMLElement;
+    link.getBoundingClientRect = () => ({ top: 42 }) as DOMRect;
+    fireEvent.click(link.querySelector("p") ?? link);
+    const anchor = takeScrollAnchor();
+    expect(anchor).toMatchObject({ bookId: "a", top: 42, scrollY: 0 });
+    expect(JSON.parse(anchor!.viewKey)).toMatchObject({ query: "", series: "Saga" });
   });
 });

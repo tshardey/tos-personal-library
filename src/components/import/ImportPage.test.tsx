@@ -95,6 +95,7 @@ function seededBook(over: Partial<BookWithCopies> & { id: string }): BookWithCop
     publishDate: null,
     seriesName: null,
     seriesVolume: null,
+    onShelf: true,
     userEditedFields: [],
     createdAt: OLD,
     updatedAt: OLD,
@@ -265,7 +266,7 @@ describe("ImportPage", () => {
           copies: [
             {
               id: "c1", bookId: "b1", ownerUserId: "u1", editionNote: null, copyNote: null, location: null,
-              origin: "libib", libibId: "OLD0000001", photoPath: null, intakeItemId: null, userEditedFields: [],
+              origin: "libib", libibId: "OLD0000001", photoPath: null, intakeItemId: null, unhauledAt: null, deluxe: false, signed: false, userEditedFields: [],
               createdAt: OLD, updatedAt: OLD,
             },
           ],
@@ -406,7 +407,7 @@ describe("ImportPage", () => {
           copies: [
             {
               id: "c1", bookId: "b1", ownerUserId: "u1", editionNote: null, copyNote: null, location: null,
-              origin: "libib", libibId: "OLD0000001", photoPath: null, intakeItemId: null, userEditedFields: [],
+              origin: "libib", libibId: "OLD0000001", photoPath: null, intakeItemId: null, unhauledAt: null, deluxe: false, signed: false, userEditedFields: [],
               createdAt: OLD, updatedAt: OLD,
             },
           ],

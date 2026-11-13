@@ -31,6 +31,9 @@ function copy(over: Partial<Copy> = {}): Copy {
     libibId: null,
     photoPath: null,
     intakeItemId: null,
+    unhauledAt: null,
+    deluxe: false,
+    signed: false,
     userEditedFields: [],
     createdAt: "2026-01-01T00:00:00+00:00",
     updatedAt: "2026-01-01T00:00:00+00:00",
@@ -55,6 +58,7 @@ function book(over: Partial<BookWithCopies> = {}): BookWithCopies {
     publishDate: null,
     seriesName: null,
     seriesVolume: null,
+    onShelf: true,
     userEditedFields: [],
     createdAt: "2026-01-01T00:00:00+00:00",
     updatedAt: "2026-01-02T00:00:00+00:00",
@@ -978,5 +982,48 @@ describe("planState", () => {
     const catalog = [book({ isbn13: [ISBN_C], copies: [copy({ libibId: "X" })] })];
     const p = plan([{ id: "X", ean_isbn13: ISBN_C }], { catalog, ledger: new Map([["X", 1]]) });
     expect(planState(p)).toBe("nothing");
+  });
+});
+
+describe("buildImportPlan: unhauled copies (D2)", () => {
+  const unhauled = (over: Partial<Copy> = {}) =>
+    copy({ unhauledAt: "2026-05-01T00:00:00Z", ...over });
+
+  it("an unhauled copy with the id still counts: no new copy, no link", () => {
+    const catalog = [book({ onShelf: false, copies: [unhauled({ libibId: "X" })] })];
+    const p = plan([{ id: "X" }], { catalog, ledger: new Map([["X", 1]]) });
+    expectNoWrites(p);
+    expect(p.ledger).toEqual([]);
+  });
+
+  it("an unhauled no-id copy: existing_copy review defaults to link, nothing added", () => {
+    const catalog = [book({ onShelf: false, copies: [unhauled()] })];
+    const p = plan([{ id: "X", ean_isbn13: ISBN_A }], { catalog });
+    expect(p.review).toHaveLength(1);
+    expect(p.review[0].reason).toBe("existing_copy");
+    expect(p.review[0].chosen).toEqual({ action: "link", copyId: "c1" });
+    expect(p.review[0].options).toEqual(
+      expect.arrayContaining([{ action: "link", copyId: "c1" }, addTo("b1")]),
+    );
+    expect(p.newCopies).toEqual([]);
+    expect(p.links).toEqual([{ copyId: "c1", libibId: "X" }]);
+  });
+
+  it("an on-shelf no-id copy keeps the add default", () => {
+    const catalog = [book({ copies: [copy()] })];
+    const p = plan([{ id: "X", ean_isbn13: ISBN_A }], { catalog });
+    expect(p.review[0].reason).toBe("existing_copy");
+    expect(p.review[0].chosen).toEqual(addTo("b1"));
+    expect(p.newCopies).toHaveLength(1);
+    expect(p.links).toEqual([]);
+  });
+
+  it("a rise to 2 copies adds exactly one new copy", () => {
+    const catalog = [book({ onShelf: false, copies: [unhauled({ libibId: "X" })] })];
+    const p = plan([{ id: "X", copies: "2" }], { catalog, ledger: new Map([["X", 1]]) });
+    expect(p.newCopies).toEqual([
+      { book: existing("b1"), ownerUserId: "u1", editionNote: null, libibId: "X" },
+    ]);
+    expect(p.links).toEqual([]);
   });
 });

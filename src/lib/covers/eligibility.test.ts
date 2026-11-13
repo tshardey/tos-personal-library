@@ -60,4 +60,26 @@ describe("eligibility", () => {
     expect(sel.alreadyOpen).toBe(1);
     expect(sel.nothingFound).toBe(2);
   });
+  describe("unhauled books", () => {
+    const P = mkBook("P", { coverUrl: null });
+    const U = mkBook("U", { coverUrl: null, onShelf: false });
+    const Z = mkBook("Z", { coverUrl: "" });
+    const ids = (b: { id: string }[]) => b.map((x) => x.id);
+
+    it("no_cover drops unhauled books", () => {
+      expect(ids(applyCoverFilter([P, U, Z], "no_cover", new Map(), new Map()))).toEqual(["P", "Z"]);
+    });
+    it("marked drops unhauled books", () => {
+      const mk = (id: string): CoverMark => ({ bookId: id, reasons: [], note: null, markedBy: null, markedAt: "x" });
+      const marks = new Map<string, CoverMark>([["P", mk("P")], ["U", mk("U")]]);
+      expect(ids(applyCoverFilter([P, U, Z], "marked", marks, new Map()))).toEqual(["P"]);
+    });
+    it("nothing_found is unchanged", () => {
+      const latest = latestByBook([mkSearch("s1", "U", "nothing_found")]);
+      expect(ids(applyCoverFilter([P, U, Z], "nothing_found", new Map(), latest))).toEqual(["U"]);
+    });
+    it("batchSelection never makes an unhauled book eligible", () => {
+      expect(batchSelection([P, U, Z], new Map()).eligible).toEqual(["P", "Z"]);
+    });
+  });
 });

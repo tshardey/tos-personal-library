@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CoverBatchFooter from "@/components/covers/CoverBatchFooter";
 import NothingFoundList from "@/components/covers/NothingFoundList";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
-import { applyCoverFilter, type CoverFilter } from "@/lib/covers/eligibility";
+import { useRestoreScroll } from "@/hooks/useRestoreScroll";
+import { applyCoverFilter } from "@/lib/covers/eligibility";
 import { editionLabels } from "@/lib/editions";
-import { filterBooks, type OwnerFilter } from "@/lib/filter-books";
+import { hasUnhauledCopy } from "@/lib/copy-flags";
+import { dateAddedOptions } from "@/lib/date-added";
+import { filterBooks, showsUnhauled } from "@/lib/filter-books";
+import { useLibraryView } from "@/lib/library-view";
 import { navigate } from "@/lib/router";
 import { seriesNames } from "@/lib/series";
 import { loadTosTags, type TosTag } from "@/lib/tos-tags";
@@ -14,16 +18,19 @@ import CoverWall from "./CoverWall";
 import LibraryFilters from "./LibraryFilters";
 
 export default function LibraryPage({ series: routeSeries }: { series?: string } = {}) {
-  const { members } = useHousehold();
+  const { household, members } = useHousehold();
   const { books, tags, loading, error, tagsError, reload } = useCatalog();
-  const [query, setQuery] = useState("");
-  const [owner, setOwner] = useState<OwnerFilter>("all");
-  const [edition, setEdition] = useState<string | null>(null);
-  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  // D9: the view outlives this page, so going back from a book finds the search and filters intact.
+  const [view, patch] = useLibraryView(household?.id ?? null);
+  const { query, owner, edition, tags: tagFilter, coverFilter, unhauled, deluxe, signed, addedDay, publishedFrom, publishedTo } =
+    view;
   const [series, setSeries] = useState<string | null>(routeSeries ?? null);
-  const [coverFilter, setCoverFilter] = useState<CoverFilter>("all");
   const { available: coversAvailable, marks, latest } = useCoverFinder();
   const [tosTags, setTosTags] = useState<TosTag[]>([]);
+  // The series stays in the route; the anchor's key covers both.
+  const viewKey = JSON.stringify({ ...view, series: routeSeries ?? null });
+  const pageRef = useRef<HTMLDivElement>(null);
+  useRestoreScroll(!loading, viewKey, pageRef);
   useEffect(() => {
     setSeries(routeSeries ?? null);
   }, [routeSeries]);
@@ -39,7 +46,20 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const labels = useMemo(() => editionLabels(books, []), [books]);
   const names = useMemo(() => seriesNames(books), [books]);
   const visible = useMemo(() => {
-    const filtered = filterBooks(books, { query, owner, edition, tags: tagFilter, tagsByBook: tags, series });
+    const filtered = filterBooks(books, {
+      query,
+      owner,
+      edition,
+      tags: tagFilter,
+      tagsByBook: tags,
+      series,
+      unhauled,
+      deluxe,
+      signed,
+      addedDay,
+      publishedFrom,
+      publishedTo,
+    });
     const found = coversAvailable ? applyCoverFilter(filtered, coverFilter, marks, latest) : filtered;
     if (!series) return found;
     // D5: within a series, volume order (nulls last), so 2.5 sorts between 2 and 3.
@@ -47,7 +67,35 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       (a, b) =>
         (a.seriesVolume ?? Infinity) - (b.seriesVolume ?? Infinity) || a.title.localeCompare(b.title),
     );
-  }, [books, query, owner, edition, tagFilter, tags, series, coversAvailable, coverFilter, marks, latest]);
+  }, [
+    books,
+    query,
+    owner,
+    edition,
+    tagFilter,
+    tags,
+    series,
+    unhauled,
+    deluxe,
+    signed,
+    addedDay,
+    publishedFrom,
+    publishedTo,
+    coversAvailable,
+    coverFilter,
+    marks,
+    latest,
+  ]);
+  // D8: the Date added menu comes from the books the unhauled rule lets through, before the other filters.
+  const showUnhauled = showsUnhauled({ query, unhauled });
+  const addedOptions = useMemo(() => {
+    const pool = unhauled
+      ? books.filter(hasUnhauledCopy)
+      : query.trim() !== ""
+        ? books
+        : books.filter((b) => b.onShelf);
+    return dateAddedOptions(pool, showUnhauled, addedDay);
+  }, [books, unhauled, query, showUnhauled, addedDay]);
   function changeSeries(next: string | null) {
     setSeries(next);
     navigate({ name: "library", series: next ?? undefined });
@@ -93,7 +141,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const showNothingFound = coversAvailable && coverFilter === "nothing_found";
   const showFooter = coversAvailable && (coverFilter === "no_cover" || coverFilter === "marked");
   return (
-    <div>
+    <div ref={pageRef}>
       <LibraryFilters
         query={query}
         owner={owner}
@@ -104,23 +152,32 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         seriesNames={names}
         labels={labels}
         members={members}
-        onQuery={setQuery}
-        onOwner={setOwner}
-        onEdition={setEdition}
-        onTagFilter={setTagFilter}
+        onQuery={(query) => patch({ query })}
+        onOwner={(owner) => patch({ owner })}
+        onEdition={(edition) => patch({ edition })}
+        onTagFilter={(tags) => patch({ tags })}
         onSeries={changeSeries}
         tagsUnavailable={tagsError !== null}
         coverFilter={coverFilter}
         coversAvailable={coversAvailable}
-        onCoverFilter={setCoverFilter}
+        onCoverFilter={(coverFilter) => patch({ coverFilter })}
+        unhauled={unhauled}
+        deluxe={deluxe}
+        signed={signed}
+        addedDay={addedDay}
+        addedOptions={addedOptions}
+        publishedFrom={publishedFrom}
+        publishedTo={publishedTo}
+        onChange={patch}
       />
-      {visible.length === 0 ? (
-        <p className="p-6 text-center">No matching books</p>
-      ) : showNothingFound ? (
+      <p aria-live="polite" className={visible.length === 0 ? "p-6 text-center" : "px-4 pt-3 text-sm text-stone-600"}>
+        {visible.length === 0 ? "No matching books" : `${visible.length} ${visible.length === 1 ? "book" : "books"}`}
+      </p>
+      {visible.length === 0 ? null : showNothingFound ? (
         <NothingFoundList books={visible} />
       ) : (
         <div className={showFooter ? "pb-32" : undefined}>
-          <CoverWall books={visible} />
+          <CoverWall books={visible} viewKey={viewKey} />
         </div>
       )}
       {showFooter && <CoverBatchFooter books={visible} />}

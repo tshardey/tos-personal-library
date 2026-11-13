@@ -38,6 +38,7 @@ import {
   listBookTags,
   listLibibLedger,
   removeBookTag,
+  setCopyFlags,
 } from "./library-repo";
 import { fromBookPatch, toBook, type BookInput } from "./types";
 
@@ -102,7 +103,7 @@ describe("listBooks paging (RF1)", () => {
     await listBooks("h1");
     expect(stepArgs(0, "order")).toEqual([["title"], ["id"]]);
     expect(stepArgs(0, "eq")).toEqual([["household_id", "h1"]]);
-    expect(stepArgs(0, "select")).toEqual([["*, copies(*)"]]);
+    expect(stepArgs(0, "select")).toEqual([["*, on_shelf, copies(*)"]]);
   });
 
   it("a full last page, then an empty page, terminates", async () => {
@@ -349,5 +350,54 @@ describe("book tags", () => {
     const error = new Error("nope");
     h.results.push({ data: null, error });
     await expect(removeBookTag("b1", "fantasy")).rejects.toBe(error);
+  });
+});
+
+describe("copy flags", () => {
+  it("listBooks maps on_shelf and the copy flag columns", async () => {
+    h.results.push(
+      {
+        data: [
+          { id: "b1", title: "A", on_shelf: false, copies: [{ id: "c1", unhauled_at: "2026-05-01T00:00:00Z", deluxe: true }] },
+          { id: "b2", title: "B", copies: [{ id: "c2" }] },
+        ],
+        error: null,
+      },
+      { data: [], error: null },
+    );
+    const [one, two] = await listBooks("h1");
+    expect(one.onShelf).toBe(false);
+    expect(one.copies[0]).toMatchObject({ unhauledAt: "2026-05-01T00:00:00Z", deluxe: true, signed: false });
+    expect(two.onShelf).toBe(true);
+    expect(two.copies[0]).toMatchObject({ unhauledAt: null, deluxe: false, signed: false });
+  });
+
+  const COPY = {
+    id: "c1",
+    userEditedFields: ["location", "copyNote"],
+  } as Parameters<typeof setCopyFlags>[0];
+
+  it("setCopyFlags sends only the patched column and the sorted edited keys", async () => {
+    h.results.push({ data: null, error: null });
+    await setCopyFlags(COPY, { deluxe: true });
+    expect(h.queries[0].table).toBe("copies");
+    expect(stepArgs(0, "update")).toEqual([
+      [{ deluxe: true, user_edited_fields: ["copyNote", "deluxe", "location"] }],
+    ]);
+    expect(stepArgs(0, "eq")).toEqual([["id", "c1"]]);
+  });
+
+  it("setCopyFlags writes a null unhauled_at and marks unhauledAt", async () => {
+    h.results.push({ data: null, error: null });
+    await setCopyFlags(COPY, { unhauledAt: null });
+    expect(stepArgs(0, "update")).toEqual([
+      [{ unhauled_at: null, user_edited_fields: ["copyNote", "location", "unhauledAt"] }],
+    ]);
+  });
+
+  it("setCopyFlags rejects on a write error", async () => {
+    const error = { message: "boom" };
+    h.results.push({ data: null, error });
+    await expect(setCopyFlags(COPY, { signed: true })).rejects.toBe(error);
   });
 });

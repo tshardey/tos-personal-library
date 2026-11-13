@@ -28,6 +28,8 @@ export interface Book {
   publishDate: string | null;
   seriesName: string | null;
   seriesVolume: number | null;
+  /** Computed by the database: true when the book has a copy that hasn't been unhauled. */
+  onShelf: boolean;
   userEditedFields: string[];
   createdAt: string;
   updatedAt: string;
@@ -47,15 +49,25 @@ export interface Copy {
   libibId: string | null;
   photoPath: string | null;
   intakeItemId: string | null;
+  /** When the household let this copy go; null = still on the shelf. */
+  unhauledAt: string | null;
+  deluxe: boolean;
+  signed: boolean;
   userEditedFields: string[];
   createdAt: string;
   updatedAt: string;
 }
 
+export interface CopyFlagsPatch {
+  unhauledAt?: string | null;
+  deluxe?: boolean;
+  signed?: boolean;
+}
+
 export type BookWithCopies = Book & { copies: Copy[] };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Row = Record<string, any>;
+export type Row = Record<string, any>;
 
 const BOOK_COLUMNS = {
   id: "id",
@@ -73,6 +85,7 @@ const BOOK_COLUMNS = {
   publishDate: "publish_date",
   seriesName: "series_name",
   seriesVolume: "series_volume",
+  onShelf: "on_shelf",
   userEditedFields: "user_edited_fields",
   createdAt: "created_at",
   updatedAt: "updated_at",
@@ -95,6 +108,7 @@ export function toBook(row: Row): Book {
     publishDate: row.publish_date ?? null,
     seriesName: row.series_name ?? null,
     seriesVolume: row.series_volume ?? null,
+    onShelf: row.on_shelf !== false,
     userEditedFields: row.user_edited_fields ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -113,6 +127,9 @@ export function toCopy(row: Row): Copy {
     libibId: row.libib_id ?? null,
     photoPath: row.photo_path ?? null,
     intakeItemId: row.intake_item_id ?? null,
+    unhauledAt: row.unhauled_at ?? null,
+    deluxe: row.deluxe ?? false,
+    signed: row.signed ?? false,
     userEditedFields: row.user_edited_fields ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,

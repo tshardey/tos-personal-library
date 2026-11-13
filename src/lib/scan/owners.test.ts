@@ -23,6 +23,9 @@ const copy = (ownerUserId: string | null): Copy => ({
   libibId: null,
   photoPath: null,
   intakeItemId: null,
+  unhauledAt: null,
+  deluxe: false,
+  signed: false,
   userEditedFields: [],
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
@@ -43,6 +46,7 @@ const book = (owners: (string | null)[], over: Partial<BookWithCopies> = {}): Bo
   publishDate: null,
   seriesName: null,
   seriesVolume: null,
+  onShelf: true,
   userEditedFields: [],
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
@@ -140,5 +144,23 @@ describe("owned wording and flash", () => {
     expect(scanFlashKind({ line: "Already in library — Avery's copy", elsewhere: false })).toBe("notice");
     expect(scanFlashKind({ line: null, elsewhere: true })).toBe("notice");
     expect(scanFlashKind({ line: null, elsewhere: false })).toBe("accept");
+  });
+});
+
+describe("ownedInfo with unhauled copies", () => {
+  const unhauled = (owner: string | null): Copy => ({ ...copy(owner), unhauledAt: "2026-11-12T09:00:00Z" });
+
+  it("says we unhauled it when every matching copy is unhauled, and allows a re-bought copy", () => {
+    const b = book([], { copies: [unhauled(A)] });
+    const info = ownedInfo(ISBN, [b], members, [], "batch-1", A);
+    expect(info.line).toBe("We had this and unhauled it");
+    expect(info.recordedForOwner).toBe(false);
+  });
+
+  it("counts on-shelf copies only when naming owners", () => {
+    const b = book([], { copies: [unhauled(A), copy(null)] });
+    const info = ownedInfo(ISBN, [b], members, [], "batch-1", A);
+    expect(info.line).toBe("Already in library — shared copy");
+    expect(info.recordedForOwner).toBe(false);
   });
 });

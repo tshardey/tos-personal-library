@@ -110,6 +110,7 @@ export async function performConfirm(
         googleBooksId: input.googleBooksId ?? null,
         seriesName: null,
         seriesVolume: null,
+        onShelf: true,
         userEditedFields: [],
         createdAt: now,
         updatedAt: now,

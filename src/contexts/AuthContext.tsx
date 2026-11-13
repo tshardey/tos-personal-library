@@ -1,6 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
+import { clearCatalogCache } from "@/lib/catalog-cache";
+import { resetLibraryView } from "@/lib/library-view";
 import { supabase } from "@/lib/supabase";
+
+/** D9: the next person on this device starts with a fresh library view and no cached catalogue. */
+function forgetLibrary() {
+  clearCatalogCache();
+  resetLibraryView();
+}
 
 interface AuthContextValue {
   user: User | null;
@@ -26,7 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         if (active) setLoading(false);
       });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") forgetLibrary();
       setUser(session?.user ?? null);
       setLoading(false);
     });
@@ -47,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) throw error;
+    forgetLibrary();
   }, []);
 
   const value = useMemo(

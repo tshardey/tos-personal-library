@@ -1,4 +1,5 @@
 import type { ImportStore } from "@/lib/libib/apply";
+import { markEdited } from "@/lib/edited-fields";
 import { supabase } from "@/lib/supabase";
 import {
   fromBookPatch,
@@ -9,7 +10,9 @@ import {
   type BookInput,
   type BookWithCopies,
   type Copy,
+  type CopyFlagsPatch,
   type CopyInput,
+  type Row,
 } from "@/lib/types";
 
 // PostgREST caps a response at the project's Max Rows (1000 by default, possibly lower), so a short
@@ -35,7 +38,7 @@ export async function listBooks(householdId: string): Promise<BookWithCopies[]> 
   const rows = await readAllPages((from, to) =>
     supabase
       .from("books")
-      .select("*, copies(*)")
+      .select("*, on_shelf, copies(*)")
       .eq("household_id", householdId)
       .order("title")
       .order("id")
@@ -117,6 +120,24 @@ export async function updateCopy(
     .from("copies")
     .update({ ...fromCopyPatch(patch), user_edited_fields: editedFields })
     .eq("id", id);
+  if (error) throw error;
+}
+
+const COPY_FLAG_COLUMNS = {
+  unhauledAt: "unhauled_at",
+  deluxe: "deluxe",
+  signed: "signed",
+} as const satisfies Record<keyof CopyFlagsPatch, string>;
+
+/** Writes only the patched flag columns and records each key as a hand edit. */
+export async function setCopyFlags(copy: Copy, patch: CopyFlagsPatch): Promise<void> {
+  const keys = (Object.keys(patch) as (keyof CopyFlagsPatch)[]).filter((k) => patch[k] !== undefined);
+  const columns: Row = {};
+  for (const key of keys) columns[COPY_FLAG_COLUMNS[key]] = patch[key];
+  const { error } = await supabase
+    .from("copies")
+    .update({ ...columns, user_edited_fields: markEdited(copy.userEditedFields, keys) })
+    .eq("id", copy.id);
   if (error) throw error;
 }
 

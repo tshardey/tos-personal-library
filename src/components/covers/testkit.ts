@@ -19,6 +19,7 @@ export function mkBook(id: string, title: string, over: Partial<BookWithCopies> 
     publishDate: null,
     seriesName: null,
     seriesVolume: null,
+    onShelf: true,
     userEditedFields: [],
     createdAt: "",
     updatedAt: "",

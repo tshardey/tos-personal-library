@@ -18,7 +18,7 @@ import {
 } from "@/lib/scan/camera";
 import { createFeedback as browserFeedback, loadSoundOn, saveSoundOn, type Feedback } from "@/lib/scan/feedback";
 import { scansToHeal, type OutboxEntry } from "@/lib/scan/outbox";
-import { ELSEWHERE_LINE, ownedExplainLine, ownedInfo, scanFlashKind } from "@/lib/scan/owners";
+import { ELSEWHERE_LINE, UNHAULED_LINE, ownedExplainLine, ownedInfo, scanFlashKind } from "@/lib/scan/owners";
 import { createReadGate, idleDue, nudgeDue, REPEAT_WINDOW_MS } from "@/lib/scan/read-gate";
 import { loadDecoder as browserLoadDecoder, runScanLoop } from "@/lib/scan/scan-loop";
 import { clearSession, loadSession, saveSession, type ScanSession } from "@/lib/scan/session";
@@ -264,7 +264,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
       const info = ownedInfo(isbn, catalog, members, openItems, batchId, ownerUserId);
       return {
         ownedLines: [...(info.line ? [info.line] : []), ...(info.elsewhere ? [ELSEWHERE_LINE] : [])],
-        ...(info.line ? { owned: { explain: ownedExplainLine(info.recordedForOwner) } } : {}),
+        ...(info.line && info.line !== UNHAULED_LINE ? { owned: { explain: ownedExplainLine(info.recordedForOwner) } } : {}),
       };
     },
     [catalog, members, openItems, batchId],
