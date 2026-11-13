@@ -96,7 +96,7 @@ export async function unmarkForCover(bookId: string): Promise<boolean> {
   return data === true;
 }
 
-export type RequestOutcome = "queued" | "already_open" | "nothing_found" | "not_found";
+export type RequestOutcome = "queued" | "already_open" | "nothing_found" | "not_found" | "unhauled";
 
 export async function requestCoverSearches(
   householdId: string,

@@ -5,6 +5,7 @@ import { budgetOf, finderState, fns, mkBook, mkSearch } from "./testkit";
 const h = vi.hoisted(() => ({ state: {} as Record<string, unknown> }));
 vi.mock("@/contexts/CoverFinderContext", () => ({ useCoverFinder: () => h.state }));
 import CoverBatchFooter from "./CoverBatchFooter";
+import { applyCoverFilter } from "@/lib/covers/eligibility";
 
 const many = (n: number) => Array.from({ length: n }, (_, i) => mkBook("b" + i, "Title " + i));
 
@@ -118,5 +119,17 @@ describe("CoverBatchFooter", () => {
   it("pads for the safe area", () => {
     const { container } = render(<CoverBatchFooter books={many(3)} />);
     expect((container.firstChild as HTMLElement).className).toContain("safe-area-inset-bottom");
+  });
+  it("with a search showing an unhauled book and No cover, counts and requests only the on-shelf ones", () => {
+    const books = [
+      mkBook("P", "Title P", { coverUrl: null }),
+      mkBook("U", "Title U", { coverUrl: null, onShelf: false }),
+      mkBook("Z", "Title Z", { coverUrl: null }),
+    ];
+    const visible = applyCoverFilter(books, "no_cover", new Map(), new Map());
+    render(<CoverBatchFooter books={visible} />);
+    expect(screen.getByText("2 books · under $0.01")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Find covers" }));
+    expect(fns.requestBatch).toHaveBeenCalledWith(["P", "Z"]);
   });
 });
