@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listBooks = vi.fn();
@@ -11,7 +11,7 @@ vi.mock("@/contexts/HouseholdContext", () => ({
   useHousehold: () => ({ household: { id: "h1" } }),
 }));
 
-import { useCatalog } from "./useCatalog";
+import { clearCatalogCache, useCatalog } from "./useCatalog";
 
 beforeEach(() => {
   listBooks.mockReset();
@@ -39,5 +39,60 @@ describe("useCatalog tags", () => {
     expect(result.current.error).toBeNull();
     expect(result.current.tagsError).toBe("Tome of Secrets tags unavailable");
     expect(result.current.tags.size).toBe(0);
+  });
+});
+
+describe("useCatalog cache (D9)", () => {
+  it("a second mount for the same household starts from the cache and refreshes in the background", async () => {
+    listBooks.mockResolvedValue([{ id: "b1" }]);
+    listBookTags.mockResolvedValue(new Map([["b1", ["fantasy"]]]));
+    const first = renderHook(() => useCatalog());
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    first.unmount();
+    expect(listBooks).toHaveBeenCalledTimes(1);
+
+    listBooks.mockResolvedValue([{ id: "b1" }, { id: "b2" }]);
+    const renders: ReturnType<typeof useCatalog>[] = [];
+    const second = renderHook(() => {
+      const r = useCatalog();
+      renders.push(r);
+      return r;
+    });
+    // The very first render: no Loading screen, the cached books.
+    const firstRender = renders[0];
+    expect(firstRender.loading).toBe(false);
+    expect(firstRender.books).toEqual([{ id: "b1" }]);
+    expect(firstRender.tags.get("b1")).toEqual(["fantasy"]);
+    await waitFor(() => expect(second.result.current.books).toHaveLength(2));
+    expect(listBooks).toHaveBeenCalledTimes(2);
+    expect(second.result.current.loading).toBe(false);
+  });
+
+  it("clearCatalogCache makes the next mount show loading again", async () => {
+    listBooks.mockResolvedValue([{ id: "b1" }]);
+    listBookTags.mockResolvedValue(new Map());
+    const first = renderHook(() => useCatalog());
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    first.unmount();
+
+    clearCatalogCache();
+    const second = renderHook(() => useCatalog());
+    expect(second.result.current.loading).toBe(true);
+    expect(second.result.current.books).toEqual([]);
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+  });
+
+  it("reload() after an edit updates the cache for the next mount", async () => {
+    listBooks.mockResolvedValue([{ id: "b1" }]);
+    listBookTags.mockResolvedValue(new Map());
+    const first = renderHook(() => useCatalog());
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    listBooks.mockResolvedValue([{ id: "b1" }, { id: "b3" }]);
+    await act(() => first.result.current.reload());
+    first.unmount();
+
+    listBooks.mockReturnValue(new Promise(() => {}));
+    const second = renderHook(() => useCatalog());
+    expect(second.result.current.books).toEqual([{ id: "b1" }, { id: "b3" }]);
   });
 });

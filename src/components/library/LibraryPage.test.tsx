@@ -266,3 +266,33 @@ describe("LibraryPage copy flag filters", () => {
     expect(card(container, "Glass Orchard")).not.toBeNull();
   });
 });
+
+describe("LibraryPage keeps its view across leaving the page (D9)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.location.hash = "";
+    setCatalog();
+  });
+
+  it("restores the search box and the Deluxe chip after unmount and remount", () => {
+    const first = render(<LibraryPage />);
+    fireEvent.change(screen.getByLabelText("Search books"), { target: { value: "Salt" } });
+    fireEvent.click(screen.getByRole("button", { name: "Deluxe" }));
+    first.unmount();
+
+    render(<LibraryPage />);
+    expect(screen.getByLabelText("Search books")).toHaveValue("Salt");
+    expect(screen.getByRole("button", { name: "Deluxe" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("clicking a card saves an anchor keyed to the view and the series", async () => {
+    const { takeScrollAnchor } = await import("@/lib/library-view");
+    const { container } = render(<LibraryPage series="Saga" />);
+    const link = container.querySelector('[data-book-id="a"]') as HTMLElement;
+    link.getBoundingClientRect = () => ({ top: 42 }) as DOMRect;
+    fireEvent.click(link.querySelector("p") ?? link);
+    const anchor = takeScrollAnchor();
+    expect(anchor).toMatchObject({ bookId: "a", top: 42, scrollY: 0 });
+    expect(JSON.parse(anchor!.viewKey)).toMatchObject({ query: "", series: "Saga" });
+  });
+});

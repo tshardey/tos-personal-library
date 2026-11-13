@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CoverBatchFooter from "@/components/covers/CoverBatchFooter";
 import NothingFoundList from "@/components/covers/NothingFoundList";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
+import { useRestoreScroll } from "@/hooks/useRestoreScroll";
 import { applyCoverFilter } from "@/lib/covers/eligibility";
 import { editionLabels } from "@/lib/editions";
 import { hasUnhauledCopy } from "@/lib/copy-flags";
 import { dateAddedOptions } from "@/lib/date-added";
 import { filterBooks, showsUnhauled } from "@/lib/filter-books";
-import { DEFAULT_VIEW, type LibraryView } from "@/lib/library-view";
+import { useLibraryView } from "@/lib/library-view";
 import { navigate } from "@/lib/router";
 import { seriesNames } from "@/lib/series";
 import { loadTosTags, type TosTag } from "@/lib/tos-tags";
@@ -17,15 +18,19 @@ import CoverWall from "./CoverWall";
 import LibraryFilters from "./LibraryFilters";
 
 export default function LibraryPage({ series: routeSeries }: { series?: string } = {}) {
-  const { members } = useHousehold();
+  const { household, members } = useHousehold();
   const { books, tags, loading, error, tagsError, reload } = useCatalog();
-  const [view, setView] = useState<LibraryView>(DEFAULT_VIEW);
+  // D9: the view outlives this page, so going back from a book finds the search and filters intact.
+  const [view, patch] = useLibraryView(household?.id ?? null);
   const { query, owner, edition, tags: tagFilter, coverFilter, unhauled, deluxe, signed, addedDay, publishedFrom, publishedTo } =
     view;
-  const patch = (p: Partial<LibraryView>) => setView((v) => ({ ...v, ...p }));
   const [series, setSeries] = useState<string | null>(routeSeries ?? null);
   const { available: coversAvailable, marks, latest } = useCoverFinder();
   const [tosTags, setTosTags] = useState<TosTag[]>([]);
+  // The series stays in the route; the anchor's key covers both.
+  const viewKey = JSON.stringify({ ...view, series: routeSeries ?? null });
+  const pageRef = useRef<HTMLDivElement>(null);
+  useRestoreScroll(!loading, viewKey, pageRef);
   useEffect(() => {
     setSeries(routeSeries ?? null);
   }, [routeSeries]);
@@ -136,7 +141,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const showNothingFound = coversAvailable && coverFilter === "nothing_found";
   const showFooter = coversAvailable && (coverFilter === "no_cover" || coverFilter === "marked");
   return (
-    <div>
+    <div ref={pageRef}>
       <LibraryFilters
         query={query}
         owner={owner}
@@ -172,7 +177,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         <NothingFoundList books={visible} />
       ) : (
         <div className={showFooter ? "pb-32" : undefined}>
-          <CoverWall books={visible} />
+          <CoverWall books={visible} viewKey={viewKey} />
         </div>
       )}
       {showFooter && <CoverBatchFooter books={visible} />}
