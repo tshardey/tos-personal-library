@@ -25,9 +25,9 @@ describe("CoverBatchFooter", () => {
     expect(screen.getByText("1 book · under $0.01")).toBeInTheDocument();
   });
 
-  it("shows a dollar estimate for 30", () => {
-    render(<CoverBatchFooter books={many(30)} />);
-    expect(screen.getByText("30 books · about $0.03")).toBeInTheDocument();
+  it("shows a dollar estimate for 60", () => {
+    render(<CoverBatchFooter books={many(60)} />);
+    expect(screen.getByText("60 books · about $0.03")).toBeInTheDocument();
   });
 
   it("leaves out open and nothing-found books", async () => {
@@ -59,7 +59,7 @@ describe("CoverBatchFooter", () => {
   });
 
   it("shows the near-limit line and keeps the button enabled", () => {
-    h.state = finderState({ budget: budgetOf(2000) });
+    h.state = finderState({ budget: budgetOf(1000) });
     render(<CoverBatchFooter books={many(3)} />);
     expect(screen.getByText("This month's budget covers about 2 of these 3 books.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Find covers" })).toBeEnabled();

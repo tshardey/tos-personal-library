@@ -1,7 +1,7 @@
 import type { CoverBudget } from "./types";
 
-/** Replaced by Task 10's measurement. */
-export const PER_BOOK_ESTIMATE_MICRO = 1000;
+/** Task 10's measured mean cost per screened book × 1.5, rounded up to 100 µ$. */
+export const PER_BOOK_ESTIMATE_MICRO = 500;
 
 export function estimateMicro(n: number): number {
   return n * PER_BOOK_ESTIMATE_MICRO;

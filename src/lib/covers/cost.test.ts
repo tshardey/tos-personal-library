@@ -12,7 +12,7 @@ const base: CoverBudget = {
 };
 
 describe("cost", () => {
-  it("estimateMicro", () => expect(estimateMicro(30)).toBe(30000));
+  it("estimateMicro", () => expect(estimateMicro(30)).toBe(15000));
   it("formatUsd", () => {
     expect(formatUsd(30000)).toBe("$0.03");
     expect(formatUsd(5)).toBe("under $0.01");
@@ -20,7 +20,7 @@ describe("cost", () => {
   });
   it("booksCovered near limit", () => {
     expect(remainingMicro(base)).toBe(10_000);
-    expect(booksCovered(base)).toBe(10);
+    expect(booksCovered(base)).toBe(20);
     expect(budgetUsedUp(base)).toBe(false);
   });
   it("used up below the reserve", () => {
