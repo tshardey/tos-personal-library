@@ -1,4 +1,4 @@
-# Plan 6: Unhauled, Deluxe and Signed copies, date-added filter, scroll position — design
+# Plan 6: Unhauled, Deluxe and Signed copies, new filters, result count, scroll position — design
 
 Status: designed with Tierra on 2026-11-12; builder check done and its questions settled as Claude's calls. Awaiting Tierra's review of this document.
 
@@ -7,6 +7,7 @@ Status: designed with Tierra on 2026-11-12; builder check done and its questions
 - **Unhauling.** Tierra trades books in for store credit and donates originals to free libraries or book exchanges after buying a deluxe edition. Today the only option is deleting the copy, which loses the record that the household once owned it and chose to let it go.
 - **Deluxe and Signed.** Tierra owns many publisher deluxe editions. Today "deluxe" lives only as free text in a copy's edition note (often moved there from the title by the libib import, e.g. "(Deluxe Edition)"). They want a simple on/off toggle for each, with the note kept for anything else.
 - **Date added.** After a bulk import, Tierra wants to check that day's books in one pass.
+- **Counts and publish date.** Tierra wants to see how many books match the current filters, and to filter by publication date.
 - **Scroll position.** Opening a book from far down the list and going back returns to the top of the list. This is a bug.
 
 ## 2. What success looks like
@@ -21,13 +22,16 @@ Status: designed with Tierra on 2026-11-12; builder check done and its questions
 
 **Goals**
 - Per-copy **Unhauled**, **Deluxe** and **Signed** toggles.
-- A **Date added** filter.
+- A **Date added** filter and a **Published** (year) filter.
+- A total count of matching books that follows the filters and search.
 - Keep the list's scroll position (and its filters and search) across opening a book and going back.
 
 **Non-goals**
 - Recording who an unhauled copy went to, or what it was traded for. The copy note covers that if wanted.
 - The UI overhaul (editing in a drawer, the cover finder's bottom bar). That is a later plan, designed around these new fields.
 - Searching descriptions with Claude. That is a later plan with its own brainstorm.
+- **Read status per household member** (backfilled from ToS and a StoryGraph CSV export, so each person can see what fraction of the physical library they've read). That is a later plan; it needs its own data model for who read what.
+- Richer summary numbers beyond the one count (for example by owner or by genre). These can come with the read-status plan.
 
 **Anti-goals** (failure even if it technically works)
 - **An unhauled copy that silently disappears.** It must stay findable by search and by the Unhauled filter.
@@ -73,7 +77,18 @@ Status: designed with Tierra on 2026-11-12; builder check done and its questions
 - It follows the same unhauled rule as the rest of the list: unhauled copies count, and their books show, only when the Unhauled filter is on or in search results. *(Claude's call.)*
 - Copies from the original libib import all share the day of that import, not libib's own "date added". That's acceptable for the bulk-import use case.
 
-### 5.5 Scroll position
+### 5.5 Result count (Tierra)
+
+- The list and the cover wall show how many books match what's on screen, for example "42 books", and the number updates as filters and search change. *(Claude's call: books, not copies, since the list shows books; the Date added filter's own menu counts copies, §5.4.)*
+- Hidden unhauled books aren't counted unless the Unhauled filter is on or a search is showing them.
+
+### 5.6 Published filter (Tierra)
+
+- Filter by publication **year**, as a from/to year range (either end can be left open). *(Claude's call: a year range covers "new releases" and "older books" without a calendar picker.)*
+- `books.publish_date` is free text from the cover and metadata sources. Today 251 of 256 books have a usable four-digit year in it; most are full dates and some are a year alone. The filter reads the year out of the text. Books with no year are left out while the filter is on.
+- The date comes from whichever edition the metadata describes, so for reprints and translations it may be the edition's year rather than the original's. That's acceptable for now.
+
+### 5.7 Scroll position
 
 - Going back from a book page restores the list's scroll position, filters and search text, for both the list and the cover wall. Covers loading in after the return must not push the list away from where the person was.
 
