@@ -671,12 +671,12 @@ export function useRestoreScroll(ready: boolean, viewKey: string, container: Ref
 2. **Signed in Tome of Secrets,** if a quest or tag ever uses it.
 3. **Persist the view across reloads** (`sessionStorage`, `tpl_` prefix), if a reload losing the filters turns out to annoy.
 
-## Open questions for the user
+## Open questions for the user (resolved)
 
-None blocks building; each has a default the plan builds, which the user can overturn in review.
+All five were resolved on 2026-11-12: Tierra approved each default below. The plan builds them as written.
 
-1. **Find now on an unhauled book's page (D5). Default:** allowed, because it is an explicit request. Batches and the No cover filter leave unhauled books out as the spec says.
-2. **The scan line for a book you unhauled (Task 6). Default:** `We had this and unhauled it`, and scanning a re-bought copy is allowed.
-3. **Copy filters combine per filter, not per copy (D7). Default:** "Member B + Deluxe" matches a book where Member B owns one on-shelf copy and another on-shelf copy is deluxe, as the owner and edition filters already work.
-4. **Deluxe shows as an edition label in ToS (D10). Default:** yes, so the Special / Illuminated Edition suggestion fires for deluxe copies whose note is empty.
-5. **Filters persist for the session, not across a reload (D9). Default:** in memory only.
+1. **Find now on an unhauled book's page (D5). Resolved: allowed**, because it is an explicit request. Batches and the No cover filter leave unhauled books out as the spec says.
+2. **The scan line for a book you unhauled (Task 6). Resolved:** `We had this and unhauled it`, and scanning a re-bought copy is allowed.
+3. **Copy filters combine per filter, not per copy (D7). Resolved: per filter.** "Member B + Deluxe" matches a book where Member B owns one on-shelf copy and another on-shelf copy is deluxe, as the owner and edition filters already work.
+4. **Deluxe shows as an edition label in ToS (D10). Resolved: yes**, so the Special / Illuminated Edition suggestion fires for deluxe copies whose note is empty.
+5. **Filters persist for the session, not across a reload (D9). Resolved:** in memory only.
