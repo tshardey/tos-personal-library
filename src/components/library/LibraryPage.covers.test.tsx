@@ -21,7 +21,7 @@ vi.mock("@/lib/tos-tags", async (importOriginal) => ({
 }));
 import LibraryPage from "./LibraryPage";
 
-const copy = (owner: string | null) => ({ ownerUserId: owner }) as Copy;
+const copy = (owner: string | null) => ({ ownerUserId: owner, unhauledAt: null }) as Copy;
 const withCover = (id: string, title: string) => mkBook(id, title, { coverUrl: "https://example.test/c.jpg" });
 
 function setCatalog(books: BookWithCopies[]) {
