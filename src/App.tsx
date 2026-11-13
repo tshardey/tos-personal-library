@@ -11,6 +11,7 @@ import AddBook from "@/components/book/AddBook";
 import ImportPage from "@/components/import/ImportPage";
 import InboxPage from "@/components/inbox/InboxPage";
 import ChunkErrorBoundary from "@/components/common/ChunkErrorBoundary";
+import EditionLabelsPage from "@/components/edition/EditionLabelsPage";
 import CoverReviewPage from "@/components/covers/CoverReviewPage";
 import CoverStopBanner from "@/components/covers/CoverStopBanner";
 import CoversBadge from "@/components/covers/CoversBadge";
@@ -72,6 +73,8 @@ function SignedIn() {
           <InboxPage />
         ) : route.name === "covers" ? (
           <CoverReviewPage />
+        ) : route.name === "editions" ? (
+          <EditionLabelsPage />
         ) : route.name === "scan" ? (
           <ChunkErrorBoundary>
             <Suspense fallback={<p className="p-6">Loading…</p>}>

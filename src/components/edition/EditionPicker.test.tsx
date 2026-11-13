@@ -43,6 +43,14 @@ describe("EditionPicker", () => {
     fireEvent.change(screen.getByLabelText("Filter editions"), { target: { value: "invented box" } });
     expect(screen.queryByRole("button", { name: /^Add "/ })).not.toBeInTheDocument();
   });
+  it("Enter on a label differing only by case and spaces stores the existing spelling", () => {
+    const onChange = setup();
+    open();
+    fireEvent.change(screen.getByLabelText("Filter editions"), { target: { value: "  oTHER box " } });
+    expect(screen.getByRole("button", { name: "Other Box" })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByLabelText("Filter editions"), { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith("Other Box");
+  });
   it("None clears the edition", () => {
     const onChange = setup("Other Box");
     open();

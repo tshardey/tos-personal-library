@@ -49,6 +49,13 @@ export default function AccountMenu({ email, onSignOut }: Props) {
       {open && (
         <div id={panelId} className="absolute right-0 z-20 mt-1 w-64 rounded border bg-white p-3 shadow">
           <p className="mb-2 break-words text-sm text-stone-600">{email}</p>
+          <a
+            href="#/editions"
+            onClick={() => setOpen(false)}
+            className="mb-2 flex min-h-10 w-full items-center justify-center rounded border px-3 py-2"
+          >
+            Edition labels
+          </a>
           <button type="button" onClick={onSignOut} className="min-h-10 w-full rounded border px-3 py-2">
             Sign out
           </button>
