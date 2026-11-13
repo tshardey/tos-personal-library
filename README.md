@@ -154,6 +154,20 @@ The list keeps its place, search and filters when you open a book and go back. A
 
 **Requires** the Tome of Secrets `library-copy-flags` migration.
 
+## Edition labels
+
+A copy's edition label (its edition note, for example `Lantern Box` or `Harbor Press`) says where that edition is from. Deluxe and Signed are separate toggles, so a label doesn't need them.
+
+**Tidying labels.** `Edition labels` in the account menu lists every label in the household with its number of copies. Spellings that differ only by case are listed apart so one can be merged into the other. `Rename` changes the label on every copy that has exactly that label (ignoring surrounding spaces):
+
+- A new name that matches another label, ignoring case and surrounding spaces, **merges** into it, keeping that label's spelling. The screen shows how many copies the merged label will have.
+- A blank name clears the label from those copies.
+- Nothing is written until you confirm, and the confirmation names how many copies will change.
+
+Each changed copy is marked as hand-edited, so a later libib import doesn't undo it. Nothing else on the copy changes. A library `Edition` filter on the old label moves to the new one. Open Inbox items and a scan session's edition keep their own label until they are confirmed or changed.
+
+**Avoiding new duplicates.** Wherever an edition is chosen (a book's copies, Add book, Scan, the Inbox cards, batch uploads and bulk confirm), the picker suggests the household's labels as you type, and a typed label that differs from one of them only by case or surrounding spaces uses the existing spelling.
+
 ## Tome of Secrets
 
 The book page has a Tome of Secrets section with the book's tags, grouped by category. The labels come from ToS's published `bookTags.json` (the app keeps the last good copy if the fetch fails; with no copy, tags show as raw ids). Tags are shared per book: everyone in the household sees the same ones, and the library list can filter by them.

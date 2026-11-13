@@ -7,7 +7,8 @@ export type Route =
   | { name: "import" }
   | { name: "inbox" }
   | { name: "scan" }
-  | { name: "covers" };
+  | { name: "covers" }
+  | { name: "editions" };
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, "");
@@ -16,6 +17,7 @@ export function parseHash(hash: string): Route {
   if (path === "/inbox") return { name: "inbox" };
   if (path === "/scan") return { name: "scan" };
   if (path === "/covers") return { name: "covers" };
+  if (path === "/editions") return { name: "editions" };
   const sm = /^\/series\/(.+)$/.exec(path);
   if (sm) {
     try {
@@ -47,6 +49,8 @@ export function routeToHash(route: Route): string {
       return "#/scan";
     case "covers":
       return "#/covers";
+    case "editions":
+      return "#/editions";
     case "book":
       return `#/book/${encodeURIComponent(route.id)}`;
     case "library":

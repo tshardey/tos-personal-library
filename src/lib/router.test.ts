@@ -54,3 +54,11 @@ describe("covers route", () => {
     expect(tabFor({ name: "covers" })).toBe("library");
   });
 });
+
+describe("editions route", () => {
+  it("parses #/editions, round-trips it, and belongs to the Library tab", () => {
+    expect(parseHash("#/editions")).toEqual({ name: "editions" });
+    expect(routeToHash({ name: "editions" })).toBe("#/editions");
+    expect(tabFor({ name: "editions" })).toBe("library");
+  });
+});
