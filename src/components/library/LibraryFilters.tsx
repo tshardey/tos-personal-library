@@ -1,4 +1,6 @@
 import type { CoverFilter } from "@/lib/covers/eligibility";
+import { dayLabel } from "@/lib/date-added";
+import type { LibraryView } from "@/lib/library-view";
 import type { OwnerFilter } from "@/lib/filter-books";
 import type { HouseholdMember } from "@/lib/types";
 import { groupTags, isSharedTag, type TosTag } from "@/lib/tos-tags";
@@ -23,6 +25,50 @@ interface Props {
   coverFilter: CoverFilter;
   coversAvailable: boolean;
   onCoverFilter(f: CoverFilter): void;
+  unhauled: boolean;
+  deluxe: boolean;
+  signed: boolean;
+  addedDay: string | null;
+  addedOptions: { day: string; copies: number }[];
+  publishedFrom: number | null;
+  publishedTo: number | null;
+  onChange(patch: Partial<LibraryView>): void;
+}
+
+/** Strict whole number from typed text; anything else is no bound. */
+function parseYear(text: string): number | null {
+  const t = text.trim();
+  return /^\d+$/.test(t) ? Number(t) : null;
+}
+
+function YearInput({
+  label,
+  value,
+  onValue,
+}: {
+  label: string;
+  value: number | null;
+  onValue(n: number | null): void;
+}) {
+  const [text, setText] = useState(value === null ? "" : String(value));
+  // Follow outside changes (a reset), but keep what was typed while it still parses to the same bound.
+  useEffect(() => {
+    setText((t) => (parseYear(t) === value ? t : value === null ? "" : String(value)));
+  }, [value]);
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      aria-label={label}
+      placeholder={label.endsWith("from") ? "From" : "To"}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onValue(parseYear(e.target.value));
+      }}
+      className="w-24 rounded border px-3 py-2"
+    />
+  );
 }
 
 export default function LibraryFilters({
@@ -44,6 +90,14 @@ export default function LibraryFilters({
   coverFilter,
   coversAvailable,
   onCoverFilter,
+  unhauled,
+  deluxe,
+  signed,
+  addedDay,
+  addedOptions,
+  publishedFrom,
+  publishedTo,
+  onChange,
 }: Props) {
   const [tagsOpen, setTagsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -123,6 +177,26 @@ export default function LibraryFilters({
           <option value="nothing_found">Nothing found</option>
         </select>
       )}
+      <select
+        aria-label="Date added"
+        value={addedDay ?? ""}
+        onChange={(e) => onChange({ addedDay: e.target.value === "" ? null : e.target.value })}
+        className="w-full rounded border px-3 py-2"
+      >
+        <option value="">Any day</option>
+        {addedOptions.map((o) => (
+          <option key={o.day} value={o.day}>
+            {`${dayLabel(o.day)} · ${o.copies}`}
+          </option>
+        ))}
+      </select>
+      <div role="group" aria-labelledby="published-label" className="flex items-center gap-2">
+        <span id="published-label" className="text-sm">
+          Published
+        </span>
+        <YearInput label="Published from" value={publishedFrom} onValue={(n) => onChange({ publishedFrom: n })} />
+        <YearInput label="Published to" value={publishedTo} onValue={(n) => onChange({ publishedTo: n })} />
+      </div>
       {tagsUnavailable && <p className="text-sm text-stone-700">Tome of Secrets tags unavailable.</p>}
       {!tagsUnavailable && (shared.length > 0 || tagFilter.length > 0) && (
         <div className="flex flex-wrap items-center gap-2">
@@ -193,6 +267,25 @@ export default function LibraryFilters({
             }`}
           >
             {c.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2 overflow-x-auto">
+        {(
+          [
+            ["Deluxe", deluxe, "deluxe"],
+            ["Signed", signed, "signed"],
+            ["Unhauled", unhauled, "unhauled"],
+          ] as const
+        ).map(([label, on, key]) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange({ [key]: !on })}
+            className={`shrink-0 rounded-full border px-3 py-1 text-sm ${on ? "bg-stone-800 text-white" : "bg-white"}`}
+          >
+            {label}
           </button>
         ))}
       </div>

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import BookCard from "./BookCard";
 import type { BookWithCopies } from "@/lib/types";
+import { bookFixture, copyFixture } from "@/lib/flag-fixtures";
 
 function make(coverUrl: string | null): BookWithCopies {
   return {
@@ -66,5 +67,19 @@ describe("BookCard", () => {
     render(<BookCard book={make("http://x/broken.jpg")} photoUrl="http://x/p.jpg" />);
     fireEvent.error(screen.getByAltText("Slewfoot cover"));
     expect(screen.getByAltText("Slewfoot, photo of our copy")).toBeInTheDocument();
+  });
+  it("tags its link with the book id", () => {
+    render(<BookCard book={make(null)} />);
+    expect(screen.getByRole("link")).toHaveAttribute("data-book-id", "b1");
+  });
+  it("shows Deluxe and Signed badges, and Unhauled when off the shelf", () => {
+    const on = bookFixture("A", [copyFixture({ deluxe: true, signed: true })]);
+    const { unmount } = render(<BookCard book={on} />);
+    expect(screen.getByText("Deluxe")).toBeInTheDocument();
+    expect(screen.getByText("Signed")).toBeInTheDocument();
+    expect(screen.queryByText("Unhauled")).not.toBeInTheDocument();
+    unmount();
+    render(<BookCard book={bookFixture("B", [copyFixture({ unhauledAt: "2026-11-12T20:00:00" })])} />);
+    expect(screen.getByText("Unhauled")).toBeInTheDocument();
   });
 });
