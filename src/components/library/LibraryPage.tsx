@@ -16,10 +16,11 @@ import { seriesNames } from "@/lib/series";
 import { loadTosTags, type TosTag } from "@/lib/tos-tags";
 import CoverWall from "./CoverWall";
 import LibraryFilters from "./LibraryFilters";
+import MassEditSheet from "./MassEditSheet";
 
 export default function LibraryPage({ series: routeSeries }: { series?: string } = {}) {
   const { household, members } = useHousehold();
-  const { books, tags, loading, error, tagsError, reload } = useCatalog();
+  const { books, tags, loading, error, tagsError, reload, refresh } = useCatalog();
   // D9: the view outlives this page, so going back from a book finds the search and filters intact.
   const [view, patch] = useLibraryView(household?.id ?? null);
   const { query, owner, edition, tags: tagFilter, coverFilter, unhauled, deluxe, signed, addedDay, publishedFrom, publishedTo } =
@@ -27,6 +28,11 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const [series, setSeries] = useState<string | null>(routeSeries ?? null);
   const { available: coversAvailable, marks, latest } = useCoverFinder();
   const [tosTags, setTosTags] = useState<TosTag[]>([]);
+  // Select mode: plain state, so the ticks stay while scrolling and changing the search or filters.
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+  const [editing, setEditing] = useState(false);
+  const [editStatus, setEditStatus] = useState<string | null>(null);
   // The series stays in the route; the anchor's key covers both.
   const viewKey = JSON.stringify({ ...view, series: routeSeries ?? null });
   const pageRef = useRef<HTMLDivElement>(null);
@@ -96,6 +102,25 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         : books.filter((b) => b.onShelf);
     return dateAddedOptions(pool, showUnhauled, addedDay);
   }, [books, unhauled, query, showUnhauled, addedDay]);
+  // Books in catalogue order; a book deleted meanwhile drops out.
+  const selectedBooks = useMemo(() => books.filter((b) => selectedIds.has(b.id)), [books, selectedIds]);
+  function toggleSelected(bookId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(bookId)) next.delete(bookId);
+      else next.add(bookId);
+      return next;
+    });
+  }
+  function startSelecting() {
+    setEditStatus(null);
+    setSelecting(true);
+  }
+  function stopSelecting() {
+    setSelecting(false);
+    setEditing(false);
+    setSelectedIds(new Set());
+  }
   function changeSeries(next: string | null) {
     setSeries(next);
     navigate({ name: "library", series: next ?? undefined });
@@ -139,7 +164,9 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
     );
   }
   const showNothingFound = coversAvailable && coverFilter === "nothing_found";
-  const showFooter = coversAvailable && (coverFilter === "no_cover" || coverFilter === "marked");
+  // The cover batch footer and the selection bar share the bottom edge; selecting wins.
+  const showFooter = !selecting && coversAvailable && (coverFilter === "no_cover" || coverFilter === "marked");
+  const allShownSelected = visible.length > 0 && visible.every((b) => selectedIds.has(b.id));
   return (
     <div ref={pageRef}>
       <LibraryFilters
@@ -170,17 +197,89 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         publishedTo={publishedTo}
         onChange={patch}
       />
-      <p aria-live="polite" className={visible.length === 0 ? "p-6 text-center" : "px-4 pt-3 text-sm text-stone-600"}>
-        {visible.length === 0 ? "No matching books" : `${visible.length} ${visible.length === 1 ? "book" : "books"}`}
-      </p>
+      {editStatus && (
+        <p role="status" className="px-4 pt-3 text-sm">
+          {editStatus}
+        </p>
+      )}
+      <div className={visible.length === 0 ? "p-6 text-center" : "flex items-center justify-between gap-2 px-4 pt-3"}>
+        <p aria-live="polite" className={visible.length === 0 ? undefined : "text-sm text-stone-600"}>
+          {visible.length === 0 ? "No matching books" : `${visible.length} ${visible.length === 1 ? "book" : "books"}`}
+        </p>
+        {visible.length > 0 && !showNothingFound && (
+          <div className="flex gap-2">
+            {selecting ? (
+              <button
+                type="button"
+                disabled={allShownSelected}
+                onClick={() => setSelectedIds((prev) => new Set([...prev, ...visible.map((b) => b.id)]))}
+                className="min-h-10 rounded border px-3 text-sm disabled:opacity-50"
+              >
+                Select all
+              </button>
+            ) : (
+              <button type="button" onClick={startSelecting} className="min-h-10 rounded border px-3 text-sm">
+                Select
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {visible.length === 0 ? null : showNothingFound ? (
         <NothingFoundList books={visible} />
       ) : (
-        <div className={showFooter ? "pb-32" : undefined}>
-          <CoverWall books={visible} viewKey={viewKey} />
+        <div className={showFooter || selecting ? "pb-32" : undefined}>
+          <CoverWall
+            books={visible}
+            viewKey={viewKey}
+            selection={selecting ? { ids: selectedIds, toggle: toggleSelected } : undefined}
+          />
         </div>
       )}
       {showFooter && <CoverBatchFooter books={visible} />}
+      {selecting && (
+        <div
+          role="region"
+          aria-label="Selection"
+          className="fixed inset-x-0 bottom-0 z-10 border-t bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+        >
+          <div className="mx-auto flex max-w-3xl items-center justify-between gap-2">
+            <p className="text-sm font-medium">{`${selectedBooks.length} selected`}</p>
+            <div className="flex gap-2">
+              {selectedBooks.length > 0 && (
+                <button type="button" onClick={() => setSelectedIds(new Set())} className="min-h-10 rounded border px-3">
+                  Clear
+                </button>
+              )}
+              <button type="button" onClick={stopSelecting} className="min-h-10 rounded border px-3">
+                Done
+              </button>
+              <button
+                type="button"
+                disabled={selectedBooks.length === 0}
+                onClick={() => setEditing(true)}
+                className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+              >
+                Edit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {editing && selectedBooks.length > 0 && (
+        <MassEditSheet
+          selected={selectedBooks}
+          catalog={books}
+          labels={labels}
+          members={members}
+          refresh={refresh}
+          onClose={() => setEditing(false)}
+          onDone={(summary) => {
+            setEditStatus(summary);
+            stopSelecting();
+          }}
+        />
+      )}
     </div>
   );
 }

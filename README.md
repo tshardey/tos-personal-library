@@ -168,6 +168,18 @@ Each changed copy is marked as hand-edited, so a later libib import doesn't undo
 
 **Avoiding new duplicates.** Wherever an edition is chosen (a book's copies, Add book, Scan, the Inbox cards, batch uploads and bulk confirm), the picker suggests the household's labels as you type, and a typed label that differs from one of them only by case or surrounding spaces uses the existing spelling.
 
+## Mass edit
+
+`Select` above the library's cover wall turns each book into a tickbox. `Select all` adds every book the current search and filters show, and ticks stay while you scroll or change the search, so a selection can be built up from several searches. The bar at the bottom shows `n selected`, `Clear`, `Done` (leaves select mode) and `Edit`.
+
+`Edit` opens a sheet where every field starts as `No change`:
+
+- **Copy fields:** edition label (the same picker as elsewhere; `None` clears it), `Deluxe`, `Signed`, `Unhauled` (`Unhauled` or `On the shelf`), owner (a household member or `Shared`) and location. A typed label or location that differs from an existing one only by case or surrounding spaces uses the existing spelling.
+- **Series:** set or clear the series name on every selected book. Volumes stay as they are.
+- **Copies:** every copy of the selected books is listed under its book with a tickbox. Copy changes apply only to ticked copies; copies already unhauled start unticked.
+
+`Save` asks to confirm with the counts, for example `This will change 14 copies and 3 books' series.` Only values that actually change are written and counted. There is no undo. Each changed field is marked as hand-edited, so a later libib import doesn't undo it. If some writes fail, the rest are kept, the sheet lists the books and copies that didn't change, and `Try again` retries just those.
+
 ## Tome of Secrets
 
 The book page has a Tome of Secrets section with the book's tags, grouped by category. The labels come from ToS's published `bookTags.json` (the app keeps the last good copy if the fetch fails; with no copy, tags show as raw ids). Tags are shared per book: everyone in the household sees the same ones, and the library list can filter by them.

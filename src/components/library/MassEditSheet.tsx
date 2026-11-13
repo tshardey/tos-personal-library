@@ -1,0 +1,420 @@
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import EditionPicker from "@/components/edition/EditionPicker";
+import { isUnhauled } from "@/lib/copy-flags";
+import { updateBook, updateCopyFields } from "@/lib/library-repo";
+import {
+  applyChangeSet,
+  buildChangeSet,
+  describeCounts,
+  locationNames,
+  retryTargets,
+  type MassEdit,
+  type MassEditResult,
+  type MassEditTargets,
+} from "@/lib/mass-edit";
+import { MAX_SERIES, seriesNames } from "@/lib/series";
+import type { BookWithCopies, Copy, HouseholdMember } from "@/lib/types";
+
+type Flag = "" | "on" | "off";
+/** A text field: no change, set to the typed value, or clear. */
+type TextMode = "" | "set" | "clear";
+
+function ownerLabel(ownerUserId: string | null, members: HouseholdMember[]): string {
+  if (ownerUserId === null) return "Shared";
+  return members.find((m) => m.userId === ownerUserId)?.displayName ?? "Unknown";
+}
+
+function copyText(copy: Copy, members: HouseholdMember[]): string {
+  return [
+    ownerLabel(copy.ownerUserId, members),
+    copy.editionNote ?? "No edition label",
+    copy.deluxe && "Deluxe",
+    copy.signed && "Signed",
+    copy.location,
+    isUnhauled(copy) && "Unhauled",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+const flag = (f: Flag): boolean | undefined => (f === "" ? undefined : f === "on");
+
+interface Props {
+  /** The selected books, in list order. */
+  selected: BookWithCopies[];
+  /** The whole catalogue: suggestions and existing spellings come from it. */
+  catalog: BookWithCopies[];
+  labels: string[];
+  members: HouseholdMember[];
+  /** Reloads the catalogue behind the page; false when it couldn't. */
+  refresh(): Promise<boolean>;
+  onClose(): void;
+  /** Every write went through; `summary` says what changed. */
+  onDone(summary: string): void;
+}
+
+/** Edits the copies and series of many books at once. Every field starts as no change. */
+export default function MassEditSheet({ selected, catalog, labels, members, refresh, onClose, onDone }: Props) {
+  const [ticked, setTicked] = useState<Set<string>>(
+    () => new Set(selected.flatMap((b) => b.copies.filter((c) => !isUnhauled(c)).map((c) => c.id))),
+  );
+  /** undefined until a label (or None) is picked. */
+  const [label, setLabel] = useState<string | null | undefined>(undefined);
+  const [locationMode, setLocationMode] = useState<TextMode>("");
+  const [location, setLocation] = useState("");
+  const [owner, setOwner] = useState("");
+  const [deluxe, setDeluxe] = useState<Flag>("");
+  const [signed, setSigned] = useState<Flag>("");
+  const [unhauled, setUnhauled] = useState<Flag>("");
+  const [seriesMode, setSeriesMode] = useState<TextMode>("");
+  const [series, setSeries] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<MassEditResult | null>(null);
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  /** Changes written so far, across the first run and any retries. */
+  const [totals, setTotals] = useState({ copies: 0, books: 0 });
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus moves into the sheet on open (so Escape and Tab start there) and back on close.
+  useEffect(() => {
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => before?.focus();
+  }, []);
+  const locationList = useId();
+  const seriesList = useId();
+
+  const locations = useMemo(() => locationNames(catalog), [catalog]);
+  const allSeries = useMemo(() => seriesNames(catalog), [catalog]);
+
+  const edit: MassEdit = {
+    editionNote: label,
+    location: locationMode === "set" ? location : locationMode === "clear" ? null : undefined,
+    ownerUserId: owner === "" ? undefined : owner === "shared" ? null : owner,
+    deluxe: flag(deluxe),
+    signed: flag(signed),
+    unhauled: flag(unhauled),
+    seriesName: seriesMode === "set" ? series : seriesMode === "clear" ? null : undefined,
+  };
+  const blank =
+    seriesMode === "set" && series.trim() === ""
+      ? "Type a series name, or choose Clear series."
+      : seriesMode === "set" && series.trim().length > MAX_SERIES
+        ? `Series names are at most ${MAX_SERIES} characters.`
+        : locationMode === "set" && location.trim() === ""
+        ? "Type a location, or choose Clear location."
+        : null;
+  const targets: MassEditTargets = {
+    copyIds: ticked,
+    bookIds: new Set(selected.map((b) => b.id)),
+  };
+  // Counts only; the real timestamp is taken when saving.
+  const preview = buildChangeSet(catalog, targets, edit, labels, "");
+  const copyCount = preview.copies.length;
+  const bookCount = preview.books.length;
+  const nothing = copyCount + bookCount === 0;
+
+  function toggle(id: string) {
+    setConfirming(false);
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function run(runTargets: MassEditTargets) {
+    setBusy(true);
+    try {
+      const set = buildChangeSet(catalog, runTargets, edit, labels, new Date().toISOString());
+      const out = await applyChangeSet(set, { writeCopy: updateCopyFields, writeBook: updateBook });
+      const refreshed = await refresh();
+      const failed = out.failedCopies.length + out.failedBooks.length;
+      const sum = { copies: totals.copies + out.changedCopies, books: totals.books + out.changedBooks };
+      if (failed === 0 && refreshed) {
+        onDone(`Changed ${describeCounts(sum.copies, sum.books) || "nothing"}.`);
+        return;
+      }
+      setTotals(sum);
+      setRefreshFailed(!refreshed);
+      setResult(out);
+      setConfirming(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** A retry builds on reloaded rows, so after a failed reload the person reloads first. */
+  async function reloadAgain() {
+    setBusy(true);
+    try {
+      setRefreshFailed(!(await refresh()));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const failures = result ? result.failedCopies.length + result.failedBooks.length : 0;
+  const choice = "mt-1 block w-full rounded border p-2";
+  const field = "block text-sm";
+
+  return (
+    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit selected books"
+        onKeyDown={(e) => {
+          if (e.key !== "Escape" || busy) return;
+          if (confirming) setConfirming(false);
+          else onClose();
+        }}
+        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t bg-white sm:rounded"
+      >
+        <div className="overflow-y-auto p-4">
+          <h2 className="text-lg font-semibold">{`Edit ${selected.length} ${selected.length === 1 ? "book" : "books"}`}</h2>
+          <p className="mb-3 text-sm text-stone-600">Each field starts as no change. Only what you change is saved.</p>
+
+          {result && (
+            <div
+              role={failures > 0 || refreshFailed ? "alert" : "status"}
+              className={`mb-3 space-y-2 rounded border p-2 text-sm ${
+                failures > 0 || refreshFailed ? "border-red-300 bg-red-50" : ""
+              }`}
+            >
+              <p>
+                {`Changed ${describeCounts(totals.copies, totals.books) || "nothing"}.`}
+                {failures > 0 && ` ${failures} couldn't be changed:`}
+              </p>
+              {failures > 0 && (
+                <ul aria-label="Not changed" className="list-disc pl-5">
+                  {result.failedCopies.map((c) => (
+                    <li key={c.copy.id}>{`${c.book.title}: copy (${copyText(c.copy, members)})`}</li>
+                  ))}
+                  {result.failedBooks.map((b) => (
+                    <li key={b.book.id}>{`${b.book.title}: series`}</li>
+                  ))}
+                </ul>
+              )}
+              {refreshFailed && (
+                <>
+                  <p>Couldn't reload the library, so the list may be out of date.</p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void reloadAgain()}
+                    className="min-h-10 rounded border px-3 disabled:opacity-50"
+                  >
+                    Reload
+                  </button>
+                </>
+              )}
+              {failures > 0 && !refreshFailed && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void run(retryTargets(result))}
+                  className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                >
+                  {busy ? "Trying again…" : "Try again"}
+                </button>
+              )}
+            </div>
+          )}
+
+          <fieldset disabled={busy || result !== null} className="space-y-3">
+            <div>
+              <EditionPicker
+                label="Edition label"
+                value={label ?? null}
+                valueText={label === undefined ? "no change" : undefined}
+                labels={labels}
+                onChange={(l) => { setLabel(l); setConfirming(false); }}
+              />
+              {label !== undefined && (
+                <p className="mt-1 text-xs text-stone-600">
+                  {label === null ? "Clears the label. " : ""}
+                  <button type="button" onClick={() => { setLabel(undefined); setConfirming(false); }} className="underline">
+                    No change
+                  </button>
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <label className={field}>
+                Deluxe
+                <select value={deluxe} onChange={(e) => { setDeluxe(e.target.value as Flag); setConfirming(false); }} className={choice}>
+                  <option value="">No change</option>
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </label>
+              <label className={field}>
+                Signed
+                <select value={signed} onChange={(e) => { setSigned(e.target.value as Flag); setConfirming(false); }} className={choice}>
+                  <option value="">No change</option>
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </label>
+              <label className={field}>
+                Unhauled
+                <select value={unhauled} onChange={(e) => { setUnhauled(e.target.value as Flag); setConfirming(false); }} className={choice}>
+                  <option value="">No change</option>
+                  <option value="on">Unhauled</option>
+                  <option value="off">On the shelf</option>
+                </select>
+              </label>
+            </div>
+
+            <label className={field}>
+              Owner
+              <select value={owner} onChange={(e) => { setOwner(e.target.value); setConfirming(false); }} className={choice}>
+                <option value="">No change</option>
+                {members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.displayName}
+                  </option>
+                ))}
+                <option value="shared">Shared</option>
+              </select>
+            </label>
+
+            <label className={field}>
+              Location
+              <select
+                value={locationMode}
+                onChange={(e) => { setLocationMode(e.target.value as TextMode); setConfirming(false); }}
+                className={choice}
+              >
+                <option value="">No change</option>
+                <option value="set">Set location</option>
+                <option value="clear">Clear location</option>
+              </select>
+            </label>
+            {locationMode === "set" && (
+              <label className={field}>
+                Location name
+                <input
+                  type="text"
+                  value={location}
+                  list={locationList}
+                  onChange={(e) => { setLocation(e.target.value); setConfirming(false); }}
+                  className={choice}
+                />
+                <datalist id={locationList}>
+                  {locations.map((l) => (
+                    <option key={l} value={l} />
+                  ))}
+                </datalist>
+              </label>
+            )}
+
+            <label className={field}>
+              Series
+              <select
+                value={seriesMode}
+                onChange={(e) => { setSeriesMode(e.target.value as TextMode); setConfirming(false); }}
+                className={choice}
+              >
+                <option value="">No change</option>
+                <option value="set">Set series</option>
+                <option value="clear">Clear series</option>
+              </select>
+            </label>
+            {seriesMode === "set" && (
+              <label className={field}>
+                Series name
+                <input
+                  type="text"
+                  value={series}
+                  list={seriesList}
+                  maxLength={MAX_SERIES}
+                  onChange={(e) => { setSeries(e.target.value); setConfirming(false); }}
+                  className={choice}
+                />
+                <datalist id={seriesList}>
+                  {allSeries.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+              </label>
+            )}
+            {seriesMode !== "" && <p className="text-xs text-stone-600">Applies to every selected book. Volumes stay as they are.</p>}
+
+            <div>
+              <h3 className="text-sm font-medium">Copies</h3>
+              <p className="text-xs text-stone-600">
+                Copy changes apply to ticked copies. Copies already unhauled start unticked.
+              </p>
+              <div className="mt-2 space-y-2">
+                {selected.map((b) => (
+                  <fieldset key={b.id} className="rounded border p-2">
+                    <legend className="px-1 text-sm font-medium">{b.title}</legend>
+                    {b.copies.length === 0 ? (
+                      <p className="text-sm text-stone-600">No copies.</p>
+                    ) : (
+                      b.copies.map((c) => (
+                        <label key={c.id} className={`flex min-h-10 items-center gap-2 text-sm ${isUnhauled(c) ? "text-stone-500" : ""}`}>
+                          <input type="checkbox" checked={ticked.has(c.id)} onChange={() => toggle(c.id)} className="h-5 w-5 accent-stone-800" />
+                          <span>{copyText(c, members)}</span>
+                        </label>
+                      ))
+                    )}
+                  </fieldset>
+                ))}
+              </div>
+            </div>
+          </fieldset>
+        </div>
+
+        <div className="border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {result ? (
+            <button type="button" disabled={busy} onClick={onClose} className="min-h-10 rounded border px-3">
+              Close
+            </button>
+          ) : confirming && !nothing ? (
+            <div role="group" aria-label="Confirm" className="space-y-2">
+              <p className="text-sm font-medium">{`This will change ${describeCounts(copyCount, bookCount)}. There is no undo.`}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void run(targets)}
+                  className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                >
+                  {busy ? "Saving…" : "Confirm"}
+                </button>
+                <button type="button" disabled={busy} onClick={() => setConfirming(false)} className="min-h-10 rounded border px-3">
+                  Back
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={nothing || blank !== null}
+                onClick={() => setConfirming(true)}
+                className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button type="button" onClick={onClose} className="min-h-10 rounded border px-3">
+                Cancel
+              </button>
+              <p className="text-sm text-stone-600">
+                {blank ?? (nothing ? "Nothing to change yet." : describeCounts(copyCount, bookCount))}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
