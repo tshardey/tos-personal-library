@@ -67,7 +67,7 @@ export interface CopyFlagsPatch {
 export type BookWithCopies = Book & { copies: Copy[] };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Row = Record<string, any>;
+export type Row = Record<string, any>;
 
 const BOOK_COLUMNS = {
   id: "id",

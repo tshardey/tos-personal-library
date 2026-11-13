@@ -74,6 +74,8 @@ interface WorkCopy {
   copyId: string | null;
   ownerUserId: string | null;
   libibId: string | null;
+  /** the household let this copy go */
+  unhauled: boolean;
   /** the target of a link in this run */
   consumed: boolean;
 }
@@ -148,6 +150,7 @@ export function buildImportPlan(input: PlanInput): ImportPlan {
           copyId: c.id,
           ownerUserId: c.ownerUserId,
           libibId: c.libibId,
+          unhauled: c.unhauledAt !== null,
           consumed: false,
         })),
       ),
@@ -209,7 +212,7 @@ export function buildImportPlan(input: PlanInput): ImportPlan {
         editionNote: row.editionNote,
         libibId: row.libibId,
       });
-      work.copies.push({ copyId: null, ownerUserId, libibId: row.libibId, consumed: false });
+      work.copies.push({ copyId: null, ownerUserId, libibId: row.libibId, unhauled: false, consumed: false });
     }
     if (count > 0 && !holder.has(row.libibId)) holder.set(row.libibId, work);
   }
@@ -294,7 +297,12 @@ export function buildImportPlan(input: PlanInput): ImportPlan {
       const options = [...absent, ...noId].map(linkOption);
       return ask(row, "rescan", [...options, add], options[0]);
     }
-    if (noId.length > 0) return ask(row, "existing_copy", [...noId.map(linkOption), add], add);
+    if (noId.length > 0) {
+      const links = noId.map(linkOption);
+      // D2: every candidate was let go, so an old export's row is that copy, not a fresh one.
+      const letGo = noId.every((c) => c.unhauled);
+      return ask(row, "existing_copy", [...links, add], letGo ? links[0] : add);
+    }
     return add;
   }
 

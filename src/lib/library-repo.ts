@@ -12,6 +12,7 @@ import {
   type Copy,
   type CopyFlagsPatch,
   type CopyInput,
+  type Row,
 } from "@/lib/types";
 
 // PostgREST caps a response at the project's Max Rows (1000 by default, possibly lower), so a short
@@ -32,9 +33,6 @@ export async function readAllPages<T>(
     offset += page.length;
   }
 }
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Row = Record<string, any>;
 
 export async function listBooks(householdId: string): Promise<BookWithCopies[]> {
   const rows = await readAllPages((from, to) =>

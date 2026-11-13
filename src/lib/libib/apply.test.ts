@@ -650,8 +650,7 @@ describe("applyImportPlan: copy flags survive a re-import (D2)", () => {
       books: [seededBook({ id: "b1", isbn13: [isbn(7)], onShelf: false, copies: [flagged({ libibId: "L" })] })],
       ledger: [["L", 1]],
     });
-    const decisions = new Map<string, ReviewDecision>([["L", { action: "link", copyId: "c1" }]]);
-    const plan = planFor(store, { rows: [{ id: "L", ean_isbn13: isbn(7), title: "Sample Title" }], decisions });
+    const plan = planFor(store, { rows: [{ id: "L", ean_isbn13: isbn(7), title: "Sample Title" }] });
     expect(plan.newCopies).toEqual([]);
     expect(plan.links).toEqual([]);
     await apply(plan, store);
@@ -662,8 +661,8 @@ describe("applyImportPlan: copy flags survive a re-import (D2)", () => {
     const store = createFakeStore({
       books: [seededBook({ id: "b1", isbn13: [isbn(7)], onShelf: false, copies: [flagged()] })],
     });
-    const decisions = new Map<string, ReviewDecision>([["L", { action: "link", copyId: "c1" }]]);
-    const plan = planFor(store, { rows: [{ id: "L", ean_isbn13: isbn(7), title: "Sample Title" }], decisions });
+    const plan = planFor(store, { rows: [{ id: "L", ean_isbn13: isbn(7), title: "Sample Title" }] });
+    expect(plan.review[0].chosen).toEqual({ action: "link", copyId: "c1" });
     expect(plan.newCopies).toEqual([]);
     expect(plan.links).toEqual([{ copyId: "c1", libibId: "L" }]);
     await apply(plan, store);
