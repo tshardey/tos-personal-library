@@ -142,9 +142,10 @@ These settle spec §6 and the brief's points. Where the code and the spec disagr
   - the household and project-wide reservation guards hold whatever a client does.
 
 **D4. Candidate gathering** (Task 4). Searches go by title and author across editions, never by ISBN only.
-1. **OpenLibrary works:** `GET https://openlibrary.org/search.json?title=<t>&author=<first author>&limit=5&fields=key,title,author_name,cover_i,language`, with a 60 s timeout. Take at most 2 docs whose `author_name` overlaps the book's authors (`authorsOverlap`), or the first 2 when the book has no authors.
+1. **OpenLibrary works:** `GET https://openlibrary.org/search.json?q=<t>&author=<first author>&limit=5&fields=key,title,author_name,author_alternative_name,cover_i,language`, with a 60 s timeout. Take at most 2 docs whose authors (`author_name` plus `author_alternative_name`) overlap the book's authors (`authorsOverlap`), or the first 2 when the book has no authors.
+   - (changed after the Task 10 measurement: `q=` instead of `title=` finds more works, and `author_alternative_name` catches works whose `author_name` is in another script. The same union is the authors argument of the edition title check.)
    - **The work's own title isn't checked.** For a translated work it is often the original-language title.
-2. **OpenLibrary editions:** for each work, `GET https://openlibrary.org<work key>/editions.json?limit=50`.
+2. **OpenLibrary editions:** for each work, `GET https://openlibrary.org<work key>/editions.json?limit=1000` (changed after the Task 10 measurement: 50 missed editions with covers).
    - A 404 or other non-retryable error on one work's editions skips **that work**, not the book.
    - An edition is a candidate when all of these hold:
      - it has a positive `covers[0]`;
@@ -198,7 +199,7 @@ These settle spec §6 and the brief's points. Where the code and the spec disagr
 >
 > Give every candidate exactly one verdict:
 > - ok: a clean, flat image of the front cover of this book, in an English-language edition, readable at thumbnail size.
-> - not_english: the cover's text is not in English. Many of these books are English translations of works first published in another language. For those, the right cover is the English translation's; a cover of the original-language edition, or of any other non-English edition, is not_english even when the title and author match.
+> - not_english: the cover's text is not in English. Many of these books are English translations of works first published in another language. For those, the right cover is the English translation's; a cover of the original-language edition, or of any other non-English edition, is not_english even when the title and author match. Series names, imprint or publisher text, taglines, and spine or back-cover text in another language also make a cover not_english, even when the title reads the same in English. (revised after the Task 10 measurement)
 > - placeholder: a publisher placeholder such as "cover coming soon" or "image not available", or plain text on a coloured block with no cover design.
 > - other_book: the cover of a different book: another title, another author, or another volume of the same series.
 > - unusable: too small or blurred to read, a photo of a physical copy, a 3D mock-up, a cover with large stickers, watermarks or borders, or not a book cover at all.
