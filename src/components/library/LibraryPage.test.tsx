@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BookWithCopies } from "@/lib/types";
-import { bookFixture, copyFixture } from "@/lib/flag-fixtures";
+import { bookFixture, copyFixture } from "@/lib/flag-fixtures.test-util";
 
 const h = vi.hoisted(() => ({ catalog: {} as Record<string, unknown> }));
 
@@ -255,6 +255,14 @@ describe("LibraryPage copy flag filters", () => {
     fireEvent.change(from, { target: { value: "2020" } });
     fireEvent.change(to, { target: { value: "2010" } });
     expect(count()).toBe("2 books");
+  });
+
+  it("a partly typed year is no bound", () => {
+    render(<LibraryPage />);
+    const to = screen.getByLabelText("Published to");
+    fireEvent.change(to, { target: { value: "202" } });
+    expect(count()).toBe("42 books");
+    expect(to).toHaveValue("202");
   });
 
   it("combines the Unhauled chip with a day", () => {

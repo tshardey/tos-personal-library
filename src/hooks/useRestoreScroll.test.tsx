@@ -63,6 +63,14 @@ describe("useRestoreScroll", () => {
     expect(history.scrollRestoration).toBe("manual");
   });
 
+  it("restores the previous history.scrollRestoration on unmount", () => {
+    history.scrollRestoration = "auto";
+    const { unmount } = renderHook(() => useRestoreScroll(false, "k", ref));
+    expect(history.scrollRestoration).toBe("manual");
+    unmount();
+    expect(history.scrollRestoration).toBe("auto");
+  });
+
   it("waits for ready before taking the anchor", () => {
     saveScrollAnchor({ bookId: "b25", top: 120, scrollY: 4000, viewKey: "k" });
     const { rerender } = renderHook(({ ready }) => useRestoreScroll(ready, "k", ref), {

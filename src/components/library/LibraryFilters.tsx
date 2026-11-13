@@ -35,10 +35,10 @@ interface Props {
   onChange(patch: Partial<LibraryView>): void;
 }
 
-/** Strict whole number from typed text; anything else is no bound. */
+/** Strict four-digit-or-longer whole number from typed text; anything else (a partly typed year too) is no bound. */
 function parseYear(text: string): number | null {
   const t = text.trim();
-  return /^\d+$/.test(t) ? Number(t) : null;
+  return /^\d{4,}$/.test(t) ? Number(t) : null;
 }
 
 function YearInput({

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { readCatalogCache, writeCatalogCache } from "@/lib/catalog-cache";
 import { listBooks, listBookTags } from "@/lib/library-repo";
@@ -25,6 +25,7 @@ export function useCatalog(): {
   const [loading, setLoading] = useState(() => readCatalogCache(householdId) === null);
   const [error, setError] = useState<string | null>(null);
   const [tagsError, setTagsError] = useState<string | null>(null);
+  const tagsRef = useRef(tags);
 
   /** `background`: keep what is shown (no Loading), and keep it if the refresh fails. */
   const load = useCallback(
@@ -51,14 +52,21 @@ export function useCatalog(): {
           reason instanceof Error ? reason.name : ((reason as { code?: string } | null)?.code ?? "unknown"),
         );
         setTagsError("Tome of Secrets tags unavailable");
+        // A background refresh keeps the tags already shown (or cached) rather than dropping them.
+        if (background) nextTags = tagsRef.current;
       }
+      tagsRef.current = nextTags;
       setTags(nextTags);
       if (booksResult.status === "fulfilled") {
         setBooks(booksResult.value);
         setError(null);
         writeCatalogCache({ householdId, books: booksResult.value, tags: nextTags });
       } else {
-        console.error("Failed to load catalog", booksResult.reason);
+        const reason: unknown = booksResult.reason;
+        console.error(
+          "Failed to load catalog",
+          reason instanceof Error ? reason.name : ((reason as { code?: string } | null)?.code ?? "unknown"),
+        );
         if (!background) setError("Couldn't load your books.");
       }
       setLoading(false);
@@ -73,6 +81,7 @@ export function useCatalog(): {
     if (hit) {
       // The same arrays on a fresh mount (no re-render); another household's cache on a switch.
       setBooks(hit.books);
+      tagsRef.current = hit.tags;
       setTags(hit.tags);
       setLoading(false);
     }

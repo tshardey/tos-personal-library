@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bookBadges, countedCopies, hasUnhauledCopy, isUnhauled } from "./copy-flags";
-import { copyFixture, bookFixture } from "./flag-fixtures";
+import { copyFixture, bookFixture } from "./flag-fixtures.test-util";
 
 describe("copy-flags", () => {
   const onShelf = copyFixture({ deluxe: true });

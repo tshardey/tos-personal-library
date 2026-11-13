@@ -26,7 +26,11 @@ export function useRestoreScroll(ready: boolean, viewKey: string, container: Ref
   const doneRef = useRef(false);
 
   useLayoutEffect(() => {
+    const previous = history.scrollRestoration;
     history.scrollRestoration = "manual";
+    return () => {
+      history.scrollRestoration = previous;
+    };
   }, []);
 
   useLayoutEffect(() => {

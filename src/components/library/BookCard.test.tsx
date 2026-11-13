@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import BookCard from "./BookCard";
 import type { BookWithCopies } from "@/lib/types";
-import { bookFixture, copyFixture } from "@/lib/flag-fixtures";
+import { bookFixture, copyFixture } from "@/lib/flag-fixtures.test-util";
 
 function make(coverUrl: string | null): BookWithCopies {
   return {

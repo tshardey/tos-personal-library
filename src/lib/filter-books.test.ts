@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { filterBooks } from "./filter-books";
 import type { BookWithCopies, Copy } from "./types";
 import { bookBadges } from "./copy-flags";
-import { bookFixture, copyFixture } from "./flag-fixtures";
+import { bookFixture, copyFixture } from "./flag-fixtures.test-util";
 
 function copy(ownerUserId: string | null, editionNote: string | null = null): Copy {
   return {

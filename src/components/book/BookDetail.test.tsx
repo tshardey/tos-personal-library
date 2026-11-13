@@ -31,7 +31,7 @@ vi.mock("@/lib/tos-tags", async (importOriginal) => ({
 }));
 import { setCopyFlags, updateBook } from "@/lib/library-repo";
 import BookDetail from "./BookDetail";
-import { copyFixture } from "@/lib/flag-fixtures";
+import { copyFixture } from "@/lib/flag-fixtures.test-util";
 
 function book(over: Partial<BookWithCopies> = {}): BookWithCopies {
   return {

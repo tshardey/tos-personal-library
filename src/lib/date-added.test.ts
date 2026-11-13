@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dateAddedOptions, dayLabel, localDay } from "./date-added";
-import { bookFixture, copyFixture } from "./flag-fixtures";
+import { bookFixture, copyFixture } from "./flag-fixtures.test-util";
 
 const at = (m: number, d: number) => new Date(2026, m, d, 10).toISOString();
 

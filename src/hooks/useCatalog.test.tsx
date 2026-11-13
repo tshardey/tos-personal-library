@@ -40,9 +40,39 @@ describe("useCatalog tags", () => {
     expect(result.current.tagsError).toBe("Tome of Secrets tags unavailable");
     expect(result.current.tags.size).toBe(0);
   });
+
+  it("logs only an error name when the books fail, never the error object", async () => {
+    const err = vi.spyOn(console, "error");
+    err.mockClear();
+    listBooks.mockRejectedValue(new Error("secret detail"));
+    listBookTags.mockResolvedValue(new Map());
+    const { result } = renderHook(() => useCatalog());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(err).toHaveBeenCalledWith("Failed to load catalog", "Error");
+    for (const call of err.mock.calls) for (const arg of call) expect(typeof arg).toBe("string");
+  });
 });
 
 describe("useCatalog cache (D9)", () => {
+  it("a background refresh whose tags fail keeps the cached tags", async () => {
+    listBooks.mockResolvedValue([{ id: "b1" }]);
+    listBookTags.mockResolvedValue(new Map([["b1", ["fantasy"]]]));
+    const first = renderHook(() => useCatalog());
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    first.unmount();
+
+    listBookTags.mockRejectedValue(new Error("down"));
+    const second = renderHook(() => useCatalog());
+    await waitFor(() => expect(second.result.current.tagsError).toBe("Tome of Secrets tags unavailable"));
+    expect(second.result.current.tags.get("b1")).toEqual(["fantasy"]);
+    second.unmount();
+
+    // ...and the cache still holds them for the next mount.
+    listBooks.mockReturnValue(new Promise(() => {}));
+    const third = renderHook(() => useCatalog());
+    expect(third.result.current.tags.get("b1")).toEqual(["fantasy"]);
+  });
+
   it("a second mount for the same household starts from the cache and refreshes in the background", async () => {
     listBooks.mockResolvedValue([{ id: "b1" }]);
     listBookTags.mockResolvedValue(new Map([["b1", ["fantasy"]]]));
