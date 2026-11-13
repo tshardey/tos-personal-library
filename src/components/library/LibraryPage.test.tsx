@@ -217,7 +217,7 @@ describe("LibraryPage copy flag filters", () => {
     const select = screen.getByLabelText("Date added") as HTMLSelectElement;
     const opts = Array.from(select.options).map((o) => o.textContent);
     expect(opts[0]).toBe("Any day");
-    expect(opts[1]).toBe("Nov 12 · 3");
+    expect(opts[1]).toBe("Nov 12 Â· 3");
     fireEvent.change(select, { target: { value: D12 } });
     expect(count()).toBe("2 books");
     expect(card(container, "The Salt Road")).not.toBeNull();
@@ -235,7 +235,7 @@ describe("LibraryPage copy flag filters", () => {
     rerender(<LibraryPage />);
     const select = screen.getByLabelText("Date added") as HTMLSelectElement;
     expect(select.value).toBe(D12);
-    expect(Array.from(select.options).map((o) => o.textContent)).toContain("Nov 12 · 0");
+    expect(Array.from(select.options).map((o) => o.textContent)).toContain("Nov 12 Â· 0");
     expect(screen.getByText("No matching books")).toBeInTheDocument();
   });
 

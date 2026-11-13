@@ -43,10 +43,12 @@ function parseYear(text: string): number | null {
 
 function YearInput({
   label,
+  placeholder,
   value,
   onValue,
 }: {
   label: string;
+  placeholder: string;
   value: number | null;
   onValue(n: number | null): void;
 }) {
@@ -60,7 +62,7 @@ function YearInput({
       type="text"
       inputMode="numeric"
       aria-label={label}
-      placeholder={label.endsWith("from") ? "From" : "To"}
+      placeholder={placeholder}
       value={text}
       onChange={(e) => {
         setText(e.target.value);
@@ -186,7 +188,7 @@ export default function LibraryFilters({
         <option value="">Any day</option>
         {addedOptions.map((o) => (
           <option key={o.day} value={o.day}>
-            {`${dayLabel(o.day)} · ${o.copies}`}
+            {`${dayLabel(o.day)} Â· ${o.copies}`}
           </option>
         ))}
       </select>
@@ -194,8 +196,8 @@ export default function LibraryFilters({
         <span id="published-label" className="text-sm">
           Published
         </span>
-        <YearInput label="Published from" value={publishedFrom} onValue={(n) => onChange({ publishedFrom: n })} />
-        <YearInput label="Published to" value={publishedTo} onValue={(n) => onChange({ publishedTo: n })} />
+        <YearInput label="Published from" placeholder="From" value={publishedFrom} onValue={(n) => onChange({ publishedFrom: n })} />
+        <YearInput label="Published to" placeholder="To" value={publishedTo} onValue={(n) => onChange({ publishedTo: n })} />
       </div>
       {tagsUnavailable && <p className="text-sm text-stone-700">Tome of Secrets tags unavailable.</p>}
       {!tagsUnavailable && (shared.length > 0 || tagFilter.length > 0) && (
