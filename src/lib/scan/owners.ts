@@ -28,6 +28,9 @@ export function scanFlashKind(info: Pick<OwnedInfo, "line" | "elsewhere">): "acc
   return info.line !== null || info.elsewhere ? "notice" : "accept";
 }
 
+/** Every matching copy was unhauled; scanning a re-bought copy is still allowed. */
+export const UNHAULED_LINE = "We had this and unhauled it";
+
 export const ELSEWHERE_LINE = "Also waiting in the inbox from another session.";
 
 const CLOSED = new Set(["confirmed", "discarded"]);
@@ -56,9 +59,13 @@ export function ownedInfo(
   ownerUserId: string | null = null,
 ): OwnedInfo {
   const owners = new Set<string | null>();
+  let unhauledOnly = false;
   for (const book of catalog) {
     if (!canonicalIsbns(book).has(isbn13)) continue;
-    for (const c of book.copies) owners.add(c.ownerUserId);
+    for (const c of book.copies) {
+      if (c.unhauledAt === null) owners.add(c.ownerUserId);
+      else unhauledOnly = true;
+    }
   }
 
   const parts: string[] = [];
@@ -70,6 +77,8 @@ export function ownedInfo(
   let line: string | null = null;
   if (parts.length > 0) {
     line = `Already in library — ${joinOwners(parts)} ${parts.length === 1 ? "copy" : "copies"}`;
+  } else if (unhauledOnly) {
+    line = UNHAULED_LINE;
   }
 
   const elsewhere = openItems.some(

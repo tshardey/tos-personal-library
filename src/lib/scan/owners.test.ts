@@ -146,3 +146,21 @@ describe("owned wording and flash", () => {
     expect(scanFlashKind({ line: null, elsewhere: false })).toBe("accept");
   });
 });
+
+describe("ownedInfo with unhauled copies", () => {
+  const unhauled = (owner: string | null): Copy => ({ ...copy(owner), unhauledAt: "2026-11-12T09:00:00Z" });
+
+  it("says we unhauled it when every matching copy is unhauled, and allows a re-bought copy", () => {
+    const b = book([], { copies: [unhauled(A)] });
+    const info = ownedInfo(ISBN, [b], members, [], "batch-1", A);
+    expect(info.line).toBe("We had this and unhauled it");
+    expect(info.recordedForOwner).toBe(false);
+  });
+
+  it("counts on-shelf copies only when naming owners", () => {
+    const b = book([], { copies: [unhauled(A), copy(null)] });
+    const info = ownedInfo(ISBN, [b], members, [], "batch-1", A);
+    expect(info.line).toBe("Already in library — shared copy");
+    expect(info.recordedForOwner).toBe(false);
+  });
+});

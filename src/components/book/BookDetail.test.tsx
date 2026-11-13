@@ -18,6 +18,7 @@ vi.mock("@/lib/library-repo", () => ({
   addCopy: vi.fn(),
   deleteBook: vi.fn(),
   updateBook: vi.fn().mockResolvedValue(undefined),
+  setCopyFlags: vi.fn().mockResolvedValue(undefined),
   addBookTag: vi.fn().mockResolvedValue(undefined),
   removeBookTag: vi.fn().mockResolvedValue(undefined),
 }));
@@ -28,8 +29,9 @@ vi.mock("@/lib/tos-tags", async (importOriginal) => ({
     stale: false,
   }),
 }));
-import { updateBook } from "@/lib/library-repo";
+import { setCopyFlags, updateBook } from "@/lib/library-repo";
 import BookDetail from "./BookDetail";
+import { copyFixture } from "@/lib/flag-fixtures";
 
 function book(over: Partial<BookWithCopies> = {}): BookWithCopies {
   return {
@@ -130,5 +132,35 @@ describe("BookDetail cover finder", () => {
     setCatalog([book()]);
     render(<BookDetail id="b1" />);
     expect(screen.queryByRole("button", { name: "Find a better cover" })).toBeNull();
+  });
+});
+
+describe("BookDetail unhauled copies", () => {
+  const cp = (id: string, unhauledAt: string | null) => copyFixture({ id, bookId: "b1", unhauledAt });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.reload.mockResolvedValue(undefined);
+  });
+
+  it("lists both copies with counts and no book note when one is still on the shelf", () => {
+    setCatalog([book({ copies: [cp("c1", "2026-11-12T09:00:00"), cp("c2", null)] })]);
+    render(<BookDetail id="b1" />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText("1 on the shelf · 1 unhauled")).toBeInTheDocument();
+    expect(screen.queryByText(/This book is hidden from the library/)).toBeNull();
+  });
+
+  it("keeps a book open with a note when its only copy is unhauled, and undo reloads", async () => {
+    setCatalog([book({ onShelf: false, copies: [cp("c1", "2026-11-12T09:00:00")] })]);
+    render(<BookDetail id="b1" />);
+    expect(
+      screen.getByText(
+        "Unhauled. This book is hidden from the library unless you search for it or use the Unhauled filter.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("0 on the shelf · 1 unhauled")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Undo unhaul" }));
+    await waitFor(() => expect(h.reload).toHaveBeenCalled());
+    expect(setCopyFlags).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }), { unhauledAt: null });
   });
 });

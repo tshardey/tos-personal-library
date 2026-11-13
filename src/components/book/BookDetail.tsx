@@ -12,6 +12,7 @@ import { listOpenEditionLabels } from "@/lib/photo/intake-repo";
 import { normalizeBookInput } from "@/lib/normalize";
 import { navigate } from "@/lib/router";
 import type { BookInput, BookWithCopies } from "@/lib/types";
+import { isUnhauled } from "@/lib/copy-flags";
 import BookForm from "./BookForm";
 import CopyForm from "./CopyForm";
 import CopyList from "./CopyList";
@@ -147,6 +148,8 @@ export default function BookDetail({ id }: { id: string }) {
     publishDate: book.publishDate,
   });
 
+  const unhauledCount = book.copies.filter(isUnhauled).length;
+
   async function removeBook() {
     if (!window.confirm("Delete this book and all its copies?")) return;
     setActionError(null);
@@ -250,7 +253,17 @@ export default function BookDetail({ id }: { id: string }) {
         />
       )}
       <section>
-        <h3 className="mb-2 font-semibold">Copies</h3>
+        <h3 className="font-semibold">Copies</h3>
+        {unhauledCount > 0 && (
+          <p className="text-sm text-stone-700">
+            {book.copies.length - unhauledCount} on the shelf · {unhauledCount} unhauled
+          </p>
+        )}
+        {!book.onShelf && book.copies.length > 0 && (
+          <p className="mt-1 text-sm">
+            Unhauled. This book is hidden from the library unless you search for it or use the Unhauled filter.
+          </p>
+        )}
         <CopyList
           copies={book.copies}
           members={members}
