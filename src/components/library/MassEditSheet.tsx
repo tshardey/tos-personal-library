@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import EditionPicker from "@/components/edition/EditionPicker";
 import { isUnhauled } from "@/lib/copy-flags";
 import { updateBook, updateCopyFields } from "@/lib/library-repo";
@@ -72,6 +72,16 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MassEditResult | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
+  /** Changes written so far, across the first run and any retries. */
+  const [totals, setTotals] = useState({ copies: 0, books: 0 });
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus moves into the sheet on open (so Escape and Tab start there) and back on close.
+  useEffect(() => {
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => before?.focus();
+  }, []);
   const locationList = useId();
   const seriesList = useId();
 
@@ -90,7 +100,9 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const blank =
     seriesMode === "set" && series.trim() === ""
       ? "Type a series name, or choose Clear series."
-      : locationMode === "set" && location.trim() === ""
+      : seriesMode === "set" && series.trim().length > MAX_SERIES
+        ? `Series names are at most ${MAX_SERIES} characters.`
+        : locationMode === "set" && location.trim() === ""
         ? "Type a location, or choose Clear location."
         : null;
   const targets: MassEditTargets = {
@@ -120,13 +132,25 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
       const out = await applyChangeSet(set, { writeCopy: updateCopyFields, writeBook: updateBook });
       const refreshed = await refresh();
       const failed = out.failedCopies.length + out.failedBooks.length;
+      const sum = { copies: totals.copies + out.changedCopies, books: totals.books + out.changedBooks };
       if (failed === 0 && refreshed) {
-        onDone(`Changed ${describeCounts(out.changedCopies, out.changedBooks) || "nothing"}.`);
+        onDone(`Changed ${describeCounts(sum.copies, sum.books) || "nothing"}.`);
         return;
       }
+      setTotals(sum);
       setRefreshFailed(!refreshed);
       setResult(out);
       setConfirming(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** A retry builds on reloaded rows, so after a failed reload the person reloads first. */
+  async function reloadAgain() {
+    setBusy(true);
+    try {
+      setRefreshFailed(!(await refresh()));
     } finally {
       setBusy(false);
     }
@@ -139,11 +163,15 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   return (
     <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="Edit selected books"
         onKeyDown={(e) => {
-          if (e.key === "Escape" && !busy) onClose();
+          if (e.key !== "Escape" || busy) return;
+          if (confirming) setConfirming(false);
+          else onClose();
         }}
         className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t bg-white sm:rounded"
       >
@@ -152,9 +180,14 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
           <p className="mb-3 text-sm text-stone-600">Each field starts as no change. Only what you change is saved.</p>
 
           {result && (
-            <div role="alert" className="mb-3 space-y-2 rounded border border-red-300 bg-red-50 p-2 text-sm">
+            <div
+              role={failures > 0 || refreshFailed ? "alert" : "status"}
+              className={`mb-3 space-y-2 rounded border p-2 text-sm ${
+                failures > 0 || refreshFailed ? "border-red-300 bg-red-50" : ""
+              }`}
+            >
               <p>
-                {`Changed ${describeCounts(result.changedCopies, result.changedBooks) || "nothing"}.`}
+                {`Changed ${describeCounts(totals.copies, totals.books) || "nothing"}.`}
                 {failures > 0 && ` ${failures} couldn't be changed:`}
               </p>
               {failures > 0 && (
@@ -167,8 +200,20 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                   ))}
                 </ul>
               )}
-              {refreshFailed && <p>Couldn't reload the library, so the list may be out of date.</p>}
-              {failures > 0 && (
+              {refreshFailed && (
+                <>
+                  <p>Couldn't reload the library, so the list may be out of date.</p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void reloadAgain()}
+                    className="min-h-10 rounded border px-3 disabled:opacity-50"
+                  >
+                    Reload
+                  </button>
+                </>
+              )}
+              {failures > 0 && !refreshFailed && (
                 <button
                   type="button"
                   disabled={busy}

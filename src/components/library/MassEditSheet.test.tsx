@@ -156,11 +156,48 @@ describe("MassEditSheet", () => {
     repo.updateBook.mockClear();
     repo.updateCopyFields.mockResolvedValue(undefined);
     fireEvent.click(within(alert).getByRole("button", { name: "Try again" }));
-    await waitFor(() => expect(props.onDone).toHaveBeenCalledWith("Changed 1 copy and 1 book's series."));
+    // The summary counts the first run and the retry together.
+    await waitFor(() => expect(props.onDone).toHaveBeenCalledWith("Changed 3 copies and 2 books' series."));
     expect(repo.updateCopyFields).toHaveBeenCalledTimes(1);
     expect(repo.updateCopyFields).toHaveBeenCalledWith("a1", { signed: true }, ["signed"]);
     expect(repo.updateBook).toHaveBeenCalledTimes(1);
     expect(repo.updateBook).toHaveBeenCalledWith("Atlas", { seriesName: "Glass Orchard" }, ["seriesName"]);
+  });
+
+  it("after a failed reload, asks for a reload before trying the failures again", async () => {
+    const props = renderSheet();
+    props.refresh.mockResolvedValueOnce(false);
+    repo.updateCopyFields.mockRejectedValueOnce(new Error("network"));
+    select("Deluxe", "on");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Couldn't reload the library");
+    expect(within(alert).queryByRole("button", { name: "Try again" })).toBeNull();
+    fireEvent.click(within(alert).getByRole("button", { name: "Reload" }));
+    await waitFor(() => expect(within(alert).getByRole("button", { name: "Try again" })).toBeInTheDocument());
+    expect(props.refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("takes focus on open, and Escape steps back from the confirmation before closing", () => {
+    const props = renderSheet();
+    const dialog = screen.getByRole("dialog", { name: "Edit selected books" });
+    expect(dialog).toHaveFocus();
+    select("Deluxe", "on");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByText(/There is no undo/)).toBeNull();
+    expect(props.onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(props.onClose).toHaveBeenCalled();
+  });
+
+  it("blocks a series name over the limit instead of clearing the series", () => {
+    renderSheet();
+    select("Series", "set");
+    fireEvent.change(screen.getByLabelText("Series name"), { target: { value: "x".repeat(201) } });
+    expect(screen.getByText("Series names are at most 200 characters.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   it("Cancel closes without writing", () => {
