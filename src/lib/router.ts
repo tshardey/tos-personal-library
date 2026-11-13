@@ -6,7 +6,8 @@ export type Route =
   | { name: "add" }
   | { name: "import" }
   | { name: "inbox" }
-  | { name: "scan" };
+  | { name: "scan" }
+  | { name: "covers" };
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, "");
@@ -14,6 +15,7 @@ export function parseHash(hash: string): Route {
   if (path === "/import") return { name: "import" };
   if (path === "/inbox") return { name: "inbox" };
   if (path === "/scan") return { name: "scan" };
+  if (path === "/covers") return { name: "covers" };
   const sm = /^\/series\/(.+)$/.exec(path);
   if (sm) {
     try {
@@ -43,6 +45,8 @@ export function routeToHash(route: Route): string {
       return "#/inbox";
     case "scan":
       return "#/scan";
+    case "covers":
+      return "#/covers";
     case "book":
       return `#/book/${encodeURIComponent(route.id)}`;
     case "library":
@@ -68,7 +72,7 @@ export function useRoute(): Route {
 
 export type Tab = "library" | "scan" | "inbox" | "import";
 
-/** The nav tab a route belongs to: book detail and Add count as Library. */
+/** The nav tab a route belongs to: book detail, Add and the cover review count as Library. */
 export function tabFor(route: Route): Tab {
   switch (route.name) {
     case "scan":

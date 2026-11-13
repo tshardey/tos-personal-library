@@ -114,6 +114,24 @@ The Inbox turns photos of book covers into catalog entries. Nothing is written t
 
 **Requires** the Tome of Secrets `library-scan-intake` migration.
 
+## Covers
+
+The cover finder looks for better covers for books with a missing or wrong one. **Nothing on a book changes until someone picks a cover and presses Apply.**
+
+1. **Mark one book.** On a book's page, `Find a better cover` opens a small panel. Pick what's wrong (`Wrong language`, `Placeholder`, `Wrong book`, `Low quality`) and add a note if it helps, for example "this is the Spanish edition". `Add to batch` saves the mark for later. `Find now` searches for that book straight away (`Looking for covers…`). Marks are shared: either of you can see, change or remove them.
+2. **Or search a whole filter.** The library's covers filter has `No cover` (no cover URL, even if a copy photo shows), `Marked for cover` and `Nothing found`. With `No cover` or `Marked for cover` chosen, a footer shows how many books would be searched and roughly what it costs, and `Find covers` searches all of them. Books already being searched, and books tried before with nothing found, are left out.
+3. **Let it run.** The search runs in the app while either of you has it open, so a batch started on one phone and closed carries on when the other person opens the app. It looks on OpenLibrary and Google Books (when a key is set) across editions, keeps English editions, and has Claude check the candidate images. Nothing runs while nobody has the app open.
+4. **Review.** `Covers to review (n)` appears in the header for both of you. The review list shows each book's current cover and up to four found covers, with the best match already picked. Change the pick, or choose `Current` to keep the cover you have, then press `Apply`. If a cover was changed by hand after the search, the row says `This cover was changed after the search.` and keeps the current one unless you pick another. If the other person already reviewed a book, Apply says so and changes nothing twice. A cover chosen here is never replaced by later automatic lookups.
+5. **Nothing found.** A book with no good candidate says `Nothing good found.` once in the review list, then only under the `Nothing found` filter. Later batches skip it. `Try again` on that list or the book's page searches it again, and so does saving its mark with a new note.
+
+**Budget.** Cover finding has its own budget of **$5 a month** (a UTC calendar month), counted before each check so it can't be overspent. It shares the Claude workspace's $10 monthly cap with photo intake, so the $5 limit leaves room for photos. The review page shows `This month: … used`. Near the limit the footer says how many of the books the budget still covers; at the limit `Find covers` and `Find now` are disabled and the rest wait for next month or a manual retry.
+
+**If it stops,** a banner under the header says why: the budget is used up, cover finding isn't set up yet, or the Claude account refused the requests. All but the budget banner have `Try again`.
+
+**Privacy.** OpenLibrary and Google Books get the title and author. Claude gets the title, authors, what you marked as wrong, your note and the candidate images. The chosen cover is stored as a link, like a hand-typed cover URL.
+
+**Requires** the Tome of Secrets `library-cover-finder` migration and `library-covers` Edge Function. Without the migration the cover filters, the panel and the badge don't show, and the rest of the app works as before. Without the function, searches wait and the banner says `Cover finding isn't set up yet.`
+
 ## Tome of Secrets
 
 The book page has a Tome of Secrets section with the book's tags, grouped by category. The labels come from ToS's published `bookTags.json` (the app keeps the last good copy if the fetch fails; with no copy, tags show as raw ids). Tags are shared per book: everyone in the household sees the same ones, and the library list can filter by them.

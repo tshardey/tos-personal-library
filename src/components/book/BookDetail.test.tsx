@@ -123,3 +123,11 @@ describe("BookDetail series and tags", () => {
     expect(screen.getByRole("heading", { name: "The Salt Road" })).toBeInTheDocument();
   });
 });
+
+describe("BookDetail cover finder", () => {
+  it("shows no cover finder outside a provider", () => {
+    setCatalog([book()]);
+    render(<BookDetail id="b1" />);
+    expect(screen.queryByRole("button", { name: "Find a better cover" })).toBeNull();
+  });
+});

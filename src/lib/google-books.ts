@@ -136,6 +136,7 @@ export interface GoogleBooksSearchHit {
   synopsis: string | null;
   pageCount: number | null;
   publishDate: string | null;
+  language: string | null;
 }
 
 const strOrNull = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v : null);
@@ -145,7 +146,7 @@ function hitOf(item: unknown): GoogleBooksSearchHit | null {
   const id = (item as { id?: unknown } | null)?.id;
   const info = (item as { volumeInfo?: unknown } | null)?.volumeInfo;
   if (typeof id !== "string" || !info || typeof info !== "object") return null;
-  const v = info as VolumeInfo & { title?: unknown; authors?: unknown; pageCount?: unknown; publishedDate?: unknown };
+  const v = info as VolumeInfo & { title?: unknown; authors?: unknown; pageCount?: unknown; publishedDate?: unknown; language?: unknown };
   const isbns = new Set<string>();
   if (Array.isArray(v.industryIdentifiers)) {
     for (const ident of v.industryIdentifiers) {
@@ -169,6 +170,7 @@ function hitOf(item: unknown): GoogleBooksSearchHit | null {
     synopsis: synopsisOf(v),
     pageCount: typeof v.pageCount === "number" && v.pageCount > 0 ? v.pageCount : null,
     publishDate: strOrNull(v.publishedDate),
+    language: strOrNull(v.language),
   };
 }
 
@@ -181,10 +183,14 @@ export async function searchGoogleBooks(
   author: string | null,
   key: string,
   fetchImpl: typeof fetch,
+  opts?: { langRestrict?: string; printType?: "books" },
 ): Promise<GoogleBooksSearchHit[]> {
   let q = `intitle:${encodeURIComponent(`"${title}"`)}`;
   if (author !== null && author.trim() !== "") q += `+inauthor:${encodeURIComponent(`"${author}"`)}`;
-  const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5&key=${encodeURIComponent(key)}`;
+  let extra = "";
+  if (opts?.langRestrict) extra += `&langRestrict=${encodeURIComponent(opts.langRestrict)}`;
+  if (opts?.printType) extra += `&printType=${opts.printType}`;
+  const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5${extra}&key=${encodeURIComponent(key)}`;
   const data = await getJson(url, fetchImpl);
   const items = (data as { items?: unknown } | null)?.items;
   if (!Array.isArray(items)) return [];

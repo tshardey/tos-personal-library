@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import CoverBatchFooter from "@/components/covers/CoverBatchFooter";
+import NothingFoundList from "@/components/covers/NothingFoundList";
+import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
+import { applyCoverFilter, type CoverFilter } from "@/lib/covers/eligibility";
 import { editionLabels } from "@/lib/editions";
 import { filterBooks, type OwnerFilter } from "@/lib/filter-books";
 import { navigate } from "@/lib/router";
@@ -17,6 +21,8 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const [edition, setEdition] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [series, setSeries] = useState<string | null>(routeSeries ?? null);
+  const [coverFilter, setCoverFilter] = useState<CoverFilter>("all");
+  const { available: coversAvailable, marks, latest } = useCoverFinder();
   const [tosTags, setTosTags] = useState<TosTag[]>([]);
   useEffect(() => {
     setSeries(routeSeries ?? null);
@@ -33,14 +39,15 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const labels = useMemo(() => editionLabels(books, []), [books]);
   const names = useMemo(() => seriesNames(books), [books]);
   const visible = useMemo(() => {
-    const found = filterBooks(books, { query, owner, edition, tags: tagFilter, tagsByBook: tags, series });
+    const filtered = filterBooks(books, { query, owner, edition, tags: tagFilter, tagsByBook: tags, series });
+    const found = coversAvailable ? applyCoverFilter(filtered, coverFilter, marks, latest) : filtered;
     if (!series) return found;
     // D5: within a series, volume order (nulls last), so 2.5 sorts between 2 and 3.
     return [...found].sort(
       (a, b) =>
         (a.seriesVolume ?? Infinity) - (b.seriesVolume ?? Infinity) || a.title.localeCompare(b.title),
     );
-  }, [books, query, owner, edition, tagFilter, tags, series]);
+  }, [books, query, owner, edition, tagFilter, tags, series, coversAvailable, coverFilter, marks, latest]);
   function changeSeries(next: string | null) {
     setSeries(next);
     navigate({ name: "library", series: next ?? undefined });
@@ -83,6 +90,8 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       </div>
     );
   }
+  const showNothingFound = coversAvailable && coverFilter === "nothing_found";
+  const showFooter = coversAvailable && (coverFilter === "no_cover" || coverFilter === "marked");
   return (
     <div>
       <LibraryFilters
@@ -101,12 +110,20 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         onTagFilter={setTagFilter}
         onSeries={changeSeries}
         tagsUnavailable={tagsError !== null}
+        coverFilter={coverFilter}
+        coversAvailable={coversAvailable}
+        onCoverFilter={setCoverFilter}
       />
       {visible.length === 0 ? (
         <p className="p-6 text-center">No matching books</p>
+      ) : showNothingFound ? (
+        <NothingFoundList books={visible} />
       ) : (
-        <CoverWall books={visible} />
+        <div className={showFooter ? "pb-32" : undefined}>
+          <CoverWall books={visible} />
+        </div>
       )}
+      {showFooter && <CoverBatchFooter books={visible} />}
     </div>
   );
 }

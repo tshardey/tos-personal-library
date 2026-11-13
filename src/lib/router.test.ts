@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHash, routeToHash } from "./router";
+import { parseHash, routeToHash, tabFor } from "./router";
 
 describe("parseHash", () => {
   it("decodes book ids", () => {
@@ -43,5 +43,14 @@ describe("series route", () => {
   it("keeps plain library routes", () => {
     expect(parseHash("#/")).toEqual({ name: "library" });
     expect(routeToHash({ name: "library" })).toBe("#/");
+  });
+});
+
+describe("covers route", () => {
+  it("parses #/covers, round-trips it, and belongs to the Library tab", () => {
+    expect(parseHash("#/covers")).toEqual({ name: "covers" });
+    expect(routeToHash({ name: "covers" })).toBe("#/covers");
+    expect(parseHash(routeToHash({ name: "covers" }))).toEqual({ name: "covers" });
+    expect(tabFor({ name: "covers" })).toBe("library");
   });
 });

@@ -15,6 +15,8 @@ import type { BookInput, BookWithCopies } from "@/lib/types";
 import BookForm from "./BookForm";
 import CopyForm from "./CopyForm";
 import CopyList from "./CopyList";
+import FindCoverPanel from "@/components/covers/FindCoverPanel";
+import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import SeriesPicker from "@/components/series/SeriesPicker";
 import TosTagsSection from "./TosTagsSection";
 
@@ -68,6 +70,7 @@ export default function BookDetail({ id }: { id: string }) {
   const { user } = useAuth();
   const { books, tags, loading, error, tagsError, reload } = useCatalog();
   const photoUrls = useCopyPhotoUrls(books);
+  const { available: coverFinderAvailable } = useCoverFinder();
   const [editing, setEditing] = useState(false);
   const [addingCopy, setAddingCopy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -182,6 +185,7 @@ export default function BookDetail({ id }: { id: string }) {
         Back to library
       </a>
       <Cover key={book.coverUrl ?? ""} book={book} photoUrl={photoUrls.get(book.id)} />
+      {coverFinderAvailable && <FindCoverPanel book={book} />}
       {editing ? (
         <BookForm
           initial={before}
