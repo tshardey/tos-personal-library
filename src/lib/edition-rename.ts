@@ -59,6 +59,7 @@ export function planRename(books: BookWithCopies[], from: string, typed: string)
   const text = typed.trim();
   if (text === "") return { kind: "clear", from: source, to: null, copies, resultCount: 0 };
   if (text.length > MAX_LABEL) return { kind: "invalid", reason: `Labels are at most ${MAX_LABEL} characters.` };
+  if (text === source) return { kind: "invalid", reason: "That is already the label's name." };
   const others = labelCounts(books)
     .filter((l) => l.label !== source && key(l.label) === key(text))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
@@ -66,7 +67,6 @@ export function planRename(books: BookWithCopies[], from: string, typed: string)
     const into = others[0];
     return { kind: "merge", from: source, to: into.label, copies, resultCount: into.count + copies.length };
   }
-  if (text === source) return { kind: "invalid", reason: "That is already the label's name." };
   return { kind: "rename", from: source, to: text, copies, resultCount: copies.length };
 }
 

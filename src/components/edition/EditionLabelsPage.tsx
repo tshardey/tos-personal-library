@@ -86,8 +86,9 @@ export default function EditionLabelsPage() {
     }
   }
 
-  if (loading) return <p className="p-6">Loading…</p>;
-  if (error) {
+  // After a rename, a reload keeps the list on screen; only a first load replaces the page.
+  if (loading && books.length === 0) return <p className="p-6">Loading…</p>;
+  if (error && books.length === 0) {
     return (
       <div className="p-6">
         <p role="alert" className="mb-3 text-red-700">
@@ -107,6 +108,14 @@ export default function EditionLabelsPage() {
       {status && (
         <p role={status.error ? "alert" : "status"} className={`mt-2 text-sm ${status.error ? "text-red-700" : ""}`}>
           {status.text}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-red-700">
+          {"Couldn't reload the labels. "}
+          <button type="button" onClick={() => void reload()} className="underline">
+            Retry
+          </button>
         </p>
       )}
       <datalist id={listId}>

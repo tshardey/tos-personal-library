@@ -58,6 +58,11 @@ describe("planRename", () => {
     expect(planRename(variants, "harbor press", "Harbor Press")).toMatchObject({ kind: "merge", to: "Harbor Press", resultCount: 3 });
   });
 
+  it("treats retyping the label's own spelling as unchanged even when a case variant exists", () => {
+    const variants = catalog([["harbor press", "Harbor Press", "Harbor Press"]]);
+    expect(planRename(variants, "Harbor Press", " Harbor Press ").kind).toBe("invalid");
+  });
+
   it("clears the label for a blank name", () => {
     const plan = planRename(books, "Lantern Box", "   ");
     expect(plan).toMatchObject({ kind: "clear", to: null, resultCount: 0 });

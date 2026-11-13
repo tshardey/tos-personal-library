@@ -148,6 +148,18 @@ describe("EditionLabelsPage", () => {
     expect(viewEdition).toBe("Amber Folio");
   });
 
+  it("keeps the list and the result when the reload after a rename fails", async () => {
+    render(<EditionLabelsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename Harbor Press" }));
+    fireEvent.change(screen.getByLabelText(/New name/), { target: { value: "Amber Folio" } });
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    h.catalog = { books, loading: false, error: "Couldn't load your books.", reload };
+    fireEvent.click(screen.getByRole("button", { name: "Change 1 copy" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Changed 1 copy."));
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't reload the labels.");
+    expect(screen.getByRole("list", { name: "Edition labels" })).toBeInTheDocument();
+  });
+
   it("says when there are no labels", () => {
     h.catalog = { books: [bookFixture("A", [copyFixture()])], loading: false, error: null, reload };
     render(<EditionLabelsPage />);
