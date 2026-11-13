@@ -12,6 +12,7 @@ import {
   type Copy,
   type CopyFlagsPatch,
   type CopyInput,
+  type CopyPatch,
   type Row,
 } from "@/lib/types";
 
@@ -139,6 +140,27 @@ export async function setCopyFlags(copy: Copy, patch: CopyFlagsPatch): Promise<v
     .update({ ...columns, user_edited_fields: markEdited(copy.userEditedFields, keys) })
     .eq("id", copy.id);
   if (error) throw error;
+}
+
+/**
+ * One update of a copy's editable fields and flags, with the caller's user_edited_fields. Only the
+ * keys present in the patch are written (mass edit).
+ */
+export async function updateCopyFields(id: string, patch: CopyPatch, editedFields: string[]): Promise<void> {
+  const { unhauledAt, deluxe, signed, ...fields } = patch;
+  const flags: CopyFlagsPatch = { unhauledAt, deluxe, signed };
+  const columns: Row = { ...fromCopyPatch(fields) };
+  for (const k of Object.keys(COPY_FLAG_COLUMNS) as (keyof CopyFlagsPatch)[]) {
+    if (flags[k] !== undefined) columns[COPY_FLAG_COLUMNS[k]] = flags[k];
+  }
+  const { data, error } = await supabase
+    .from("copies")
+    .update({ ...columns, user_edited_fields: editedFields })
+    .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  // A copy removed meanwhile (or hidden by RLS) updates nothing; report it rather than claim a change.
+  if ((data ?? []).length === 0) throw new Error("copy_not_found");
 }
 
 export async function deleteCopy(id: string): Promise<void> {

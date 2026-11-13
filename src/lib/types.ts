@@ -64,6 +64,9 @@ export interface CopyFlagsPatch {
   signed?: boolean;
 }
 
+/** Editable copy fields and flags together, for one write. */
+export type CopyPatch = Partial<CopyInput> & CopyFlagsPatch;
+
 export type BookWithCopies = Book & { copies: Copy[] };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

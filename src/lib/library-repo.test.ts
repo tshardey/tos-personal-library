@@ -39,6 +39,7 @@ import {
   listLibibLedger,
   removeBookTag,
   setCopyFlags,
+  updateCopyFields,
 } from "./library-repo";
 import { fromBookPatch, toBook, type BookInput } from "./types";
 
@@ -399,5 +400,44 @@ describe("copy flags", () => {
     const error = { message: "boom" };
     h.results.push({ data: null, error });
     await expect(setCopyFlags(COPY, { signed: true })).rejects.toBe(error);
+  });
+});
+
+describe("updateCopyFields (mass edit)", () => {
+  it("writes copy fields and flags in one update with the given edited fields", async () => {
+    h.results.push({ data: [{ id: "c1" }], error: null });
+    await updateCopyFields(
+      "c1",
+      { editionNote: "Lantern Box", ownerUserId: null, deluxe: true, unhauledAt: null },
+      ["deluxe", "editionNote", "ownerUserId", "unhauledAt"],
+    );
+    expect(h.queries).toHaveLength(1);
+    expect(h.queries[0].table).toBe("copies");
+    expect(stepArgs(0, "update")).toEqual([
+      [
+        {
+          edition_note: "Lantern Box",
+          owner_user_id: null,
+          deluxe: true,
+          unhauled_at: null,
+          user_edited_fields: ["deluxe", "editionNote", "ownerUserId", "unhauledAt"],
+        },
+      ],
+    ]);
+    expect(stepArgs(0, "eq")).toEqual([["id", "c1"]]);
+  });
+
+  it("leaves out keys not in the patch", async () => {
+    h.results.push({ data: [{ id: "c1" }], error: null });
+    await updateCopyFields("c1", { signed: false }, ["signed"]);
+    expect(stepArgs(0, "update")).toEqual([[{ signed: false, user_edited_fields: ["signed"] }]]);
+  });
+
+  it("rejects on a write error, and when no row was updated", async () => {
+    const error = { message: "boom" };
+    h.results.push({ data: null, error });
+    await expect(updateCopyFields("c1", { deluxe: true }, ["deluxe"])).rejects.toBe(error);
+    h.results.push({ data: [], error: null });
+    await expect(updateCopyFields("c1", { deluxe: true }, ["deluxe"])).rejects.toThrow("copy_not_found");
   });
 });

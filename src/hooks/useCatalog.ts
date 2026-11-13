@@ -16,6 +16,8 @@ export function useCatalog(): {
   /** Tags load on their own: a failure (e.g. before the db push) never blocks the catalogue. */
   tagsError: string | null;
   reload(): Promise<void>;
+  /** Reloads behind what is shown (no Loading); resolves false when the books couldn't be read. */
+  refresh(): Promise<boolean>;
 } {
   const { household } = useHousehold();
   const householdId = household?.id ?? null;
@@ -29,12 +31,12 @@ export function useCatalog(): {
 
   /** `background`: keep what is shown (no Loading), and keep it if the refresh fails. */
   const load = useCallback(
-    async (background: boolean) => {
+    async (background: boolean): Promise<boolean> => {
       if (!householdId) {
         setBooks([]);
         setTags(NO_TAGS);
         setLoading(false);
-        return;
+        return true;
       }
       if (!background) {
         setLoading(true);
@@ -70,11 +72,15 @@ export function useCatalog(): {
         if (!background) setError("Couldn't load your books.");
       }
       setLoading(false);
+      return booksResult.status === "fulfilled";
     },
     [householdId],
   );
 
-  const reload = useCallback(() => load(false), [load]);
+  const reload = useCallback(async () => {
+    await load(false);
+  }, [load]);
+  const refresh = useCallback(() => load(true), [load]);
 
   useEffect(() => {
     const hit = readCatalogCache(householdId);
@@ -88,5 +94,5 @@ export function useCatalog(): {
     void load(hit !== null);
   }, [load, householdId]);
 
-  return { books, tags, loading, error, tagsError, reload };
+  return { books, tags, loading, error, tagsError, reload, refresh };
 }

@@ -7,10 +7,12 @@ interface Props {
   onChange(label: string | null): void;
   label?: string;
   disabled?: boolean;
+  /** Shown on the button instead of the value, e.g. "no change" before anything is picked. */
+  valueText?: string;
 }
 
 /** D12: a button that opens a sheet to pick, add or clear a household edition label. */
-export default function EditionPicker({ value, labels, onChange, label = "Edition", disabled }: Props) {
+export default function EditionPicker({ value, labels, onChange, label = "Edition", disabled, valueText }: Props) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const filterRef = useRef<HTMLInputElement>(null);
@@ -48,7 +50,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
         onClick={() => setOpen(true)}
         className="block w-full rounded border p-2 text-left text-sm disabled:opacity-50"
       >
-        {`${label}: ${value ?? "none"}`}
+        {`${label}: ${valueText ?? value ?? "none"}`}
       </button>
       {open && (
         <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
