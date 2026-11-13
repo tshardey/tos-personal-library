@@ -48,6 +48,7 @@ const strings = (v: unknown): string[] =>
 interface OlWork {
   key?: unknown;
   author_name?: unknown;
+  author_alternative_name?: unknown;
 }
 
 interface OlEdition {
@@ -57,6 +58,9 @@ interface OlEdition {
   languages?: unknown;
   isbn_13?: unknown;
 }
+
+/** A work's authors: the listed names plus their alternative spellings (other scripts). */
+const workAuthorsOf = (w: OlWork): string[] => [...strings(w.author_name), ...strings(w.author_alternative_name)];
 
 function editionTitleOf(e: OlEdition): string | null {
   if (typeof e.title !== "string" || e.title.trim() === "") return null;
@@ -75,16 +79,16 @@ export async function openLibraryCandidates(
   fetchImpl: typeof fetch,
 ): Promise<RawCandidate[]> {
   const author = book.authors[0];
-  let url = `https://openlibrary.org/search.json?title=${encodeURIComponent(book.title)}`;
+  let url = `https://openlibrary.org/search.json?q=${encodeURIComponent(book.title)}`;
   if (author !== undefined && author.trim() !== "") url += `&author=${encodeURIComponent(author)}`;
-  url += "&limit=5&fields=key,title,author_name,cover_i,language";
+  url += "&limit=5&fields=key,title,author_name,author_alternative_name,cover_i,language";
 
   const data = await getJson(url, fetchImpl);
   const docs = (Array.isArray((data as { docs?: unknown } | null)?.docs) ? (data as { docs: unknown[] }).docs : []).filter(
     (d): d is OlWork => !!d && typeof d === "object",
   );
   const works = docs
-    .filter((d) => book.authors.length === 0 || authorsOverlap(book.authors, strings(d.author_name)))
+    .filter((d) => book.authors.length === 0 || authorsOverlap(book.authors, workAuthorsOf(d)))
     .slice(0, MAX_WORKS);
 
   const isbns = canonicalIsbns(book);
@@ -93,14 +97,14 @@ export async function openLibraryCandidates(
     if (typeof w.key !== "string" || !w.key.startsWith("/works/")) continue;
     let data2: unknown;
     try {
-      data2 = await getJson(`https://openlibrary.org${w.key}/editions.json?limit=50`, fetchImpl);
+      data2 = await getJson(`https://openlibrary.org${w.key}/editions.json?limit=1000`, fetchImpl);
     } catch (err) {
       if (err instanceof LookupError && !err.retryable) continue;
       throw err;
     }
     const entries = (data2 as { entries?: unknown } | null)?.entries;
     if (!Array.isArray(entries)) continue;
-    const workAuthors = strings(w.author_name);
+    const workAuthors = workAuthorsOf(w);
     for (const raw of entries) {
       if (!raw || typeof raw !== "object") continue;
       const e = raw as OlEdition;

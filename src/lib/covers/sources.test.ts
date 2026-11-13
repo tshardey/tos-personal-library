@@ -179,6 +179,22 @@ describe("openLibraryCandidates", () => {
     expect(out.map((c) => c.url)).toEqual([olUrl(1000011), olUrl(1000012)]);
   });
 
+  it("accepts a work whose author_alternative_name holds the author, and skips one matching neither", async () => {
+    const docs = [
+      work("/works/OL1W", { author_name: ["Ада Писатель"], author_alternative_name: ["Ada Writer"] }),
+      work("/works/OL2W", { author_name: ["Ада Писатель"], author_alternative_name: ["Someone Else"] }),
+    ];
+    const { fetchImpl } = stub({
+      search: () => json({ docs }),
+      editions: {
+        "/works/OL1W": () => json({ entries: [ed("The Salt Road", 1000021, EN)] }),
+        "/works/OL2W": () => json({ entries: [ed("The Salt Road", 1000022, EN)] }),
+      },
+    });
+    const out = await openLibraryCandidates(book(), fetchImpl);
+    expect(out.map((c) => c.url)).toEqual([olUrl(1000021)]);
+  });
+
   it("builds the search and editions URLs", async () => {
     const { fetchImpl, calls } = stub({
       search: () => json({ docs: [work("/works/OL1W")] }),
@@ -186,9 +202,9 @@ describe("openLibraryCandidates", () => {
     });
     await openLibraryCandidates(book({ title: "The Salt & Road" }), fetchImpl);
     expect(calls[0]).toBe(
-      "https://openlibrary.org/search.json?title=The%20Salt%20%26%20Road&author=Ada%20Writer&limit=5&fields=key,title,author_name,cover_i,language",
+      "https://openlibrary.org/search.json?q=The%20Salt%20%26%20Road&author=Ada%20Writer&limit=5&fields=key,title,author_name,author_alternative_name,cover_i,language",
     );
-    expect(calls[1]).toBe("https://openlibrary.org/works/OL1W/editions.json?limit=50");
+    expect(calls[1]).toBe("https://openlibrary.org/works/OL1W/editions.json?limit=1000");
 
     const none = stub({ search: () => json({ docs: [] }) });
     await openLibraryCandidates(book({ authors: [] }), none.fetchImpl);
