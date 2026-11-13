@@ -132,6 +132,28 @@ The cover finder looks for better covers for books with a missing or wrong one. 
 
 **Requires** the Tome of Secrets `library-cover-finder` migration and `library-covers` Edge Function. Without the migration the cover filters, the panel and the badge don't show, and the rest of the app works as before. Without the function, searches wait and the banner says `Cover finding isn't set up yet.`
 
+## Unhauling and copy flags
+
+Each copy on a book's page has three toggles next to its notes: `Deluxe`, `Signed` and `Unhaul`. One tap sets each one, and the same tap undoes it (`Undo unhaul` on an unhauled copy). None of them changes the edition note, the copy note or the copy's origin, and a later libib import never undoes them.
+
+**Unhaul** a copy you traded in or gave away, instead of deleting it, so the library remembers you once had it.
+
+- A book is unhauled when every one of its copies is. A book with one copy left on the shelf stays in the list, and its page says, for example, `1 on the shelf · 1 unhauled`. A book with no copies at all stays in the list too.
+- **Hidden:** unhauled books leave the main list and the cover wall, the book count, the `Date added` counts, the `No cover` filter and cover batches, and Tome of Secrets' `On our shelf`, its book picker and its tidy review.
+- **Still shown:** typing in the search box finds unhauled books, marked `Unhauled`, so a search in a bookshop shows you had a title and let it go. The `Unhauled` filter lists every book with an unhauled copy. Their book pages still open, with the unhauled copies marked and dimmed. Scanning one says `We had this and unhauled it`, and you can still add a re-bought copy. A Tome of Secrets quest that already uses the book keeps it, with an `Unhauled` mark.
+
+**Deluxe and Signed** show as badges on the book in the list whenever a copy still on the shelf has them. In Tome of Secrets, picking a book with a Deluxe copy suggests the Special / Illuminated Edition tag, even when the edition note is empty.
+
+**Filters and the count.** Above the list, a count such as `42 books` follows the search and every filter.
+
+- `Deluxe`, `Signed` and `Unhauled` filter the list. Each filter checks a book's copies on its own, so an owner with `Deluxe` also matches a book where that person owns one copy and a different copy is deluxe.
+- `Date added` lists each day copies were added, newest first, with the number of copies (for example `Nov 12 · 23`), in your own time zone.
+- `Published` takes a from and to year; either end can be left blank. It reads the year from the book's publish date, so a book with no year in it is left out while the filter is on.
+
+The list keeps its place, search and filters when you open a book and go back. A reload clears them.
+
+**Requires** the Tome of Secrets `library-copy-flags` migration.
+
 ## Tome of Secrets
 
 The book page has a Tome of Secrets section with the book's tags, grouped by category. The labels come from ToS's published `bookTags.json` (the app keeps the last good copy if the fetch fails; with no copy, tags show as raw ids). Tags are shared per book: everyone in the household sees the same ones, and the library list can filter by them.
