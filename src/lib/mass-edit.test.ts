@@ -41,7 +41,7 @@ const all = (books: BookWithCopies[]): MassEditTargets => ({
 describe("buildChangeSet", () => {
   it("writes nothing when every field is left as no change", () => {
     const books = catalog();
-    expect(buildChangeSet(books, all(books), {}, LABELS, NOW)).toEqual({ copies: [], books: [] });
+    expect(buildChangeSet(books, all(books), {}, LABELS, NOW)).toEqual({ copies: [], books: [], libraryTags: [] });
   });
 
   it("patches only touched fields that change, and adds each changed key to user_edited_fields once", () => {
@@ -209,5 +209,91 @@ describe("applyChangeSet", () => {
     const result = await applyChangeSet(set, { writeCopy, writeBook: vi.fn() });
     expect(result.changedCopies).toBe(20);
     expect(peak).toBe(WRITE_BATCH);
+  });
+});
+
+describe("library tags", () => {
+  const three = (): BookWithCopies[] => [
+    bookFixture("Atlas", [copyFixture({ id: "a1", bookId: "Atlas" })]),
+    bookFixture("Codex", [copyFixture({ id: "c1", bookId: "Codex" })]),
+    bookFixture("Ember", [copyFixture({ id: "e1", bookId: "Ember" })]),
+  ];
+  const tagsByBook = () =>
+    new Map<string, string[]>([
+      ["Codex", ["vampires", "found-family"]],
+      ["Ember", ["found-family"]],
+    ]);
+
+  it("adds a tag only to target books that lack it", () => {
+    const books = three();
+    const set = buildChangeSet(books, all(books), { addLibraryTags: ["vampires"] }, LABELS, NOW, tagsByBook());
+    expect(set.libraryTags.map((c) => [c.book.id, c.add, c.remove])).toEqual([
+      ["Atlas", ["vampires"], []],
+      ["Ember", ["vampires"], []],
+    ]);
+    expect(set.copies).toEqual([]);
+  });
+
+  it("removes a tag only where it is present, and only from target books", () => {
+    const books = three();
+    const targets = { copyIds: new Set<string>(), bookIds: new Set(["Atlas", "Codex"]) };
+    const set = buildChangeSet(books, targets, { removeLibraryTags: ["found-family"] }, LABELS, NOW, tagsByBook());
+    expect(set.libraryTags.map((c) => [c.book.id, c.add, c.remove])).toEqual([["Codex", [], ["found-family"]]]);
+  });
+
+  it("ignores a tag that is both added and removed", () => {
+    const books = three();
+    const set = buildChangeSet(
+      books,
+      all(books),
+      { addLibraryTags: ["vampires"], removeLibraryTags: ["vampires"] },
+      LABELS,
+      NOW,
+      tagsByBook(),
+    );
+    expect(set.libraryTags).toEqual([]);
+  });
+
+  it("defaults to no tags known, so every add counts", () => {
+    const books = three();
+    const set = buildChangeSet(books, all(books), { addLibraryTags: ["vampires"] }, LABELS, NOW);
+    expect(set.libraryTags).toHaveLength(3);
+  });
+
+  it("writes adds and deletes; a book with any failed write fails, the rest succeed, and retry includes it", async () => {
+    const books = three();
+    const set = buildChangeSet(
+      books,
+      all(books),
+      { addLibraryTags: ["vampires"], removeLibraryTags: ["found-family"] },
+      LABELS,
+      NOW,
+      tagsByBook(),
+    );
+    const addLibraryTag = vi.fn(async (bookId: string) => {
+      if (bookId === "Ember") throw new Error("network");
+    });
+    const removeLibraryTag = vi.fn(async () => {});
+    const result = await applyChangeSet(set, { writeCopy: vi.fn(), writeBook: vi.fn(), addLibraryTag, removeLibraryTag });
+    expect(addLibraryTag.mock.calls).toEqual([
+      ["Atlas", "vampires"],
+      ["Ember", "vampires"],
+    ]);
+    expect(removeLibraryTag.mock.calls).toEqual([
+      ["Codex", "found-family"],
+      ["Ember", "found-family"],
+    ]);
+    expect(result.changedTagBooks).toBe(2);
+    expect(result.failedTags.map((c) => c.book.id)).toEqual(["Ember"]);
+    expect([...retryTargets(result).bookIds]).toEqual(["Ember"]);
+  });
+});
+
+describe("describeCounts with tags", () => {
+  it("names books' tags, joining three parts with a comma", () => {
+    expect(describeCounts(0, 0, 2)).toBe("2 books' tags");
+    expect(describeCounts(0, 0, 1)).toBe("1 book's tags");
+    expect(describeCounts(1, 0, 2)).toBe("1 copy and 2 books' tags");
+    expect(describeCounts(14, 3, 2)).toBe("14 copies, 3 books' series and 2 books' tags");
   });
 });

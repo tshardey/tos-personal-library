@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import EditionPicker from "@/components/edition/EditionPicker";
+import LibraryTagPicker from "@/components/tags/LibraryTagPicker";
+import { useTagging } from "@/contexts/TaggingContext";
 import { isUnhauled } from "@/lib/copy-flags";
 import { updateBook, updateCopyFields } from "@/lib/library-repo";
 import {
@@ -13,6 +15,7 @@ import {
   type MassEditTargets,
 } from "@/lib/mass-edit";
 import { MAX_SERIES, seriesNames } from "@/lib/series";
+import { addLibraryTag, removeLibraryTag } from "@/lib/tagging/tagging-repo";
 import type { BookWithCopies, Copy, HouseholdMember } from "@/lib/types";
 
 type Flag = "" | "on" | "off";
@@ -68,12 +71,15 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const [unhauled, setUnhauled] = useState<Flag>("");
   const [seriesMode, setSeriesMode] = useState<TextMode>("");
   const [series, setSeries] = useState("");
+  const [addTags, setAddTags] = useState<string[]>([]);
+  const [removeTags, setRemoveTags] = useState<string[]>([]);
+  const tagging = useTagging();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MassEditResult | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
   /** Changes written so far, across the first run and any retries. */
-  const [totals, setTotals] = useState({ copies: 0, books: 0 });
+  const [totals, setTotals] = useState({ copies: 0, books: 0, tags: 0 });
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Focus moves into the sheet on open (so Escape and Tab start there) and back on close.
@@ -87,6 +93,17 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
 
   const locations = useMemo(() => locationNames(catalog), [catalog]);
   const allSeries = useMemo(() => seriesNames(catalog), [catalog]);
+  // Library tags are written only while tagging is available (the row is hidden otherwise).
+  const tagsOn = tagging.available;
+  const tagMap = tagging.libraryTagsByBook;
+  const householdOf = useMemo(() => new Map(catalog.map((b) => [b.id, b.householdId])), [catalog]);
+  const activeTags = tagging.vocabulary.filter((t) => t.active).map((t) => t.id);
+  // Remove also offers retired tags a selected book still has.
+  const removable = useMemo(() => {
+    const ids = new Set(tagging.vocabulary.filter((t) => t.active).map((t) => t.id));
+    for (const b of selected) for (const id of tagMap.get(b.id) ?? []) ids.add(id);
+    return [...ids];
+  }, [tagging.vocabulary, selected, tagMap]);
 
   const edit: MassEdit = {
     editionNote: label,
@@ -96,6 +113,8 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
     signed: flag(signed),
     unhauled: flag(unhauled),
     seriesName: seriesMode === "set" ? series : seriesMode === "clear" ? null : undefined,
+    addLibraryTags: tagsOn && addTags.length > 0 ? addTags : undefined,
+    removeLibraryTags: tagsOn && removeTags.length > 0 ? removeTags : undefined,
   };
   const blank =
     seriesMode === "set" && series.trim() === ""
@@ -110,10 +129,11 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
     bookIds: new Set(selected.map((b) => b.id)),
   };
   // Counts only; the real timestamp is taken when saving.
-  const preview = buildChangeSet(catalog, targets, edit, labels, "");
+  const preview = buildChangeSet(catalog, targets, edit, labels, "", tagMap);
   const copyCount = preview.copies.length;
   const bookCount = preview.books.length;
-  const nothing = copyCount + bookCount === 0;
+  const tagCount = preview.libraryTags.length;
+  const nothing = copyCount + bookCount + tagCount === 0;
 
   function toggle(id: string) {
     setConfirming(false);
@@ -128,13 +148,25 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   async function run(runTargets: MassEditTargets) {
     setBusy(true);
     try {
-      const set = buildChangeSet(catalog, runTargets, edit, labels, new Date().toISOString());
-      const out = await applyChangeSet(set, { writeCopy: updateCopyFields, writeBook: updateBook });
-      const refreshed = await refresh();
-      const failed = out.failedCopies.length + out.failedBooks.length;
-      const sum = { copies: totals.copies + out.changedCopies, books: totals.books + out.changedBooks };
+      const set = buildChangeSet(catalog, runTargets, edit, labels, new Date().toISOString(), tagMap);
+      const out = await applyChangeSet(set, {
+        writeCopy: updateCopyFields,
+        writeBook: updateBook,
+        addLibraryTag: (bookId, tagId) => addLibraryTag(bookId, householdOf.get(bookId) ?? "", tagId),
+        removeLibraryTag,
+      });
+      const [refreshed] = await Promise.all([
+        refresh(),
+        set.libraryTags.length > 0 ? tagging.reload() : Promise.resolve(),
+      ]);
+      const failed = out.failedCopies.length + out.failedBooks.length + out.failedTags.length;
+      const sum = {
+        copies: totals.copies + out.changedCopies,
+        books: totals.books + out.changedBooks,
+        tags: totals.tags + out.changedTagBooks,
+      };
       if (failed === 0 && refreshed) {
-        onDone(`Changed ${describeCounts(sum.copies, sum.books) || "nothing"}.`);
+        onDone(`Changed ${describeCounts(sum.copies, sum.books, sum.tags) || "nothing"}.`);
         return;
       }
       setTotals(sum);
@@ -156,7 +188,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
     }
   }
 
-  const failures = result ? result.failedCopies.length + result.failedBooks.length : 0;
+  const failures = result ? result.failedCopies.length + result.failedBooks.length + result.failedTags.length : 0;
   const choice = "mt-1 block w-full rounded border p-2";
   const field = "block text-sm";
 
@@ -187,7 +219,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
               }`}
             >
               <p>
-                {`Changed ${describeCounts(totals.copies, totals.books) || "nothing"}.`}
+                {`Changed ${describeCounts(totals.copies, totals.books, totals.tags) || "nothing"}.`}
                 {failures > 0 && ` ${failures} couldn't be changed:`}
               </p>
               {failures > 0 && (
@@ -197,6 +229,9 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                   ))}
                   {result.failedBooks.map((b) => (
                     <li key={b.book.id}>{`${b.book.title}: series`}</li>
+                  ))}
+                  {result.failedTags.map((c) => (
+                    <li key={`tags-${c.book.id}`}>{`${c.book.title}: tags`}</li>
                   ))}
                 </ul>
               )}
@@ -347,6 +382,29 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
             )}
             {seriesMode !== "" && <p className="text-xs text-stone-600">Applies to every selected book. Volumes stay as they are.</p>}
 
+            {tagsOn && (
+              <div>
+                <h3 className="text-sm font-medium">Library tags</h3>
+                <p className="text-xs text-stone-600">Applies to every selected book.</p>
+                <div className="mt-2 space-y-2">
+                  <LibraryTagPicker
+                    label="Add tags"
+                    vocabulary={tagging.vocabulary}
+                    offered={activeTags.filter((id) => !removeTags.includes(id))}
+                    selected={addTags}
+                    onChange={(ids) => { setAddTags(ids); setConfirming(false); }}
+                  />
+                  <LibraryTagPicker
+                    label="Remove tags"
+                    vocabulary={tagging.vocabulary}
+                    offered={removable.filter((id) => !addTags.includes(id))}
+                    selected={removeTags}
+                    onChange={(ids) => { setRemoveTags(ids); setConfirming(false); }}
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <h3 className="text-sm font-medium">Copies</h3>
               <p className="text-xs text-stone-600">
@@ -380,7 +438,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
             </button>
           ) : confirming && !nothing ? (
             <div role="group" aria-label="Confirm" className="space-y-2">
-              <p className="text-sm font-medium">{`This will change ${describeCounts(copyCount, bookCount)}. There is no undo.`}</p>
+              <p className="text-sm font-medium">{`This will change ${describeCounts(copyCount, bookCount, tagCount)}. There is no undo.`}</p>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -409,7 +467,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                 Cancel
               </button>
               <p className="text-sm text-stone-600">
-                {blank ?? (nothing ? "Nothing to change yet." : describeCounts(copyCount, bookCount))}
+                {blank ?? (nothing ? "Nothing to change yet." : describeCounts(copyCount, bookCount, tagCount))}
               </p>
             </div>
           )}
