@@ -729,3 +729,35 @@ export interface LibraryTagChange { book: Book; add: string[]; remove: string[] 
 ## Open questions for the coordinator
 
 1. **Task 2's set is invented books only, per the brief.** Invented books can't show the tagger's own knowledge of a title, which is the main reason to prefer Sonnet when a description is all edition marketing. Should Task 2 also include about 5 public-domain classics with edition-only descriptions, chosen at run time and never written down (as Plan 5's measurement did)? **Default if unanswered: no** — invented books only, and the gate keeps Sonnet for tagging unless Haiku clearly matches it.
+
+## Build notes (2026-11-13)
+
+These record where the build departed from the plan text, and why.
+
+- **Open question 1 was answered yes.** Task 2 also measured 5 public-domain classics with edition-only descriptions. They were chosen at run time and only aggregate results are recorded: all 5 summaries were about the story.
+- **Models (Task 2):** `claude-sonnet-5-5` for both functions. Haiku failed both gates: tagging F1 0.40 vs 0.65, cover colours 2/4 vs 4/4; Ask top-3 7/9 vs 9/9, and it failed R-E-A-D. The measurement cost $0.13.
+- **Tagging `max_tokens` is 2,048, not 4,096.**
+  - At 4,096 the ceiling came to 89,139 µ$, above the provisional 80,000.
+  - The largest measured output was 258 tokens, so 2,048 still leaves a wide margin.
+  - `ceilingMicro` now also counts the ToS id line at 120 ids, priced at the cache-write rate, and the handler clamps the ToS list to 120 ids.
+  - `TAG_RESERVE_MICRO` and SQL `tag_reserve_micro()` are 69,000.
+- **Estimates:** `TAG_PER_BOOK_ESTIMATE_MICRO` = 4,300 and `NEW_TAGS_PER_BOOK_ESTIMATE_MICRO` = 3,600, both measured.
+- **Seed label:** `single-pov` is labelled `Single POV`.
+- **`tag_jobs` columns:** added `cover_at_claim` and `vocab_version`, both recorded at claim.
+- **First tagging month:** it counts only months with `calls > 0`, so a refunded call doesn't end the $5 month.
+- **Tagging review fixes:**
+  - A book update locks the book's open job first, so a cover applied during `finish_tag_job` still queues the retag.
+  - A blank summary on a `full` job is `tag_unreadable`, so the book isn't billed again by every run.
+  - Suggestions are checked against every ToS id.
+  - A ToS tag-list outage (`tos_tags_unavailable`) gives the attempt, call and reservation back.
+  - Finish reads a suggestion's status `for share`.
+- **Ask fixes:**
+  - An error on the second request releases at least the first request's cost, keeping `billing` as the outcome.
+  - A crash after `begin_ask` releases the reservation.
+  - A failed description read sends an error `tool_result` instead of losing usage.
+  - The fake-mode host guard is shared (`fakeAllowed`).
+- **`listTagJobs`:** it returns every queued or processing job plus each book's newest job of any status. The plan said "each book's newest failed", but Tasks 8, 10 and 11 need the true newest job.
+- **Drain:** like the cover finder, it pauses for 60 s after two `retry_later` or thrown calls in a row. Tagging controls (the account-menu link, the page and the mass-edit row) are hidden until tagging is available.
+- **Shared filter options:** `filterView` and `viewFilterOptions` (`src/lib/ask.ts`) feed both the wall and `askBookIds`, so the two can't drift.
+- **Ask clearing:** a series change clears Ask results.
+- **Walkthrough step 7:** locally, stopped functions answer 503, not 404, so the "not set up" copy was checked by answering 404 in the browser, as the hosted gateway does. The pre-feature check reset the same local stack to ToS `origin/main`.
