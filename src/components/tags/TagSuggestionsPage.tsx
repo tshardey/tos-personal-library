@@ -3,9 +3,10 @@ import { useTagging } from "@/contexts/TaggingContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { formatUsd } from "@/lib/covers/cost";
 import { NEW_TAGS_PER_BOOK_ESTIMATE_MICRO, TAG_PER_BOOK_ESTIMATE_MICRO } from "@/lib/tagging/cost";
-import { newTagsEligible, runEligible, runProgress } from "@/lib/tagging/eligibility";
+import { newTagsEligible, retagAllEligible, runEligible, runProgress } from "@/lib/tagging/eligibility";
 import { tagIdFromLabel } from "@/lib/tagging/slug";
 import { LIBRARY_TAG_CATEGORIES, type LibraryTagCategory, type TagSuggestion } from "@/lib/tagging/types";
+import RetagConfirm from "./RetagConfirm";
 import TagRunPanel from "./TagRunPanel";
 
 const categoryLabel = (c: LibraryTagCategory) => LIBRARY_TAG_CATEGORIES.find((x) => x.id === c)?.label ?? c;
@@ -201,7 +202,7 @@ function AddTagForm({ createTag }: { createTag(label: string, category: LibraryT
   );
 }
 
-/** D14: `#/tags` — budget line, Tag all books, Check for new tags, suggestions, Add a tag. */
+/** D14: `#/tags` — budget line, Tag all books, Check for new tags, Retag all books, suggestions, Add a tag. */
 export default function TagSuggestionsPage() {
   const tagging = useTagging();
   const { books, loading: catalogLoading } = useCatalog();
@@ -209,7 +210,9 @@ export default function TagSuggestionsPage() {
 
   const runIds = useMemo(() => runEligible(books, cards, jobs), [books, cards, jobs]);
   const newIds = useMemo(() => newTagsEligible(cards, vocabVersion, jobs), [cards, vocabVersion, jobs]);
+  const retagIds = useMemo(() => retagAllEligible(books, jobs), [books, jobs]);
   const progress = useMemo(() => runProgress(jobs, runId), [jobs, runId]);
+  const retagHeadingId = useId();
   const titles = useMemo(() => new Map(books.map((b) => [b.id, b.title])), [books]);
 
   return (
@@ -247,6 +250,21 @@ export default function TagSuggestionsPage() {
                 progress={null}
                 onRun={tagging.checkNewTags}
               />
+              <section aria-labelledby={retagHeadingId} className="space-y-2 rounded border p-3">
+                <h3 id={retagHeadingId} className="font-medium">
+                  Retag all books
+                </h3>
+                <RetagConfirm
+                  label="Retag all books (covers too)"
+                  bookIds={retagIds}
+                  budget={budgets.tagging}
+                  onRetag={tagging.retagMany}
+                />
+              </section>
+              <p className="text-sm text-stone-600">
+                Check for new tags is cheap but only rereads each book's summary, so it can't add cover tags. To pick up
+                new cover tags, use Retag all books.
+              </p>
             </>
           )}
           <section aria-label="Suggestions">

@@ -1,29 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { newUserWithHousehold, rest, signIn, supabaseEnv, type TestUser } from "./supabase";
+import { newUserWithHousehold, rest, signIn } from "./supabase";
+import { closeOpenJobs, insert, type JobRow } from "./tag-jobs";
 
 /**
  * Mass edit: search, select every shown book, set an edition label and Deluxe on their copies with
  * one copy of a two-copy book left unticked, confirm, and read the result back. Invented titles and
  * labels only.
  */
-
-async function insert<T>(user: TestUser, table: string, rows: unknown[]): Promise<T[]> {
-  const { url, key } = supabaseEnv();
-  const res = await fetch(`${url}/rest/v1/${table}`, {
-    method: "POST",
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${user.accessToken}`,
-      "Content-Type": "application/json",
-      "Content-Profile": "library",
-      Prefer: "return=representation",
-    },
-    body: JSON.stringify(rows),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`POST ${table} answered ${res.status}: ${text}`);
-  return JSON.parse(text) as T[];
-}
 
 interface CopyRow {
   id: string;
@@ -114,46 +97,6 @@ test("mass edit sets a label and Deluxe on the selected books' ticked copies", a
   const other = copies.find((c) => c.book_id === id("Glass Orchard Ledger"));
   expect(other).toMatchObject({ edition_note: "Lantern Box", deluxe: false, user_edited_fields: [] });
 });
-
-interface JobRow {
-  id: string;
-  book_id: string;
-  reason: string;
-  status: string;
-}
-
-/** Calls a `library` RPC as that user (local stack). */
-async function rpc<T>(user: TestUser, name: string, args: unknown): Promise<T> {
-  const { url, key } = supabaseEnv();
-  const res = await fetch(`${url}/rest/v1/rpc/${name}`, {
-    method: "POST",
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${user.accessToken}`,
-      "Content-Type": "application/json",
-      "Content-Profile": "library",
-    },
-    body: JSON.stringify(args),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`rpc ${name} answered ${res.status}: ${text}`);
-  return JSON.parse(text) as T;
-}
-
-/** New books queue themselves; claim and refuse each open job so the book has none. */
-async function closeOpenJobs(user: TestUser, jobs: JobRow[]): Promise<void> {
-  for (const j of jobs) {
-    const [claim] = await rpc<{ claim_token: string }[]>(user, "claim_tag_job", { p_job: j.id });
-    await rpc(user, "release_tag_job", {
-      p_job: j.id,
-      p_claim: claim.claim_token,
-      p_error: "tag_refused",
-      p_retry_at: null,
-      p_usage: null,
-      p_cost_micro: 0,
-    });
-  }
-}
 
 test("Retag selected confirms first, then queues one manual job per book", async ({ page }) => {
   const user = await newUserWithHousehold("Member A");

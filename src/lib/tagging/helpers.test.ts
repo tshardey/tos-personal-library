@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mkBook } from "../covers/fixtures.test-util";
 import { booksCoveredBy, NEW_TAGS_PER_BOOK_ESTIMATE_MICRO, TAG_PER_BOOK_ESTIMATE_MICRO } from "./cost";
-import { newestJobByBook, newTagsEligible, runEligible, runProgress, vocabVersion } from "./eligibility";
+import { newestJobByBook, newTagsEligible, retagAllEligible, runEligible, runProgress, vocabVersion } from "./eligibility";
 import { groupLibraryTags } from "./group";
 import { tagIdFromLabel } from "./slug";
 import type { AiBudget, BookCardMeta, LibraryTag, TagJob } from "./types";
@@ -44,6 +44,23 @@ describe("eligibility", () => {
       job("4", "recovered", "done", "2026-11-02T00:00:00Z"),
     ];
     expect(runEligible(books, cards, jobs)).toEqual(["recovered", "fresh"]);
+  });
+
+  it("retagAllEligible is runEligible without the no-card rule, in catalogue order", () => {
+    const books = [
+      mkBook("carded"), mkBook("unhauled", { onShelf: false }), mkBook("queued"), mkBook("busy"), mkBook("failed"),
+      mkBook("recovered"), mkBook("fresh"),
+    ];
+    const jobs = [
+      job("1", "queued", "queued", "2026-11-02T00:00:00Z"),
+      job("2", "busy", "processing", "2026-11-02T00:00:00Z"),
+      job("3", "failed", "failed", "2026-11-02T00:00:00Z"),
+      job("4", "recovered", "failed", "2026-11-01T00:00:00Z"),
+      job("5", "recovered", "done", "2026-11-02T00:00:00Z"),
+      job("6", "carded", "done", "2026-11-01T00:00:00Z"),
+    ];
+    expect(retagAllEligible(books, jobs)).toEqual(["carded", "recovered", "fresh"]);
+    expect(retagAllEligible([], jobs)).toEqual([]);
   });
 
   it("newTagsEligible takes cards below the version only", () => {

@@ -38,6 +38,15 @@ export function runEligible(
     .map((b) => b.id);
 }
 
+/** Books "Retag all books" would queue: runEligible's rules without "no card" (a full retag also tags untagged books). Catalogue order. */
+export function retagAllEligible(books: BookWithCopies[], jobs: TagJob[]): string[] {
+  const active = new Set(jobs.filter(isActive).map((j) => j.bookId));
+  const newest = newestJobByBook(jobs);
+  return books
+    .filter((b) => b.onShelf && !active.has(b.id) && newest.get(b.id)?.status !== "failed")
+    .map((b) => b.id);
+}
+
 /** Books whose card predates the current vocabulary, with no active job and whose newest job isn't failed. */
 export function newTagsEligible(
   cards: Map<string, BookCardMeta>,
