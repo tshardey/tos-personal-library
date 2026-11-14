@@ -192,7 +192,7 @@ The sheet also has a `Library tags` row with `Add tags` and `Remove tags`. A tag
 
 It only adds tags. **A tag removed by hand never comes back:** removing a tag in this app or in ToS records it, and later passes skip it on that book. Adding it back by hand clears the record. Cover tags follow the cover: when a book gets a new cover, the tags the tagger gave the old cover are replaced, and cover tags added by hand stay.
 
-**When books get tagged.** A new book, or a book whose description or cover changes, is queued automatically. The queue is worked through whenever either of you has the app open (the cover finder works the same way); closing the app just pauses it. On the book page, `Edit tags` changes the library tags and `Retag this book` queues the book again.
+**When books get tagged.** A new book, or a book whose description or cover changes, is queued automatically. The queue is worked through whenever either of you has the app open (the cover finder works the same way); closing the app just pauses it. On the book page, `Edit tags` changes the library tags and `Retag this book` queues the book again. To retag many books (for example after new tags are added), select them, choose `Edit`, and press `Retag selected`: it shows the estimated cost and what is left of the month's budget, and nothing is spent until you press `Confirm`.
 
 **Tag suggestions** (account menu, under `Edition labels`):
 

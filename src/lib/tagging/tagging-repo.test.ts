@@ -101,6 +101,25 @@ describe("listVocabulary", () => {
   });
 });
 
+describe("listVocabulary duplicates", () => {
+  it("keeps one row per id, preferring the household's", async () => {
+    h.results.push({
+      data: [
+        { id: "cover-wolf", label: "Wolf", category: "cover-motif", active: true, added_version: 1, household_id: null },
+        { id: "cover-wolf", label: "Wolf", category: "cover-motif", active: true, added_version: 2, household_id: HOUSEHOLD },
+        { id: "cover-moon", label: "Moon", category: "cover-motif", active: true, added_version: 1, household_id: null },
+      ],
+      error: null,
+    });
+    h.results.push({ data: [], error: null });
+    const tags = await listVocabulary(HOUSEHOLD);
+    expect(tags.map((t) => [t.id, t.householdId])).toEqual([
+      ["cover-wolf", HOUSEHOLD],
+      ["cover-moon", null],
+    ]);
+  });
+});
+
 describe("listLibraryTagsByBook", () => {
   it("groups tag ids per book", async () => {
     h.results.push({

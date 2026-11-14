@@ -98,9 +98,9 @@ describe("TagSuggestionsPage", () => {
   });
 
   it("near the limit says how many the budget covers", () => {
-    // 100,000 µ$ left covers 23 books at 4,300 each.
+    // 100,000 µ$ left less the 80,000 reserve, covers about 5 of these 30 books at 4,300 each.
     setup({ budgets: { tagging: budget(4_900_000, 5_000_000), ask: budget(0, 2_000_000) } }, shelf(30));
-    expect(screen.getByText("This month's budget covers about 23 of these 30 books.")).toBeInTheDocument();
+    expect(screen.getByText("This month's budget covers about 5 of these 30 books.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tag all books" })).toBeEnabled();
   });
 

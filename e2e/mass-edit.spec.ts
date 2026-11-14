@@ -88,7 +88,7 @@ test("mass edit sets a label and Deluxe on the selected books' ticked copies", a
   await sheet.getByRole("button", { name: "Save" }).click();
   await expect(sheet.getByText("This will change 3 copies. There is no undo.")).toBeVisible();
   await sheet.getByRole("button", { name: "Confirm" }).click();
-  await expect(page.getByRole("status")).toHaveText("Changed 3 copies.");
+  await expect(page.getByRole("status").filter({ hasText: "Changed 3 copies." })).toHaveText("Changed 3 copies.");
   await expect(sheet).toBeHidden();
   await expect(bar).toBeHidden();
 
@@ -113,4 +113,94 @@ test("mass edit sets a label and Deluxe on the selected books' ticked copies", a
   expect(unticked).toMatchObject({ deluxe: false, user_edited_fields: [] });
   const other = copies.find((c) => c.book_id === id("Glass Orchard Ledger"));
   expect(other).toMatchObject({ edition_note: "Lantern Box", deluxe: false, user_edited_fields: [] });
+});
+
+interface JobRow {
+  id: string;
+  book_id: string;
+  reason: string;
+  status: string;
+}
+
+/** Calls a `library` RPC as that user (local stack). */
+async function rpc<T>(user: TestUser, name: string, args: unknown): Promise<T> {
+  const { url, key } = supabaseEnv();
+  const res = await fetch(`${url}/rest/v1/rpc/${name}`, {
+    method: "POST",
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${user.accessToken}`,
+      "Content-Type": "application/json",
+      "Content-Profile": "library",
+    },
+    body: JSON.stringify(args),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`rpc ${name} answered ${res.status}: ${text}`);
+  return JSON.parse(text) as T;
+}
+
+/** New books queue themselves; claim and refuse each open job so the book has none. */
+async function closeOpenJobs(user: TestUser, jobs: JobRow[]): Promise<void> {
+  for (const j of jobs) {
+    const [claim] = await rpc<{ claim_token: string }[]>(user, "claim_tag_job", { p_job: j.id });
+    await rpc(user, "release_tag_job", {
+      p_job: j.id,
+      p_claim: claim.claim_token,
+      p_error: "tag_refused",
+      p_retry_at: null,
+      p_usage: null,
+      p_cost_micro: 0,
+    });
+  }
+}
+
+test("Retag selected confirms first, then queues one manual job per book", async ({ page }) => {
+  const user = await newUserWithHousehold("Member A");
+  const books = await insert<{ id: string; title: string }>(
+    user,
+    "books",
+    ["Lantern Almanac One", "Lantern Almanac Two"].map((title) => ({
+      household_id: user.householdId,
+      title,
+      authors: ["Petra Wynnecombe"],
+    })),
+  );
+  const jobsQuery = `tag_jobs?select=id,book_id,reason,status&book_id=in.(${books.map((b) => b.id).join(",")})`;
+  const opened = await rest<JobRow[]>(user, jobsQuery);
+  expect(opened).toHaveLength(2);
+  await closeOpenJobs(user, opened);
+  expect((await rest<JobRow[]>(user, jobsQuery)).every((j) => j.status === "failed")).toBe(true);
+
+  await signIn(page, user);
+  await page.goto("#/");
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await page.getByRole("button", { name: "Select all" }).click();
+  await page.getByRole("region", { name: "Selection" }).getByRole("button", { name: "Edit" }).click();
+
+  const sheet = page.getByRole("dialog", { name: "Edit selected books" });
+  await sheet.getByRole("button", { name: "Retag selected" }).click();
+  const confirm = sheet.getByRole("group", { name: "Confirm retag" });
+  await expect(confirm.getByText(/^Retag 2 books · /)).toBeVisible();
+  await expect(confirm.getByText(/of this month's tagging budget left\.$/)).toBeVisible();
+
+  // Cancel spends nothing and adds no job.
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toBeHidden();
+  expect(await rest<JobRow[]>(user, jobsQuery)).toHaveLength(2);
+
+  await sheet.getByRole("button", { name: "Retag selected" }).click();
+  await confirm.getByRole("button", { name: "Confirm" }).click();
+  await expect(sheet.getByText("Queued 2 books for retagging.")).toBeVisible();
+
+  const manual = (await rest<JobRow[]>(user, jobsQuery)).filter((j) => j.reason === "manual");
+  expect(manual.map((j) => j.book_id).sort()).toEqual(books.map((b) => b.id).sort());
+  // The page may already have started on them.
+  for (const j of manual) expect(["queued", "processing"]).toContain(j.status);
+
+  // Both books have an open job now, so pressing it again counts none and adds none.
+  await sheet.getByRole("button", { name: "Retag selected" }).click();
+  await confirm.getByRole("button", { name: "Confirm" }).click();
+  await expect(sheet.getByText("Queued 0 books for retagging.")).toBeVisible();
+  expect((await rest<JobRow[]>(user, jobsQuery)).filter((j) => j.reason === "manual")).toHaveLength(2);
 });

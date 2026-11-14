@@ -2,7 +2,7 @@ import { vi } from "vitest";
 import type { TaggingState } from "@/contexts/TaggingContext";
 import type { AiBudget, LibraryTag, TagJob } from "@/lib/tagging/types";
 
-export const tagFns = { setBookLibraryTag: vi.fn(), retag: vi.fn() };
+export const tagFns = { setBookLibraryTag: vi.fn(), retag: vi.fn(), retagMany: vi.fn() };
 
 export const mkTag = (id: string, label: string, category: LibraryTag["category"], active = true): LibraryTag => ({
   id,
