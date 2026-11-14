@@ -85,6 +85,11 @@ export function useLibraryView(householdId: string | null): [LibraryView, (patch
   return [view, update];
 }
 
+/** The household's view as the store holds it now, for code that resumes after an await. */
+export function currentLibraryView(householdId: string | null): LibraryView {
+  return state.householdId === householdId ? state.view : DEFAULT_VIEW;
+}
+
 /** Where the clicked card sat: its viewport top, the page's scrollY, and the view it was in. */
 export interface ScrollAnchor {
   bookId: string;
