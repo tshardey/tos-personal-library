@@ -77,7 +77,7 @@ describe("MassEditSheet Retag selected", () => {
   });
 
   it("says how many books the budget covers when it falls short", () => {
-    // 5000 µ$ left, reserve 1: floor(4999 / 4300) + 1 = 2 books.
+    // 5000 Âµ$ left, reserve 1: floor(4999 / 4300) + 1 = 2 books.
     setState({ budgets: { tagging: aiBudget(5_000), ask: null } });
     renderSheet();
     fireEvent.click(retagButton());
