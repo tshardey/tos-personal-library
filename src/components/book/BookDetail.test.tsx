@@ -5,7 +5,10 @@ import type { BookWithCopies } from "@/lib/types";
 const h = vi.hoisted(() => ({
   catalog: {} as Record<string, unknown>,
   reload: vi.fn(),
+  refresh: vi.fn(),
+  tagging: {} as unknown,
 }));
+vi.mock("@/contexts/TaggingContext", () => ({ useTagging: () => h.tagging }));
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
 vi.mock("@/contexts/HouseholdContext", () => ({
@@ -31,6 +34,7 @@ vi.mock("@/lib/tos-tags", async (importOriginal) => ({
 }));
 import { setCopyFlags, updateBook } from "@/lib/library-repo";
 import BookDetail from "./BookDetail";
+import { mkTag, taggingState } from "@/components/tags/testkit";
 import { copyFixture } from "@/lib/flag-fixtures.test-util";
 
 function book(over: Partial<BookWithCopies> = {}): BookWithCopies {
@@ -67,6 +71,7 @@ function setCatalog(books: BookWithCopies[], extra: Record<string, unknown> = {}
     error: null,
     tagsError: null,
     reload: h.reload,
+    refresh: h.refresh,
     ...extra,
   };
 }
@@ -75,7 +80,32 @@ describe("BookDetail series and tags", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.reload.mockResolvedValue(undefined);
+    h.refresh.mockResolvedValue(true);
+    h.tagging = taggingState({ available: false });
     window.location.hash = "";
+  });
+
+  it("hides Library tags when tagging is unavailable", () => {
+    setCatalog([book()]);
+    render(<BookDetail id="b1" />);
+    expect(screen.queryByText("Library tags")).not.toBeInTheDocument();
+  });
+
+  it("shows Library tags under Tome of Secrets when tagging is available", () => {
+    h.tagging = taggingState({ vocabulary: [mkTag("dragons", "Dragons", "creature")] });
+    setCatalog([book()]);
+    render(<BookDetail id="b1" />);
+    expect(screen.getByText("Library tags")).toBeInTheDocument();
+    expect(h.refresh).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the catalogue when tagsVersion bumps", () => {
+    h.tagging = taggingState({ tagsVersion: 0 });
+    setCatalog([book()]);
+    const { rerender } = render(<BookDetail id="b1" />);
+    h.tagging = taggingState({ tagsVersion: 1 });
+    rerender(<BookDetail id="b1" />);
+    expect(h.refresh).toHaveBeenCalledTimes(1);
   });
 
   it("shows the tags section with the loaded labels", async () => {
