@@ -183,18 +183,47 @@ describe("listTagJobs", () => {
     expect(select).not.toContain("*");
   });
 
-  it("keeps only each book's newest failed job", async () => {
+  it("returns only the newer done job when an older one failed", async () => {
     h.results.push({
       data: [
-        job({ id: "new", status: "failed", created_at: "2026-11-14T02:00:00Z" }),
+        job({ id: "done", status: "done", created_at: "2026-11-14T02:00:00Z" }),
         job({ id: "old", status: "failed", created_at: "2026-11-14T01:00:00Z" }),
-        job({ id: "q", book_id: "other", status: "queued" }),
       ],
       error: null,
     });
     h.results.push({ data: [], error: null });
-    const jobs = await listTagJobs(HOUSEHOLD);
-    expect(jobs.map((j) => j.id)).toEqual(["new", "q"]);
+    expect((await listTagJobs(HOUSEHOLD)).map((j) => j.id)).toEqual(["done"]);
+  });
+
+  it("returns only the queued job when it is newer than a failed one", async () => {
+    h.results.push({
+      data: [
+        job({ id: "q", status: "queued", created_at: "2026-11-14T02:00:00Z" }),
+        job({ id: "old", status: "failed", created_at: "2026-11-14T01:00:00Z" }),
+      ],
+      error: null,
+    });
+    h.results.push({ data: [], error: null });
+    expect((await listTagJobs(HOUSEHOLD)).map((j) => j.id)).toEqual(["q"]);
+  });
+
+  it("keeps an open job even when a newer job exists, and one job per other book", async () => {
+    h.results.push({
+      data: [
+        job({ id: "f", status: "failed", created_at: "2026-11-14T03:00:00Z" }),
+        job({ id: "q", status: "queued", created_at: "2026-11-14T02:00:00Z" }),
+        job({ id: "other", book_id: "b2", status: "done" }),
+      ],
+      error: null,
+    });
+    h.results.push({ data: [], error: null });
+    expect((await listTagJobs(HOUSEHOLD)).map((j) => j.id)).toEqual(["f", "q", "other"]);
+  });
+
+  it("rejects when a page fails", async () => {
+    h.results.push({ data: Array.from({ length: 1000 }, (_, i) => job({ id: `j${i}`, book_id: `b${i}` })), error: null });
+    h.results.push({ data: null, error: { code: "57014" } });
+    await expect(listTagJobs(HOUSEHOLD)).rejects.toMatchObject({ code: "57014" });
   });
 });
 
@@ -293,6 +322,11 @@ describe("suggestions", () => {
       "approve_tag_suggestion",
       { p_suggestion: "s1", p_label: "Salt magic", p_category: "theme" },
     ]);
+  });
+
+  it("rejects when approve replies with a non-number", async () => {
+    h.rpcResults.push({ data: "3", error: null });
+    await expect(approveSuggestion("s1", "Salt magic", "theme")).rejects.toMatchObject({ code: "unexpected_reply" });
   });
 
   it("dismisses", async () => {

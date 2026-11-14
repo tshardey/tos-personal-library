@@ -122,7 +122,10 @@ const toJob = (r: RawRow): TagJob => ({
   createdAt: r.created_at as string,
 });
 
-/** Queued and processing jobs, plus each book's newest failed one. */
+/**
+ * Every queued or processing job, plus each book's newest job of any status (done and failed included),
+ * newest first. A job that is both is returned once.
+ */
 export async function listTagJobs(householdId: string): Promise<TagJob[]> {
   const rows = await readAllPages<RawRow>(
     (from, to) =>
@@ -130,19 +133,16 @@ export async function listTagJobs(householdId: string): Promise<TagJob[]> {
         .from("tag_jobs")
         .select(JOB_COLUMNS)
         .eq("household_id", householdId)
-        .in("status", ["queued", "processing", "failed"])
         .order("created_at", { ascending: false })
         .order("id")
         .range(from, to) as unknown as Page,
   );
-  const failedSeen = new Set<string>();
+  const newestSeen = new Set<string>();
   const out: TagJob[] = [];
   for (const job of rows.map(toJob)) {
-    if (job.status === "failed") {
-      if (failedSeen.has(job.bookId)) continue;
-      failedSeen.add(job.bookId);
-    }
-    out.push(job);
+    const newest = !newestSeen.has(job.bookId);
+    newestSeen.add(job.bookId);
+    if (newest || job.status === "queued" || job.status === "processing") out.push(job);
   }
   return out;
 }
@@ -240,7 +240,8 @@ export async function approveSuggestion(id: string, label: string, category: Lib
     p_category: category,
   });
   if (error) throw error;
-  return typeof data === "number" ? data : 0;
+  if (typeof data !== "number") throw new UnexpectedReplyError("approve_tag_suggestion");
+  return data;
 }
 
 export async function dismissSuggestion(id: string): Promise<void> {
