@@ -180,6 +180,35 @@ Each changed copy is marked as hand-edited, so a later libib import doesn't undo
 
 `Save` asks to confirm with the counts, for example `This will change 14 copies and 3 books' series.` Only values that actually change are written and counted. There is no undo. Each changed field is marked as hand-edited, so a later libib import doesn't undo it. If some writes fail, the rest are kept, the sheet lists the books and copies that didn't change, and `Try again` retries just those.
 
+The sheet also has a `Library tags` row with `Add tags` and `Remove tags`. A tag removed this way counts as removed by hand (see below).
+
+## Tags and Ask
+
+**What the tagger writes.** A Claude tagging pass (the `library-tagger` Edge Function in Tome of Secrets) reads one book at a time: its title, authors, series, description and cover. It writes:
+
+- **ToS tags** (genre and the like), the same tags the book page's `Tome of Secrets` section shows and ToS uses for "On our shelf";
+- **library tags** from the household's own list (mood, setting, protagonist, cover colours and motifs, and more), shown in the book page's `Library tags` section;
+- a short **book card** (a summary and a one-line cover description) that Ask reads later.
+
+It only adds tags. **A tag removed by hand never comes back:** removing a tag in this app or in ToS records it, and later passes skip it on that book. Adding it back by hand clears the record. Cover tags follow the cover: when a book gets a new cover, the tags the tagger gave the old cover are replaced, and cover tags added by hand stay.
+
+**When books get tagged.** A new book, or a book whose description or cover changes, is queued automatically. The queue is worked through whenever either of you has the app open (the cover finder works the same way); closing the app just pauses it. On the book page, `Edit tags` changes the library tags and `Retag this book` queues the book again.
+
+**Tag suggestions** (account menu, under `Edition labels`):
+
+- `This month: …` shows what tagging and Ask have used this month.
+- **Tag all books** lists the books that have never been tagged, with the count and an estimated cost. `Try 10 first` tags just ten, to check the results before `Tag all books` does the rest. Progress reads `Tagged {done} of {total}.` and carries on in whichever of your apps is open.
+- **Check for new tags** re-reads tagged books against tags added since they were tagged, using their book cards (cheaper than a full pass).
+- **Suggestions** are new tags the tagger proposes, each with the books it would fit. `Approve` (after a last edit of the label and category) adds it to the list and to those books; `Dismiss` drops it. `Add a tag` adds one by hand.
+
+**Filtering.** `Library tags` beside `ToS tags` on the library filters by library tags. As with ToS tags, a book must have every chosen tag. Both filters are free: they read tags already written.
+
+**Ask ✨.** Type a reading prompt in the search box (for example, a reading-challenge prompt) and press `Ask ✨` instead of searching. Ask reads the shelf the filters show **as if the search box were empty**: the typed text is the prompt, not a title search, and unhauled books are left out unless the `Unhauled` filter is on. It answers with a short ranked list, each book with a confidence and a reason, in place of the cover wall. Opening a book and coming back keeps the answer without asking again; changing the search or a filter clears it. Narrow the filters when a shelf is too big to ask about at once.
+
+**Budgets.** Each household has a monthly budget per feature: **tagging $5 in its first month (the full pass), then $2 a month; Ask $2 a month**. Both sit inside the shared $10 a month Claude workspace cap that the cover finder also uses. When a budget is used up, the button says so (`This month's tagging budget is used up.`, `This month's Ask budget is used up.`), a running tagging pass stops with a banner, and the rest carries on next month. Nothing is spent on filters, on browsing tags, or when a feature isn't set up yet.
+
+**Before the database and functions are deployed** the app hides every tagging and Ask control and everything else works as before. If the database is updated but the functions aren't deployed yet, tagging stops with `Tagging isn't set up yet.` and Ask shows `Ask isn't set up yet.`, and nothing is billed.
+
 ## Tome of Secrets
 
 The book page has a Tome of Secrets section with the book's tags, grouped by category. The labels come from ToS's published `bookTags.json` (the app keeps the last good copy if the fetch fails; with no copy, tags show as raw ids). Tags are shared per book: everyone in the household sees the same ones, and the library list can filter by them.

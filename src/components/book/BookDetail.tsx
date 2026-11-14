@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCopyPhotoUrls } from "@/hooks/useCopyPhotoUrls";
@@ -20,6 +20,8 @@ import FindCoverPanel from "@/components/covers/FindCoverPanel";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import SeriesPicker from "@/components/series/SeriesPicker";
 import TosTagsSection from "./TosTagsSection";
+import LibraryTagsSection from "@/components/tags/LibraryTagsSection";
+import { useTagging } from "@/contexts/TaggingContext";
 
 const EDITABLE: (keyof BookInput)[] = [
   "title",
@@ -69,9 +71,10 @@ function Cover({ book, photoUrl }: { book: BookWithCopies; photoUrl?: string }) 
 export default function BookDetail({ id }: { id: string }) {
   const { household, members } = useHousehold();
   const { user } = useAuth();
-  const { books, tags, loading, error, tagsError, reload } = useCatalog();
+  const { books, tags, loading, error, tagsError, reload, refresh } = useCatalog();
   const photoUrls = useCopyPhotoUrls(books);
   const { available: coverFinderAvailable } = useCoverFinder();
+  const { available: taggingAvailable, tagsVersion } = useTagging();
   const [editing, setEditing] = useState(false);
   const [addingCopy, setAddingCopy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -105,6 +108,14 @@ export default function BookDetail({ id }: { id: string }) {
       cancelled = true;
     };
   }, []);
+
+  // A finished tagging job changes the ToS tags; reload them behind what is shown.
+  const seenTagsVersion = useRef(tagsVersion);
+  useEffect(() => {
+    if (seenTagsVersion.current === tagsVersion) return;
+    seenTagsVersion.current = tagsVersion;
+    void refresh();
+  }, [tagsVersion, refresh]);
 
   if (loading) return <p className="p-6">Loading…</p>;
   if (error) {
@@ -252,6 +263,7 @@ export default function BookDetail({ id }: { id: string }) {
           }}
         />
       )}
+      {taggingAvailable && <LibraryTagsSection bookId={book.id} />}
       <section>
         <h3 className="font-semibold">Copies</h3>
         {unhauledCount > 0 && (

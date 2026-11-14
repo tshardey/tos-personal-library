@@ -1,19 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CoverBatchFooter from "@/components/covers/CoverBatchFooter";
 import NothingFoundList from "@/components/covers/NothingFoundList";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useRestoreScroll } from "@/hooks/useRestoreScroll";
-import { applyCoverFilter } from "@/lib/covers/eligibility";
+import { useTagging } from "@/contexts/TaggingContext";
+import { ASK_MAX_BOOKS, ASK_MAX_PROMPT, askBookIds, askRows, filterView } from "@/lib/ask";
+import { remainingMicro } from "@/lib/covers/cost";
 import { editionLabels } from "@/lib/editions";
 import { hasUnhauledCopy } from "@/lib/copy-flags";
 import { dateAddedOptions } from "@/lib/date-added";
-import { filterBooks, showsUnhauled } from "@/lib/filter-books";
-import { useLibraryView } from "@/lib/library-view";
+import { showsUnhauled } from "@/lib/filter-books";
+import { currentLibraryView, useLibraryView } from "@/lib/library-view";
+import type { AskResponse } from "@/lib/tagging/types";
 import { navigate } from "@/lib/router";
 import { seriesNames } from "@/lib/series";
 import { loadTosTags, type TosTag } from "@/lib/tos-tags";
+import AskResults from "./AskResults";
 import CoverWall from "./CoverWall";
 import LibraryFilters from "./LibraryFilters";
 import MassEditSheet from "./MassEditSheet";
@@ -22,11 +26,22 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const { household, members } = useHousehold();
   const { books, tags, loading, error, tagsError, reload, refresh } = useCatalog();
   // D9: the view outlives this page, so going back from a book finds the search and filters intact.
-  const [view, patch] = useLibraryView(household?.id ?? null);
+  const householdId = household?.id ?? null;
+  const [storedView, patch] = useLibraryView(householdId);
+  const tagging = useTagging();
+  // Library tags can only filter while tagging is available; a stale choice is ignored, not applied to empty lookups.
+  const view = useMemo(
+    () => (tagging.available || storedView.libraryTags.length === 0 ? storedView : { ...storedView, libraryTags: [] }),
+    [storedView, tagging.available],
+  );
   const { query, owner, edition, tags: tagFilter, coverFilter, unhauled, deluxe, signed, addedDay, publishedFrom, publishedTo } =
     view;
   const [series, setSeries] = useState<string | null>(routeSeries ?? null);
   const { available: coversAvailable, marks, latest } = useCoverFinder();
+  const cover = useMemo(() => ({ available: coversAvailable, marks, latest }), [coversAvailable, marks, latest]);
+  // One Ask at a time: the ref stops a double tap before the next render, the state shows it.
+  const askingRef = useRef(false);
+  const [asking, setAsking] = useState(false);
   const [tosTags, setTosTags] = useState<TosTag[]>([]);
   // Select mode: plain state, so the ticks stay while scrolling and changing the search or filters.
   const [selecting, setSelecting] = useState(false);
@@ -37,9 +52,18 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const viewKey = JSON.stringify({ ...view, series: routeSeries ?? null });
   const pageRef = useRef<HTMLDivElement>(null);
   useRestoreScroll(!loading, viewKey, pageRef);
+  // D11: the series is part of the view, so changing it clears Ask results (and drops an in-flight answer).
+  const clearAsk = useCallback(() => {
+    if (currentLibraryView(householdId).ask !== null) patch({ ask: null });
+  }, [householdId, patch]);
+  const routeSeriesRef = useRef(routeSeries ?? null);
   useEffect(() => {
-    setSeries(routeSeries ?? null);
-  }, [routeSeries]);
+    const next = routeSeries ?? null;
+    if (next === routeSeriesRef.current) return;
+    routeSeriesRef.current = next;
+    setSeries(next);
+    clearAsk();
+  }, [routeSeries, clearAsk]);
   useEffect(() => {
     let cancelled = false;
     void loadTosTags().then((r) => {
@@ -52,46 +76,34 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const labels = useMemo(() => editionLabels(books, []), [books]);
   const names = useMemo(() => seriesNames(books), [books]);
   const visible = useMemo(() => {
-    const filtered = filterBooks(books, {
-      query,
-      owner,
-      edition,
-      tags: tagFilter,
+    const found = filterView(books, view, {
       tagsByBook: tags,
+      libraryTagsByBook: tagging.libraryTagsByBook,
       series,
-      unhauled,
-      deluxe,
-      signed,
-      addedDay,
-      publishedFrom,
-      publishedTo,
+      cover,
     });
-    const found = coversAvailable ? applyCoverFilter(filtered, coverFilter, marks, latest) : filtered;
     if (!series) return found;
     // D5: within a series, volume order (nulls last), so 2.5 sorts between 2 and 3.
     return [...found].sort(
       (a, b) =>
         (a.seriesVolume ?? Infinity) - (b.seriesVolume ?? Infinity) || a.title.localeCompare(b.title),
     );
-  }, [
-    books,
-    query,
-    owner,
-    edition,
-    tagFilter,
-    tags,
-    series,
-    unhauled,
-    deluxe,
-    signed,
-    addedDay,
-    publishedFrom,
-    publishedTo,
-    coversAvailable,
-    coverFilter,
-    marks,
-    latest,
-  ]);
+  }, [books, view, tags, tagging.libraryTagsByBook, series, cover]);
+  // D11: the Ask set is the view as if the box were empty.
+  const askIds = useMemo(
+    () => (tagging.available ? askBookIds(books, view, tags, tagging.libraryTagsByBook, series, cover) : []),
+    [tagging.available, books, view, tags, tagging.libraryTagsByBook, series, cover],
+  );
+  // ToS reserves per Ask call (reserveMicro is 0), so the cap is simply nothing left.
+  const askBudgetUsedUp = tagging.budgets.ask !== null && remainingMicro(tagging.budgets.ask) <= 0;
+  const askTooMany = askIds.length > ASK_MAX_BOOKS;
+  const askDisabled =
+    query.trim() === "" || asking || view.ask?.status === "asking" || askBudgetUsedUp || askTooMany;
+  const askNote = askBudgetUsedUp
+    ? "This month's Ask budget is used up."
+    : askTooMany
+      ? "Too many books to ask about at once. Narrow the filters."
+      : null;
   // D8: the Date added menu comes from the books the unhauled rule lets through, before the other filters.
   const showUnhauled = showsUnhauled({ query, unhauled });
   const addedOptions = useMemo(() => {
@@ -121,7 +133,27 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
     setEditing(false);
     setSelectedIds(new Set());
   }
+  async function runAsk() {
+    const prompt = query.trim().slice(0, ASK_MAX_PROMPT);
+    if (askingRef.current || prompt === "" || askDisabled) return;
+    askingRef.current = true;
+    setAsking(true);
+    patch({ ask: { prompt, status: "asking", response: null } });
+    let response: AskResponse;
+    try {
+      response = await tagging.ask(prompt, askIds);
+    } catch {
+      response = { outcome: "failed" };
+    } finally {
+      askingRef.current = false;
+      setAsking(false);
+    }
+    // A view change meanwhile (typing, a filter, Clear) cleared this Ask; its answer is dropped.
+    const now = currentLibraryView(householdId).ask;
+    if (now?.status === "asking" && now.prompt === prompt) patch({ ask: { prompt, status: "done", response } });
+  }
   function changeSeries(next: string | null) {
+    if (next !== series) clearAsk();
     setSeries(next);
     navigate({ name: "library", series: next ?? undefined });
   }
@@ -163,9 +195,14 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       </div>
     );
   }
+  // D11: Ask results replace the wall, and hide select mode and the cover footer while they're up.
+  const askView = tagging.available ? view.ask : null;
+  const askCount = askView ? askRows(askView, books).length : 0;
+  const showSelecting = selecting && askView === null;
   const showNothingFound = coversAvailable && coverFilter === "nothing_found";
   // The cover batch footer and the selection bar share the bottom edge; selecting wins.
-  const showFooter = !selecting && coversAvailable && (coverFilter === "no_cover" || coverFilter === "marked");
+  const showFooter =
+    !selecting && askView === null && coversAvailable && (coverFilter === "no_cover" || coverFilter === "marked");
   const allShownSelected = visible.length > 0 && visible.every((b) => selectedIds.has(b.id));
   return (
     <div ref={pageRef}>
@@ -196,12 +233,29 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         publishedFrom={publishedFrom}
         publishedTo={publishedTo}
         onChange={patch}
+        libraryTagFilter={
+          tagging.available
+            ? { vocabulary: tagging.vocabulary, selected: view.libraryTags, onChange: (libraryTags) => patch({ libraryTags }) }
+            : undefined
+        }
+        ask={tagging.available ? { disabled: askDisabled, note: askNote, onAsk: () => void runAsk() } : undefined}
       />
       {editStatus && (
         <p role="status" className="px-4 pt-3 text-sm">
           {editStatus}
         </p>
       )}
+      {askView !== null ? (
+        <>
+          {askView.status === "done" && askCount > 0 && (
+            <p aria-live="polite" className="px-4 pt-3 text-sm text-stone-600">
+              {`${askCount} ${askCount === 1 ? "match" : "matches"}`}
+            </p>
+          )}
+          <AskResults view={askView} books={books} viewKey={viewKey} onClear={() => patch({ ask: null })} />
+        </>
+      ) : (
+        <>
       <div className={visible.length === 0 ? "p-6 text-center" : "flex items-center justify-between gap-2 px-4 pt-3"}>
         <p aria-live="polite" className={visible.length === 0 ? undefined : "text-sm text-stone-600"}>
           {visible.length === 0 ? "No matching books" : `${visible.length} ${visible.length === 1 ? "book" : "books"}`}
@@ -236,8 +290,10 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
           />
         </div>
       )}
+        </>
+      )}
       {showFooter && <CoverBatchFooter books={visible} />}
-      {selecting && (
+      {showSelecting && (
         <div
           role="region"
           aria-label="Selection"
@@ -266,7 +322,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
           </div>
         </div>
       )}
-      {editing && selectedBooks.length > 0 && (
+      {editing && showSelecting && selectedBooks.length > 0 && (
         <MassEditSheet
           selected={selectedBooks}
           catalog={books}

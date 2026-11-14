@@ -4,6 +4,8 @@ import type { LibraryView } from "@/lib/library-view";
 import type { OwnerFilter } from "@/lib/filter-books";
 import type { HouseholdMember } from "@/lib/types";
 import { groupTags, isSharedTag, type TosTag } from "@/lib/tos-tags";
+import type { LibraryTag } from "@/lib/tagging/types";
+import LibraryTagFilter from "@/components/tags/LibraryTagFilter";
 import { useEffect, useRef, useState } from "react";
 
 interface Props {
@@ -33,6 +35,10 @@ interface Props {
   publishedFrom: number | null;
   publishedTo: number | null;
   onChange(patch: Partial<LibraryView>): void;
+  /** D14: the library tag filter; absent while tagging is unavailable. */
+  libraryTagFilter?: { vocabulary: LibraryTag[]; selected: string[]; onChange(ids: string[]): void };
+  /** D11: the Ask button beside the box; absent while tagging is unavailable. `note` explains a disabled button. */
+  ask?: { disabled: boolean; note: string | null; onAsk(): void };
 }
 
 /** Strict four-digit-or-longer whole number from typed text; anything else (a partly typed year too) is no bound. */
@@ -100,6 +106,8 @@ export default function LibraryFilters({
   publishedFrom,
   publishedTo,
   onChange,
+  libraryTagFilter,
+  ask,
 }: Props) {
   const [tagsOpen, setTagsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -127,14 +135,27 @@ export default function LibraryFilters({
   ];
   return (
     <div className="sticky top-0 z-10 space-y-2 border-b bg-white p-3">
-      <input
-        type="search"
-        value={query}
-        onChange={(e) => onQuery(e.target.value)}
-        placeholder="Search title or author"
-        aria-label="Search books"
-        className="w-full rounded border px-3 py-2"
-      />
+      <div className="flex gap-2">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          placeholder="Search title or author"
+          aria-label="Search books"
+          className="w-full min-w-0 rounded border px-3 py-2"
+        />
+        {ask && (
+          <button
+            type="button"
+            disabled={ask.disabled}
+            onClick={ask.onAsk}
+            className="shrink-0 rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+          >
+            Ask ✨
+          </button>
+        )}
+      </div>
+      {ask?.note && <p className="text-sm text-stone-700">{ask.note}</p>}
       {labels.length > 0 && (
         <select
           aria-label="Edition"
@@ -216,6 +237,13 @@ export default function LibraryFilters({
             </button>
           )}
         </div>
+      )}
+      {libraryTagFilter && (
+        <LibraryTagFilter
+          vocabulary={libraryTagFilter.vocabulary}
+          selected={libraryTagFilter.selected}
+          onChange={libraryTagFilter.onChange}
+        />
       )}
       {tagsOpen && !tagsUnavailable && (
         <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">

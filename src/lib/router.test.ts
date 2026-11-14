@@ -55,6 +55,14 @@ describe("covers route", () => {
   });
 });
 
+describe("tags route", () => {
+  it("parses #/tags, round-trips it, and belongs to the Library tab", () => {
+    expect(parseHash("#/tags")).toEqual({ name: "tags" });
+    expect(routeToHash({ name: "tags" })).toBe("#/tags");
+    expect(tabFor({ name: "tags" })).toBe("library");
+  });
+});
+
 describe("editions route", () => {
   it("parses #/editions, round-trips it, and belongs to the Library tab", () => {
     expect(parseHash("#/editions")).toEqual({ name: "editions" });

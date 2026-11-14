@@ -166,3 +166,16 @@ describe("filterBooks: copy flags, date added, published", () => {
     expect(titles({ publishedFrom: 2020 })).toEqual(["T2020", "T2021"]);
   });
 });
+
+describe("filterBooks library tags", () => {
+  it("needs every chosen library tag", () => {
+    const a = bookFixture("Glass Orchard", [copyFixture()]);
+    const b = bookFixture("The Salt Road", [copyFixture()]);
+    const libraryTagsByBook = new Map([
+      [a.id, ["vampires", "cover-red"]],
+      [b.id, ["vampires"]],
+    ]);
+    const out = filterBooks([a, b], { query: "", owner: "all", libraryTags: ["vampires", "cover-red"], libraryTagsByBook });
+    expect(out.map((x) => x.title)).toEqual(["Glass Orchard"]);
+  });
+});
