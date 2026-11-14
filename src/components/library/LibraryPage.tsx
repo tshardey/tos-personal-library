@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CoverBatchFooter from "@/components/covers/CoverBatchFooter";
 import NothingFoundList from "@/components/covers/NothingFoundList";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
@@ -52,9 +52,18 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const viewKey = JSON.stringify({ ...view, series: routeSeries ?? null });
   const pageRef = useRef<HTMLDivElement>(null);
   useRestoreScroll(!loading, viewKey, pageRef);
+  // D11: the series is part of the view, so changing it clears Ask results (and drops an in-flight answer).
+  const clearAsk = useCallback(() => {
+    if (currentLibraryView(householdId).ask !== null) patch({ ask: null });
+  }, [householdId, patch]);
+  const routeSeriesRef = useRef(routeSeries ?? null);
   useEffect(() => {
-    setSeries(routeSeries ?? null);
-  }, [routeSeries]);
+    const next = routeSeries ?? null;
+    if (next === routeSeriesRef.current) return;
+    routeSeriesRef.current = next;
+    setSeries(next);
+    clearAsk();
+  }, [routeSeries, clearAsk]);
   useEffect(() => {
     let cancelled = false;
     void loadTosTags().then((r) => {
@@ -143,6 +152,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
     if (now?.status === "asking" && now.prompt === prompt) patch({ ask: { prompt, status: "done", response } });
   }
   function changeSeries(next: string | null) {
+    if (next !== series) clearAsk();
     setSeries(next);
     navigate({ name: "library", series: next ?? undefined });
   }

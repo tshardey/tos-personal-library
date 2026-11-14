@@ -294,3 +294,44 @@ describe("LibraryPage with tagging unavailable", () => {
     expect(titles()).toEqual(["The Salt Road", "Glass Orchard", "Paper Tide"]);
   });
 });
+
+describe("LibraryPage Ask and the series", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const saga = [shelved("The Salt Road", { seriesName: "Saga", seriesVolume: 1 }), glass, shelved("Paper Tide", { seriesName: "Saga", seriesVolume: 2 })];
+
+  it("a series change clears the results", async () => {
+    setup({ ask: vi.fn().mockResolvedValue(okResponse) }, saga);
+    render(<LibraryPage />);
+    fireEvent.change(search(), { target: { value: "dragons" } });
+    fireEvent.click(askButton());
+    await screen.findByRole("heading", { name: 'Books for "dragons"' });
+    fireEvent.change(screen.getByLabelText("Series"), { target: { value: "Saga" } });
+    expect(screen.queryByRole("heading", { name: /Books for/ })).not.toBeInTheDocument();
+  });
+
+  it("a series change during an Ask drops its answer", async () => {
+    const d = deferred<AskResponse>();
+    setup({ ask: vi.fn().mockReturnValue(d.promise) }, saga);
+    render(<LibraryPage />);
+    fireEvent.change(search(), { target: { value: "dragons" } });
+    fireEvent.click(askButton());
+    fireEvent.change(screen.getByLabelText("Series"), { target: { value: "Saga" } });
+    await act(async () => d.resolve(okResponse));
+    expect(screen.queryByRole("heading", { name: /Books for/ })).not.toBeInTheDocument();
+  });
+
+  it("a series change from the route clears the results, but a remount on the same series keeps them", async () => {
+    const ask = vi.fn().mockResolvedValue(okResponse);
+    setup({ ask }, saga);
+    const first = render(<LibraryPage series="Saga" />);
+    fireEvent.change(search(), { target: { value: "dragons" } });
+    fireEvent.click(askButton());
+    await screen.findByRole("heading", { name: 'Books for "dragons"' });
+    first.unmount();
+    const second = render(<LibraryPage series="Saga" />);
+    expect(screen.getByRole("heading", { name: 'Books for "dragons"' })).toBeInTheDocument();
+    second.rerender(<LibraryPage />);
+    expect(screen.queryByRole("heading", { name: /Books for/ })).not.toBeInTheDocument();
+    expect(ask).toHaveBeenCalledTimes(1);
+  });
+});
