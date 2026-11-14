@@ -13,7 +13,7 @@ vi.mock("@/contexts/HouseholdContext", () => ({
 }));
 
 import TagStopBanner from "@/components/tags/TagStopBanner";
-import { drainTagging } from "@/lib/tagging/drain";
+import { drainTagging, TAG_PAUSE_MS } from "@/lib/tagging/drain";
 import type { AiBudget, LibraryTag, TagJob } from "@/lib/tagging/types";
 import {
   POLL_ACTIVE_MS,
@@ -87,7 +87,7 @@ function fakeDeps(over: Partial<TaggingDeps> = {}): TaggingDeps {
       ],
       stale: false,
     })),
-    drain: vi.fn<typeof drainTagging>(async () => ({ stop: null })),
+    drain: vi.fn<typeof drainTagging>(async () => ({ stop: null, paused: false })),
     now: () => new Date("2026-11-12T12:00:00Z"),
     newRunId: () => "run-1",
     ...over,
@@ -201,7 +201,10 @@ describe("TaggingProvider", () => {
 
   it("shows the stop banner and stops draining until Try again", async () => {
     jobs = [mkJob("j1")];
-    const drain = vi.fn<typeof drainTagging>(async () => ({ stop: "billing" }));
+    const drain = vi.fn<typeof drainTagging>(async () => ({
+      stop: "billing",
+      paused: false,
+    }));
     mount(fakeDeps({ drain }));
     await flush();
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -218,11 +221,35 @@ describe("TaggingProvider", () => {
     expect(drain).toHaveBeenCalledTimes(2);
   });
 
+  it("two unreachable jobs pause the drain; nothing re-drains until the pause ends", async () => {
+    jobs = [mkJob("j1"), mkJob("j2")];
+    const deps = fakeDeps({
+      drain: drainTagging,
+      runTagJob: vi.fn(async () => "retry_later" as const),
+    });
+    mount(deps);
+    await flush();
+    expect(deps.runTagJob).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_ACTIVE_MS * 3);
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(deps.runTagJob).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TAG_PAUSE_MS);
+    });
+    expect(vi.mocked(deps.runTagJob).mock.calls.length).toBeGreaterThan(2);
+  });
+
   it("the budget banner has no Try again", async () => {
     jobs = [mkJob("j1")];
     mount(
       fakeDeps({
-        drain: vi.fn<typeof drainTagging>(async () => ({ stop: "budget" })),
+        drain: vi.fn<typeof drainTagging>(async () => ({
+          stop: "budget",
+          paused: false,
+        })),
       }),
     );
     await flush();

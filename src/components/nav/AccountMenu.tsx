@@ -1,3 +1,4 @@
+import { useTagging } from "@/contexts/TaggingContext";
 import { useEffect, useId, useRef, useState } from "react";
 
 interface Props {
@@ -11,6 +12,7 @@ export default function AccountMenu({ email, onSignOut }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
+  const { available: taggingAvailable } = useTagging();
 
   useEffect(() => {
     if (!open) return;
@@ -56,6 +58,7 @@ export default function AccountMenu({ email, onSignOut }: Props) {
           >
             Edition labels
           </a>
+          {taggingAvailable && (
           <a
             href="#/tags"
             onClick={() => setOpen(false)}
@@ -63,6 +66,7 @@ export default function AccountMenu({ email, onSignOut }: Props) {
           >
             Tag suggestions
           </a>
+          )}
           <button type="button" onClick={onSignOut} className="min-h-10 w-full rounded border px-3 py-2">
             Sign out
           </button>

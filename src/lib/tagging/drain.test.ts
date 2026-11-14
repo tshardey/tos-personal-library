@@ -57,7 +57,8 @@ function fakeDeps(over: Partial<TagDrainDeps> = {}) {
   };
 }
 
-const ran = (d: { run: unknown }) => (d.run as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+const ran = (d: { run: unknown }) =>
+  (d.run as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
 const jobs = (n: number) => Array.from({ length: n }, (_, i) => job(i + 1));
 
 describe("isJobDue", () => {
@@ -95,6 +96,7 @@ describe("drainTagging", () => {
     ];
     expect(await drainTagging(rows, deps, { concurrency: 1 })).toEqual({
       stop: null,
+      paused: false,
     });
     expect(ran(deps)).toEqual(["j1", "j3"]);
   });
@@ -141,9 +143,9 @@ describe("drainTagging", () => {
     expect(deps.run).toHaveBeenCalledTimes(6);
   });
 
-  it("a retry_later, busy or throw is neutral", async () => {
+  it("busy, a done between, and a retry_later are neutral; a thrown call counts as unreachable", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const queue = ["retry_later", "busy", "throw", "done"];
+    const queue = ["retry_later", "busy", "done", "throw", "done"];
     const deps = fakeDeps({
       run: vi.fn(async () => {
         const n = queue.shift()!;
@@ -151,10 +153,71 @@ describe("drainTagging", () => {
         return n as TagJobOutcome;
       }),
     });
-    const out = await drainTagging(jobs(4), deps, { concurrency: 1 });
-    expect(out.stop).toBeNull();
-    expect(deps.onOutcome).toHaveBeenCalledWith("j3", "error");
+    const out = await drainTagging(jobs(5), deps, { concurrency: 1 });
+    expect(out).toEqual({ stop: null, paused: false });
+    expect(deps.run).toHaveBeenCalledTimes(5);
+    expect(deps.onOutcome).toHaveBeenCalledWith("j4", "error");
     warn.mockRestore();
+  });
+
+  it("rejected, retry_later, rejected still stops: an unreachable call does not reset the rejected run", async () => {
+    const queue: TagJobOutcome[] = [
+      "rejected",
+      "retry_later",
+      "rejected",
+      "done",
+    ];
+    const deps = fakeDeps({ run: vi.fn(async () => queue.shift()!) });
+    const out = await drainTagging(jobs(5), deps, { concurrency: 1 });
+    expect(out.stop).toBe("rejected");
+    expect(deps.run).toHaveBeenCalledTimes(3);
+  });
+
+  it("a retry_later job is not run again within the same drain", async () => {
+    const deps = fakeDeps({ run: vi.fn(async () => "retry_later" as const) });
+    await drainTagging([job(1)], deps);
+    expect(ran(deps)).toEqual(["j1"]);
+  });
+
+  it("two unreachable outcomes in a row pause: no further starts, and the pause is reported", async () => {
+    const deps = fakeDeps({ run: vi.fn(async () => "retry_later" as const) });
+    const out = await drainTagging(jobs(6), deps, { concurrency: 1 });
+    expect(out).toEqual({ stop: null, paused: true });
+    expect(deps.run).toHaveBeenCalledTimes(2);
+  });
+
+  it("two thrown calls pause too, and a success in between resets the count", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const boom = fakeDeps({
+      run: vi.fn(async () => {
+        throw new Error("network");
+      }),
+    });
+    expect((await drainTagging(jobs(6), boom, { concurrency: 1 })).paused).toBe(
+      true,
+    );
+    expect(boom.run).toHaveBeenCalledTimes(2);
+    const queue: TagJobOutcome[] = [
+      "retry_later",
+      "done",
+      "retry_later",
+      "done",
+    ];
+    const mixed = fakeDeps({ run: vi.fn(async () => queue.shift()!) });
+    expect(
+      (await drainTagging(jobs(4), mixed, { concurrency: 1 })).paused,
+    ).toBe(false);
+    expect(mixed.run).toHaveBeenCalledTimes(4);
+    warn.mockRestore();
+  });
+
+  it("a paused drain starts nothing and echoes the pause", async () => {
+    const deps = fakeDeps();
+    expect(await drainTagging(jobs(3), deps, { paused: true })).toEqual({
+      stop: null,
+      paused: true,
+    });
+    expect(deps.run).not.toHaveBeenCalled();
   });
 
   it("budget waits for in-flight work, re-reads, and stops only when used up", async () => {
@@ -170,7 +233,7 @@ describe("drainTagging", () => {
     await Promise.resolve();
     expect(deps.readBudget).not.toHaveBeenCalled();
     slow.resolve("done");
-    expect(await p).toEqual({ stop: "budget" });
+    expect(await p).toEqual({ stop: "budget", paused: false });
     expect(deps.readBudget).toHaveBeenCalledTimes(1);
     expect(ran(deps)).toEqual(["j1", "j2"]);
   });
@@ -218,7 +281,10 @@ describe("drainTagging", () => {
 
   it("nothing starts once cancelled", async () => {
     const deps = fakeDeps({ cancelled: () => true });
-    expect(await drainTagging(jobs(3), deps)).toEqual({ stop: null });
+    expect(await drainTagging(jobs(3), deps)).toEqual({
+      stop: null,
+      paused: false,
+    });
     expect(deps.run).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,11 @@ import type { AiBudget, TagJob, TagJobOutcome } from "./types";
 export type TagStop =
   "budget" | "misconfigured" | "billing" | "rejected" | null;
 
+/** Consecutive unreachable outcomes (retry_later, or a thrown call) before new starts pause. */
+export const FAILURE_PAUSE_AFTER = 2;
+/** How long the provider holds draining back after a pause. */
+export const TAG_PAUSE_MS = 60_000;
+
 const DEFAULT_CONCURRENCY = 2;
 
 export interface TagDrainDeps {
@@ -51,14 +56,18 @@ const errorCode = (err: unknown): string =>
 export async function drainTagging(
   jobs: TagJob[],
   deps: TagDrainDeps,
-  opts: { concurrency?: number } = {},
-): Promise<{ stop: TagStop }> {
+  opts: { concurrency?: number; paused?: boolean } = {},
+): Promise<{ stop: TagStop; paused: boolean }> {
   const concurrency = Math.max(1, opts.concurrency ?? DEFAULT_CONCURRENCY);
   const now = deps.now();
-  const due = jobs.filter((j) => isJobDue(j, now)).sort(oldestFirst);
+  let paused = opts.paused ?? false;
+  const due = paused
+    ? []
+    : jobs.filter((j) => isJobDue(j, now)).sort(oldestFirst);
 
   let stop: TagStop = null;
   let rejectedRun = 0;
+  let failureRun = 0;
   let budgetRefusals = 0;
   let budgetPending = false;
   let next = 0;
@@ -67,9 +76,15 @@ export async function drainTagging(
 
   const settle = (id: string, outcome: TagJobOutcome) => {
     deps.onOutcome(id, outcome);
-    // Unreachable, lost the claim race, or threw: neutral for the other runs.
-    if (outcome === "retry_later" || outcome === "busy" || outcome === "error")
+    // Lost the claim race: neutral.
+    if (outcome === "busy") return;
+    // Unreachable or threw: neutral for the rejected run, but two in a row pause new starts.
+    if (outcome === "retry_later" || outcome === "error") {
+      failureRun += 1;
+      if (failureRun >= FAILURE_PAUSE_AFTER) paused = true;
       return;
+    }
+    failureRun = 0;
     if (outcome === "rejected") {
       rejectedRun += 1;
       if (rejectedRun >= 2 && stop === null) stop = "rejected";
@@ -103,6 +118,7 @@ export async function drainTagging(
       stop === null &&
       !cancelled() &&
       !budgetPending &&
+      !paused &&
       inFlight.size < concurrency &&
       next < due.length
     ) {
@@ -132,5 +148,5 @@ export async function drainTagging(
   }
 
   await Promise.all(inFlight);
-  return { stop };
+  return { stop, paused };
 }

@@ -124,6 +124,19 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Tag suggestions" })).toHaveAttribute("href", "#/tags");
   });
 
+  it("before the push: no Tag suggestions link, and #/tags says tagging is not available yet", async () => {
+    signedIn();
+    window.location.hash = "#/tags";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    taggingRepo.listTagJobs.mockRejectedValueOnce({ code: "PGRST205" } as never);
+    await renderApp();
+    expect(screen.getByText("Tagging isn't available yet.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    expect(screen.queryByRole("link", { name: "Tag suggestions" })).not.toBeInTheDocument();
+    expect(taggingRepo.runTagJob).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("renders the covers review page on #/covers under the Library tab", async () => {
     signedIn();
     window.location.hash = "#/covers";

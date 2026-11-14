@@ -12,7 +12,12 @@ import {
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { isMissingFeature } from "@/lib/covers/cover-repo";
 import { loadTosTags } from "@/lib/tos-tags";
-import { drainTagging, isJobDue, type TagStop } from "@/lib/tagging/drain";
+import {
+  drainTagging,
+  isJobDue,
+  TAG_PAUSE_MS,
+  type TagStop,
+} from "@/lib/tagging/drain";
 import {
   newestJobByBook,
   vocabVersion as vocabVersionOf,
@@ -201,6 +206,9 @@ export function TaggingProvider(props: {
   const [tagsVersion, setTagsVersion] = useState(0);
 
   const stopRef = useRef<TagStop>(null);
+  /** The function was unreachable twice in a row; draining resumes when the timer fires. */
+  const pausedRef = useRef(false);
+  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedRef = useRef(false);
   const availableRef = useRef(false);
   const drainingRef = useRef(false);
@@ -285,27 +293,41 @@ export function TaggingProvider(props: {
         )
           continue;
         const generation = generationRef.current;
+        const wasPaused = pausedRef.current;
         let touched = false;
         let finished = false;
-        const result = await d.drain(rows, {
-          run: (id) => d.runTagJob(id),
-          readBudget: async () => {
-            const b = await d.getAiBudget(householdId as string, "tagging");
-            if (mountedRef.current)
-              setBudgets((cur) => ({ ...cur, tagging: b }));
-            return b;
+        const result = await d.drain(
+          rows,
+          {
+            run: (id) => d.runTagJob(id),
+            readBudget: async () => {
+              const b = await d.getAiBudget(householdId as string, "tagging");
+              if (mountedRef.current)
+                setBudgets((cur) => ({ ...cur, tagging: b }));
+              return b;
+            },
+            now: d.now,
+            onOutcome: (_id, outcome) => {
+              touched = true;
+              if (outcome === "done") finished = true;
+            },
+            cancelled: () =>
+              !mountedRef.current || generationRef.current !== generation,
           },
-          now: d.now,
-          onOutcome: (_id, outcome) => {
-            touched = true;
-            if (outcome === "done") finished = true;
-          },
-          cancelled: () =>
-            !mountedRef.current || generationRef.current !== generation,
-        });
+          { paused: wasPaused },
+        );
         if (!mountedRef.current || generationRef.current !== generation)
           continue;
         if (result.stop !== null) setStop(result.stop);
+        // Only a drain that ran jobs can start a pause; a paused drain just echoes it.
+        if (result.paused && !wasPaused && !pausedRef.current) {
+          pausedRef.current = true;
+          pauseTimerRef.current = setTimeout(() => {
+            pauseTimerRef.current = null;
+            pausedRef.current = false;
+            if (mountedRef.current) void run();
+          }, TAG_PAUSE_MS);
+        }
         if (finished) setTagsVersion((v) => v + 1);
         if (touched) await load();
       } while (againRef.current && mountedRef.current);
@@ -322,6 +344,9 @@ export function TaggingProvider(props: {
     return () => {
       mountedRef.current = false;
       generationRef.current += 1;
+      if (pauseTimerRef.current !== null) clearTimeout(pauseTimerRef.current);
+      pauseTimerRef.current = null;
+      pausedRef.current = false;
     };
   }, [run]);
 
