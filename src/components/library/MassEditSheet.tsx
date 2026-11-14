@@ -198,6 +198,14 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const books = selected.length;
   const covered = budget === null ? books : booksCoveredBy(budget, TAG_PER_BOOK_ESTIMATE_MICRO);
 
+  const estimate = formatUsd(books * TAG_PER_BOOK_ESTIMATE_MICRO);
+  const coverage =
+    covered === 0
+      ? books === 1
+        ? "This month's budget doesn't cover this book. It carries on next month."
+        : "This month's budget doesn't cover any of these books. They carry on next month."
+      : `This month's budget covers about ${covered} of these ${books} books. The rest carry on next month.`;
+
   async function retagSelected() {
     setRetagStep("queueing");
     setRetagMessage(null);
@@ -476,18 +484,16 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
               {retagStep !== "idle" && (
                 <div role="group" aria-label="Confirm retag" className="space-y-2 rounded border p-2 text-sm">
                   <p className="font-medium">
-                    {`Retag ${books} ${books === 1 ? "book" : "books"} · about ${formatUsd(books * TAG_PER_BOOK_ESTIMATE_MICRO)}`}
+                    {`Retag ${books} ${books === 1 ? "book" : "books"} · ${estimate.startsWith("under") ? "" : "about "}${estimate}`}
                   </p>
                   {budget !== null && (
                     <p>{`${formatUsd(remainingMicro(budget))} of this month's tagging budget left.`}</p>
                   )}
-                  {budget !== null && covered < books && (
-                    <p>{`This month's budget covers about ${covered} of these ${books} books. The rest carry on next month.`}</p>
-                  )}
+                  {budget !== null && covered < books && <p>{coverage}</p>}
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      disabled={retagStep === "queueing"}
+                      disabled={retagStep === "queueing" || usedUp}
                       onClick={() => void retagSelected()}
                       className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
                     >

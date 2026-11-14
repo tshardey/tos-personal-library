@@ -73,7 +73,7 @@ describe("MassEditSheet Retag selected", () => {
   it("uses the singular for one book", () => {
     renderSheet(catalog(["Atlas"]));
     fireEvent.click(retagButton());
-    expect(within(confirmGroup()).getByText("Retag 1 book · about under $0.01")).toBeInTheDocument();
+    expect(within(confirmGroup()).getByText("Retag 1 book · under $0.01")).toBeInTheDocument();
   });
 
   it("says how many books the budget covers when it falls short", () => {
@@ -83,6 +83,25 @@ describe("MassEditSheet Retag selected", () => {
     fireEvent.click(retagButton());
     expect(
       within(confirmGroup()).getByText("This month's budget covers about 2 of these 3 books. The rest carry on next month."),
+    ).toBeInTheDocument();
+  });
+
+  it("says the budget covers none of the books when k is 0", () => {
+    // Above the reserve but below one book's estimate.
+    setState({ budgets: { tagging: aiBudget(1_000, 1), ask: null } });
+    renderSheet();
+    fireEvent.click(retagButton());
+    expect(
+      within(confirmGroup()).getByText("This month's budget doesn't cover any of these books. They carry on next month."),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the singular when the budget doesn't cover the one book", () => {
+    setState({ budgets: { tagging: aiBudget(1_000, 1), ask: null } });
+    renderSheet(catalog(["Atlas"]));
+    fireEvent.click(retagButton());
+    expect(
+      within(confirmGroup()).getByText("This month's budget doesn't cover this book. It carries on next month."),
     ).toBeInTheDocument();
   });
 
