@@ -104,11 +104,13 @@ describe("TagSuggestionsPage", () => {
     expect(screen.getByRole("button", { name: "Tag all books" })).toBeEnabled();
   });
 
-  it("disables both runs once the budget is used up", () => {
+  it("disables every run once the budget is used up", () => {
     setup({ budgets: { tagging: budget(4_950_000, 5_000_000), ask: budget(0, 2_000_000) } });
-    expect(screen.getAllByText("This month's tagging budget is used up.")).toHaveLength(2);
+    // Tag all books, Check for new tags and Retag all books each say so.
+    expect(screen.getAllByText("This month's tagging budget is used up.")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Tag all books" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Try 10 first" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Retag all books (covers too)" })).toBeDisabled();
   });
 
   it("says every book is tagged when none are eligible", () => {
@@ -154,6 +156,90 @@ describe("TagSuggestionsPage", () => {
   it("says when every book has been checked against the current tags", () => {
     setup({ cards: new Map([["b1", card("b1", 1)]]) });
     expect(screen.getByText("Every book has been checked against the current tags.")).toBeInTheDocument();
+  });
+
+  describe("Retag all books (covers too)", () => {
+    const retagAll = () => screen.getByRole("button", { name: "Retag all books (covers too)" });
+    const confirmGroup = () => screen.getByRole("group", { name: "Confirm retag" });
+
+    it("comes after Check for new tags and spends nothing until Confirm", async () => {
+      const books = shelf(5);
+      // b2 open, b3 failed, b4 tagged (still eligible), b5 unhauled: b1 and b4 remain.
+      books[4] = { ...books[4], onShelf: false };
+      const jobs: TagJob[] = [mkJob("b2", "processing"), mkJob("b3", "failed"), mkJob("b4", "done")];
+      setup({ cards: new Map([["b4", card("b4", 1)]]), jobs, retagMany: vi.fn().mockResolvedValue(2) }, books);
+      const check = screen.getByRole("region", { name: "Check for new tags" });
+      const section = screen.getByRole("region", { name: "Retag all books" });
+      expect(check.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      fireEvent.click(within(section).getByRole("button", { name: "Retag all books (covers too)" }));
+      expect(fn("retagMany")).not.toHaveBeenCalled();
+      expect(within(confirmGroup()).getByText("Retag 2 books · under $0.01")).toBeInTheDocument();
+      // 4,000,000 µ$ left of the 5,000,000 budget.
+      expect(within(confirmGroup()).getByText("$4.00 of this month's tagging budget left.")).toBeInTheDocument();
+      expect(within(confirmGroup()).queryByText(/budget covers about/)).toBeNull();
+      fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Confirm" }));
+      expect(await within(section).findByRole("status")).toHaveTextContent("Queued 2 books for retagging.");
+      expect(fn("retagMany")).toHaveBeenCalledTimes(1);
+      expect(fn("retagMany")).toHaveBeenCalledWith(["b1", "b4"]);
+      for (const k of ["tagAll", "checkNewTags"] as const) expect(fn(k)).not.toHaveBeenCalled();
+    });
+
+    it("shows the about-estimate and the coverage line when the budget falls short", () => {
+      // 100,000 µ$ left less the 80,000 reserve covers about 5 of 30 at 4,300 each; 30 × 4,300 ≈ $0.13.
+      setup({ budgets: { tagging: budget(4_900_000, 5_000_000), ask: budget(0, 2_000_000) } }, shelf(30));
+      fireEvent.click(retagAll());
+      expect(within(confirmGroup()).getByText("Retag 30 books · about $0.13")).toBeInTheDocument();
+      expect(within(confirmGroup()).getByText("$0.10 of this month's tagging budget left.")).toBeInTheDocument();
+      expect(
+        within(confirmGroup()).getByText(
+          "This month's budget covers about 5 of these 30 books. The rest carry on next month.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("Cancel spends nothing", () => {
+      setup();
+      fireEvent.click(retagAll());
+      fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByRole("group", { name: "Confirm retag" })).toBeNull();
+      expect(fn("retagMany")).not.toHaveBeenCalled();
+      expect(retagAll()).toBeEnabled();
+    });
+
+    it("says when queueing failed", async () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      setup({ retagMany: vi.fn().mockRejectedValue(new TypeError("secret detail")) });
+      fireEvent.click(retagAll());
+      fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Confirm" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't queue the retag. Try again.");
+      spy.mockRestore();
+    });
+
+    it("is disabled at the budget cap", () => {
+      setup({ budgets: { tagging: budget(4_950_000, 5_000_000), ask: budget(0, 2_000_000) } });
+      expect(retagAll()).toBeDisabled();
+      const section = screen.getByRole("region", { name: "Retag all books" });
+      expect(within(section).getByText("This month's tagging budget is used up.")).toBeInTheDocument();
+    });
+
+    it("is disabled when no book is eligible", () => {
+      setup({ jobs: [mkJob("b1", "queued"), mkJob("b2", "failed")] }, shelf(2));
+      expect(retagAll()).toBeDisabled();
+    });
+
+    it("is hidden when tagging isn't available", () => {
+      setup({ available: false });
+      expect(screen.queryByRole("button", { name: "Retag all books (covers too)" })).toBeNull();
+    });
+
+    it("explains why Check for new tags can't add cover tags", () => {
+      setup();
+      expect(
+        screen.getByText(
+          "Check for new tags is cheap but only rereads each book's summary, so it can't add cover tags. To pick up new cover tags, use Retag all books.",
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
   const suggestion: TagSuggestion = {
