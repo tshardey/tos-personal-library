@@ -80,7 +80,7 @@ export interface TaggingState {
   createTag(
     label: string,
     category: LibraryTagCategory,
-  ): Promise<"added" | "exists">;
+  ): Promise<"added" | "exists" | "invalid">;
   ask(prompt: string, bookIds: string[]): Promise<AskResponse>;
   clearStop(): void;
   reload(): Promise<void>;
@@ -438,10 +438,10 @@ export function TaggingProvider(props: {
     async (
       label: string,
       category: LibraryTagCategory,
-    ): Promise<"added" | "exists"> => {
+    ): Promise<"added" | "exists" | "invalid"> => {
       if (householdId === null) return "exists";
       const id = tagIdFromLabel(label);
-      if (id === "") return "exists";
+      if (id === "") return "invalid";
       if (vocabularyRef.current.some((t) => t.id === id)) return "exists";
       const { tags } = await d.loadTosTags();
       if (tags.some((t) => t.id === id)) return "exists";

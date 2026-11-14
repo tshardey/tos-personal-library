@@ -125,7 +125,7 @@ function SuggestionItem({
   );
 }
 
-function AddTagForm({ createTag }: { createTag(label: string, category: LibraryTagCategory): Promise<"added" | "exists"> }) {
+function AddTagForm({ createTag }: { createTag(label: string, category: LibraryTagCategory): Promise<"added" | "exists" | "invalid"> }) {
   const headingId = useId();
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState<LibraryTagCategory>(LIBRARY_TAG_CATEGORIES[0].id);
@@ -141,7 +141,9 @@ function AddTagForm({ createTag }: { createTag(label: string, category: LibraryT
     const text = label.trim();
     try {
       const out = await createTag(text, category);
-      if (out === "exists") {
+      if (out === "invalid") {
+        setMessage({ text: "Use letters or numbers in the tag name.", error: true });
+      } else if (out === "exists") {
         setMessage({ text: "That tag already exists.", error: true });
       } else {
         setMessage({ text: `Added ${text}.`, error: false });

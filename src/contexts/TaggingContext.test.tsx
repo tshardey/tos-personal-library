@@ -261,7 +261,7 @@ describe("TaggingProvider", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("createTag maps 23505 to exists, and a ToS, vocabulary or empty id to exists without the RPC", async () => {
+  it("createTag maps 23505 to exists, a ToS or vocabulary id to exists, and an empty id to invalid without the RPC", async () => {
     const deps = fakeDeps({
       createLibraryTag: vi.fn(async () => Promise.reject({ code: "23505" })),
     });
@@ -276,7 +276,7 @@ describe("TaggingProvider", () => {
         "exists",
       );
       expect(await latest.createTag("Slow burn", "trope")).toBe("exists");
-      expect(await latest.createTag("!!!", "trope")).toBe("exists");
+      expect(await latest.createTag("!!!", "trope")).toBe("invalid");
     });
     expect(deps.createLibraryTag).toHaveBeenCalledTimes(1);
   });

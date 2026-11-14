@@ -232,6 +232,15 @@ describe("TagSuggestionsPage", () => {
     expect(within(form).getByLabelText("Label")).toHaveValue("Vampires");
   });
 
+  it("a label with no usable characters says to use letters or numbers", async () => {
+    setup({ createTag: vi.fn().mockResolvedValue("invalid") });
+    const form = screen.getByRole("region", { name: "Add a tag" });
+    fireEvent.change(within(form).getByLabelText("Label"), { target: { value: "!!!" } });
+    // The button is disabled for these labels; Enter in the field still submits the form.
+    fireEvent.submit(within(form).getByLabelText("Label").closest("form")!);
+    expect(await within(form).findByText("Use letters or numbers in the tag name.")).toBeInTheDocument();
+  });
+
   it("can't add a label with no usable characters", () => {
     setup();
     const form = screen.getByRole("region", { name: "Add a tag" });

@@ -7,7 +7,7 @@ import { useCatalog } from "@/hooks/useCatalog";
 import { useRestoreScroll } from "@/hooks/useRestoreScroll";
 import { useTagging } from "@/contexts/TaggingContext";
 import { ASK_MAX_BOOKS, ASK_MAX_PROMPT, askBookIds, askRows, filterView } from "@/lib/ask";
-import { budgetUsedUp } from "@/lib/covers/cost";
+import { remainingMicro } from "@/lib/covers/cost";
 import { editionLabels } from "@/lib/editions";
 import { hasUnhauledCopy } from "@/lib/copy-flags";
 import { dateAddedOptions } from "@/lib/date-added";
@@ -94,7 +94,8 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
     () => (tagging.available ? askBookIds(books, view, tags, tagging.libraryTagsByBook, series, cover) : []),
     [tagging.available, books, view, tags, tagging.libraryTagsByBook, series, cover],
   );
-  const askBudgetUsedUp = tagging.budgets.ask !== null && budgetUsedUp(tagging.budgets.ask);
+  // ToS reserves per Ask call (reserveMicro is 0), so the cap is simply nothing left.
+  const askBudgetUsedUp = tagging.budgets.ask !== null && remainingMicro(tagging.budgets.ask) <= 0;
   const askTooMany = askIds.length > ASK_MAX_BOOKS;
   const askDisabled =
     query.trim() === "" || asking || view.ask?.status === "asking" || askBudgetUsedUp || askTooMany;

@@ -119,11 +119,19 @@ describe("LibraryPage Ask", () => {
   });
 
   it("is disabled at the Ask budget cap, with the copy", () => {
-    setup({ budgets: { tagging: null, ask: aiBudget(0, 10) } });
+    setup({ budgets: { tagging: null, ask: { ...aiBudget(500_000, 0), spentMicro: 500_000 } } });
     render(<LibraryPage />);
     fireEvent.change(search(), { target: { value: "a quiet book" } });
     expect(askButton()).toBeDisabled();
     expect(screen.getByText("This month's Ask budget is used up.")).toBeInTheDocument();
+  });
+
+  it("is enabled while some Ask budget is left, with a zero reserve", () => {
+    setup({ budgets: { tagging: null, ask: { ...aiBudget(500_000, 0), spentMicro: 499_999 } } });
+    render(<LibraryPage />);
+    fireEvent.change(search(), { target: { value: "a quiet book" } });
+    expect(askButton()).toBeEnabled();
+    expect(screen.queryByText("This month's Ask budget is used up.")).not.toBeInTheDocument();
   });
 
   it("is disabled over 2,000 books, with the copy", () => {
