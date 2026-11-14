@@ -53,6 +53,21 @@ vi.mock("@/lib/photo/intake-repo", async (importOriginal) => ({
   purgeIntakePhotos: vi.fn(async () => 0),
 }));
 
+const taggingRepo = vi.hoisted(() => ({
+  listVocabulary: vi.fn(async () => []),
+  listLibraryTagsByBook: vi.fn(async () => new Map()),
+  listCardMeta: vi.fn(async () => new Map()),
+  listTagJobs: vi.fn(async () => []),
+  listSuggestions: vi.fn(async () => []),
+  getAiBudget: vi.fn(async () => null),
+  runTagJob: vi.fn(),
+}));
+
+vi.mock("@/lib/tagging/tagging-repo", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/tagging/tagging-repo")>()),
+  ...taggingRepo,
+}));
+
 import App from "./App";
 
 beforeEach(() => {
@@ -88,6 +103,25 @@ describe("App", () => {
     expect(coverRepo.listCoverMarks).not.toHaveBeenCalled();
     expect(coverRepo.listCoverSearches).not.toHaveBeenCalled();
     expect(coverRepo.getCoverBudget).not.toHaveBeenCalled();
+  });
+
+  it("does not mount the tagging provider when signed out", async () => {
+    auth.user = null;
+    for (const fn of Object.values(taggingRepo)) fn.mockClear();
+    await renderApp();
+    expect(taggingRepo.listVocabulary).not.toHaveBeenCalled();
+    expect(taggingRepo.listTagJobs).not.toHaveBeenCalled();
+    expect(taggingRepo.runTagJob).not.toHaveBeenCalled();
+  });
+
+  it("renders the tag suggestions page on #/tags under the Library tab, and the menu links to it", async () => {
+    signedIn();
+    window.location.hash = "#/tags";
+    await renderApp();
+    expect(screen.getByRole("heading", { name: "Tag suggestions" })).toBeInTheDocument();
+    expect(taggingRepo.listTagJobs).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    expect(screen.getByRole("link", { name: "Tag suggestions" })).toHaveAttribute("href", "#/tags");
   });
 
   it("renders the covers review page on #/covers under the Library tab", async () => {

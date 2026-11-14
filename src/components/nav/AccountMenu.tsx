@@ -56,6 +56,13 @@ export default function AccountMenu({ email, onSignOut }: Props) {
           >
             Edition labels
           </a>
+          <a
+            href="#/tags"
+            onClick={() => setOpen(false)}
+            className="mb-2 flex min-h-10 w-full items-center justify-center rounded border px-3 py-2"
+          >
+            Tag suggestions
+          </a>
           <button type="button" onClick={onSignOut} className="min-h-10 w-full rounded border px-3 py-2">
             Sign out
           </button>
