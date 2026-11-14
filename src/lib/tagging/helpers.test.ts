@@ -72,10 +72,11 @@ describe("cost", () => {
     expect(TAG_PER_BOOK_ESTIMATE_MICRO).toBe(4300);
     expect(NEW_TAGS_PER_BOOK_ESTIMATE_MICRO).toBe(3600);
   });
-  it("booksCoveredBy floors, and is 0 below the reserve", () => {
-    expect(booksCoveredBy(b(), 4300)).toBe(1162);
+  it("booksCoveredBy floors, counts the last claim's reserve, and is 0 below it", () => {
+    expect(booksCoveredBy(b(), 4300)).toBe(1145);
     expect(booksCoveredBy(b({ spentMicro: 4_930_000 }), 4300)).toBe(0);
-    expect(booksCoveredBy(b({ spentMicro: 4_920_000 }), 4300)).toBe(18);
+    expect(booksCoveredBy(b({ spentMicro: 4_920_000 }), 4300)).toBe(1);
+    expect(booksCoveredBy(b({ spentMicro: 4_900_000 }), 4300)).toBe(5);
     expect(booksCoveredBy(b({ globalSpentMicro: 4_950_000 }), 4300)).toBe(0);
   });
 });

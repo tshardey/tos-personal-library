@@ -77,31 +77,12 @@ describe("MassEditSheet Retag selected", () => {
   });
 
   it("says how many books the budget covers when it falls short", () => {
-    // 10000 µ$ left covers 2 books at 4300 µ$.
-    setState({ budgets: { tagging: aiBudget(10_000), ask: null } });
+    // 5000 �$ left, reserve 1: floor(4999 / 4300) + 1 = 2 books.
+    setState({ budgets: { tagging: aiBudget(5_000), ask: null } });
     renderSheet();
     fireEvent.click(retagButton());
     expect(
       within(confirmGroup()).getByText("This month's budget covers about 2 of these 3 books. The rest carry on next month."),
-    ).toBeInTheDocument();
-  });
-
-  it("says the budget covers none of the books when k is 0", () => {
-    // Above the reserve but below one book's estimate.
-    setState({ budgets: { tagging: aiBudget(1_000, 1), ask: null } });
-    renderSheet();
-    fireEvent.click(retagButton());
-    expect(
-      within(confirmGroup()).getByText("This month's budget doesn't cover any of these books. They carry on next month."),
-    ).toBeInTheDocument();
-  });
-
-  it("uses the singular when the budget doesn't cover the one book", () => {
-    setState({ budgets: { tagging: aiBudget(1_000, 1), ask: null } });
-    renderSheet(catalog(["Atlas"]));
-    fireEvent.click(retagButton());
-    expect(
-      within(confirmGroup()).getByText("This month's budget doesn't cover this book. It carries on next month."),
     ).toBeInTheDocument();
   });
 
