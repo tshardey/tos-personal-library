@@ -56,7 +56,7 @@ test("renaming a label into another merges them and the Edition filter follows",
   await expect(page.getByText(`Merges into "Lantern Box". 2 copies will change; "Lantern Box" will have 4 copies.`)).toBeVisible();
   await page.getByRole("button", { name: "Merge" }).click();
   await page.getByRole("button", { name: "Change 2 copies" }).click();
-  await expect(page.getByRole("status")).toHaveText("Changed 2 copies.");
+  await expect(page.getByRole("status").filter({ hasText: "Changed 2 copies." })).toHaveText("Changed 2 copies.");
   await expect(list.getByRole("listitem")).toHaveCount(2);
   await expect(list.getByRole("listitem", { name: "Lantern Box", exact: true })).toContainText("4 copies");
 

@@ -69,6 +69,8 @@ export interface TaggingState {
   tagsVersion: number;
   setBookLibraryTag(bookId: string, tagId: string, on: boolean): Promise<void>;
   retag(bookId: string): Promise<void>;
+  /** Queues a manual retag for each book; resolves to how many were newly queued. */
+  retagMany(bookIds: string[]): Promise<number>;
   tagAll(bookIds: string[]): Promise<number>;
   checkNewTags(bookIds: string[]): Promise<number>;
   approve(
@@ -152,6 +154,7 @@ export const UNAVAILABLE_TAGGING: TaggingState = {
   tagsVersion: 0,
   setBookLibraryTag: async () => {},
   retag: async () => {},
+  retagMany: async () => 0,
   tagAll: async () => 0,
   checkNewTags: async () => 0,
   approve: async () => 0,
@@ -408,6 +411,10 @@ export function TaggingProvider(props: {
     },
     [queue],
   );
+  const retagMany = useCallback(
+    (bookIds: string[]) => queue(bookIds, "manual", null),
+    [queue],
+  );
   const tagAll = useCallback(
     (bookIds: string[]) => queue(bookIds, "run", d.newRunId()),
     [d, queue],
@@ -493,6 +500,7 @@ export function TaggingProvider(props: {
       tagsVersion,
       setBookLibraryTag,
       retag,
+      retagMany,
       tagAll,
       checkNewTags,
       approve,
@@ -515,6 +523,7 @@ export function TaggingProvider(props: {
       tagsVersion,
       setBookLibraryTag,
       retag,
+      retagMany,
       tagAll,
       checkNewTags,
       approve,

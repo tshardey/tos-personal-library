@@ -761,3 +761,11 @@ These record where the build departed from the plan text, and why.
 - **Shared filter options:** `filterView` and `viewFilterOptions` (`src/lib/ask.ts`) feed both the wall and `askBookIds`, so the two can't drift.
 - **Ask clearing:** a series change clears Ask results.
 - **Walkthrough step 7:** locally, stopped functions answer 503, not 404, so the "not set up" copy was checked by answering 404 in the browser, as the hosted gateway does. The pre-feature check reset the same local stack to ToS `origin/main`.
+
+## Build notes — cover motifs follow-up (2026-11-13)
+
+- **32 shared `cover-motif` tags** arrive in a Tome of Secrets migration, so they reach the library through the existing vocabulary load; no tag list is hard-coded in the app.
+- **`added_version` 1, no vocab_version bump.** Full jobs already send the whole active vocabulary, while a `new_tags` job sends no image and drops every `cover-*` tag, so a bump would only invite a "Check for new tags" pass that can't add cover tags. Retagging is the path.
+- **Prompt rule:** broad cover tags give way to specific ones (a wolf cover gets `cover-wolf`, not also `cover-animal`).
+- **Retag selected** (mass edit, shown only when tagging is available) queues `manual` full jobs for the selected books through `retagMany`. Pressing it spends nothing: a confirm step shows the estimate (4,300 µ$ a book), the budget left, and how many books the budget covers. Books that already have an open job aren't counted. It is disabled at the budget cap, with the same copy as the per-book button.
+- **Vocabulary duplicates:** `listVocabulary` keeps one row per id (the household's wins over a shared row), so a shared tag added later can't double a household tag in the pickers.

@@ -40,14 +40,21 @@ export async function listVocabulary(householdId: string): Promise<LibraryTag[]>
         .order("id")
         .range(from, to) as unknown as Page,
   );
-  return rows.map((r) => ({
-    id: r.id as string,
-    label: r.label as string,
-    category: r.category as LibraryTagCategory,
-    active: r.active === true,
-    addedVersion: Number(r.added_version),
-    householdId: str(r.household_id),
-  }));
+  // A household row and a shared row can share an id; keep one (the household's wins).
+  const byId = new Map<string, LibraryTag>();
+  for (const r of rows) {
+    const tag: LibraryTag = {
+      id: r.id as string,
+      label: r.label as string,
+      category: r.category as LibraryTagCategory,
+      active: r.active === true,
+      addedVersion: Number(r.added_version),
+      householdId: str(r.household_id),
+    };
+    const seen = byId.get(tag.id);
+    if (seen === undefined || (seen.householdId === null && tag.householdId !== null)) byId.set(tag.id, tag);
+  }
+  return [...byId.values()];
 }
 
 /** Library tag ids per book; any page's error rejects, so a partial map is never returned. */

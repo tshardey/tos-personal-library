@@ -88,7 +88,7 @@ test("mass edit sets a label and Deluxe on the selected books' ticked copies", a
   await sheet.getByRole("button", { name: "Save" }).click();
   await expect(sheet.getByText("This will change 3 copies. There is no undo.")).toBeVisible();
   await sheet.getByRole("button", { name: "Confirm" }).click();
-  await expect(page.getByRole("status")).toHaveText("Changed 3 copies.");
+  await expect(page.getByRole("status").filter({ hasText: "Changed 3 copies." })).toHaveText("Changed 3 copies.");
   await expect(sheet).toBeHidden();
   await expect(bar).toBeHidden();
 
@@ -113,4 +113,46 @@ test("mass edit sets a label and Deluxe on the selected books' ticked copies", a
   expect(unticked).toMatchObject({ deluxe: false, user_edited_fields: [] });
   const other = copies.find((c) => c.book_id === id("Glass Orchard Ledger"));
   expect(other).toMatchObject({ edition_note: "Lantern Box", deluxe: false, user_edited_fields: [] });
+});
+
+interface JobRow {
+  book_id: string;
+  reason: string;
+  status: string;
+}
+
+test("Retag selected confirms first, then queues without duplicating open jobs", async ({ page }) => {
+  const user = await newUserWithHousehold("Member A");
+  const titles = ["Lantern Almanac One", "Lantern Almanac Two"];
+  const books = await insert<{ id: string; title: string }>(
+    user,
+    "books",
+    titles.map((title) => ({ household_id: user.householdId, title, authors: ["Petra Wynnecombe"] })),
+  );
+  const ids = books.map((b) => b.id).join(",");
+  await signIn(page, user);
+  await page.goto("#/");
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await page.getByRole("button", { name: "Select all" }).click();
+  await page.getByRole("region", { name: "Selection" }).getByRole("button", { name: "Edit" }).click();
+
+  const sheet = page.getByRole("dialog", { name: "Edit selected books" });
+  await sheet.getByRole("button", { name: "Retag selected" }).click();
+  const confirm = sheet.getByRole("group", { name: "Confirm retag" });
+  await expect(confirm.getByText(/^Retag 2 books · about /)).toBeVisible();
+  await expect(confirm.getByText(/of this month's tagging budget left\.$/)).toBeVisible();
+
+  // Cancel spends nothing and adds no job.
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toBeHidden();
+  const before = await rest<JobRow[]>(user, `tag_jobs?select=book_id,reason,status&book_id=in.(${ids})`);
+
+  await sheet.getByRole("button", { name: "Retag selected" }).click();
+  await confirm.getByRole("button", { name: "Confirm" }).click();
+  // New books already carry an open job, so none is counted as newly queued.
+  await expect(sheet.getByText(/^Queued \d+ books? for retagging\.$/)).toBeVisible();
+
+  const after = await rest<JobRow[]>(user, `tag_jobs?select=book_id,reason,status&book_id=in.(${ids})`);
+  expect(after).toHaveLength(before.length);
+  for (const b of books) expect(after.filter((j) => j.book_id === b.id)).toHaveLength(1);
 });

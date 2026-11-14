@@ -337,4 +337,23 @@ describe("TaggingProvider", () => {
       "run-1",
     );
   });
+
+  it("retagMany queues manual jobs without a run id and counts only the new ones", async () => {
+    const deps = fakeDeps({
+      requestTagging: vi.fn(
+        async () =>
+          new Map([
+            ["b1", "queued" as const],
+            ["b2", "already_open" as const],
+            ["b3", "queued" as const],
+          ]),
+      ),
+    });
+    mount(deps);
+    await flush();
+    await act(async () => {
+      expect(await latest.retagMany(["b1", "b2", "b3"])).toBe(2);
+    });
+    expect(deps.requestTagging).toHaveBeenCalledWith("h1", ["b1", "b2", "b3"], "manual", null);
+  });
 });

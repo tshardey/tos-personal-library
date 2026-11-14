@@ -15,6 +15,8 @@ import {
   type MassEditTargets,
 } from "@/lib/mass-edit";
 import { MAX_SERIES, seriesNames } from "@/lib/series";
+import { budgetUsedUp, formatUsd, remainingMicro } from "@/lib/covers/cost";
+import { booksCoveredBy, TAG_PER_BOOK_ESTIMATE_MICRO } from "@/lib/tagging/cost";
 import { addLibraryTag, removeLibraryTag } from "@/lib/tagging/tagging-repo";
 import type { BookWithCopies, Copy, HouseholdMember } from "@/lib/types";
 
@@ -80,6 +82,9 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const [refreshFailed, setRefreshFailed] = useState(false);
   /** Changes written so far, across the first run and any retries. */
   const [totals, setTotals] = useState({ copies: 0, books: 0, tags: 0 });
+  const [retagStep, setRetagStep] = useState<"idle" | "confirm" | "queueing">("idle");
+  const [retagMessage, setRetagMessage] = useState<string | null>(null);
+  const [retagError, setRetagError] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Focus moves into the sheet on open (so Escape and Tab start there) and back on close.
@@ -185,6 +190,26 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
       setRefreshFailed(!(await refresh()));
     } finally {
       setBusy(false);
+    }
+  }
+
+  const budget = tagging.budgets.tagging;
+  const usedUp = budget !== null && budgetUsedUp(budget);
+  const books = selected.length;
+  const covered = budget === null ? books : booksCoveredBy(budget, TAG_PER_BOOK_ESTIMATE_MICRO);
+
+  async function retagSelected() {
+    setRetagStep("queueing");
+    setRetagMessage(null);
+    setRetagError(false);
+    try {
+      const queued = await tagging.retagMany(selected.map((b) => b.id));
+      setRetagMessage(`Queued ${queued} ${queued === 1 ? "book" : "books"} for retagging.`);
+    } catch (err) {
+      console.error("Failed to retag books", err instanceof Error ? err.name : "unknown");
+      setRetagError(true);
+    } finally {
+      setRetagStep("idle");
     }
   }
 
@@ -429,6 +454,60 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
               </div>
             </div>
           </fieldset>
+
+          {tagsOn && (
+            <div className="mt-3 space-y-2">
+              <h3 className="text-sm font-medium">Retag</h3>
+              {retagStep === "idle" && (
+                <button
+                  type="button"
+                  disabled={books === 0 || usedUp || busy || result !== null}
+                  onClick={() => {
+                    setRetagMessage(null);
+                    setRetagError(false);
+                    setRetagStep("confirm");
+                  }}
+                  className="min-h-10 rounded border px-3 disabled:opacity-50"
+                >
+                  Retag selected
+                </button>
+              )}
+              {usedUp && <p className="text-sm text-stone-700">This month's tagging budget is used up.</p>}
+              {retagStep !== "idle" && (
+                <div role="group" aria-label="Confirm retag" className="space-y-2 rounded border p-2 text-sm">
+                  <p className="font-medium">
+                    {`Retag ${books} ${books === 1 ? "book" : "books"} · about ${formatUsd(books * TAG_PER_BOOK_ESTIMATE_MICRO)}`}
+                  </p>
+                  {budget !== null && (
+                    <p>{`${formatUsd(remainingMicro(budget))} of this month's tagging budget left.`}</p>
+                  )}
+                  {budget !== null && covered < books && (
+                    <p>{`This month's budget covers about ${covered} of these ${books} books. The rest carry on next month.`}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={retagStep === "queueing"}
+                      onClick={() => void retagSelected()}
+                      className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                    >
+                      {retagStep === "queueing" ? "Queueing…" : "Confirm"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={retagStep === "queueing"}
+                      onClick={() => setRetagStep("idle")}
+                      className="min-h-10 rounded border px-3 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {retagMessage && <p role="status" className="text-sm">{retagMessage}</p>}
+              {retagError && <p role="alert" className="text-sm text-red-700">Couldn't queue the retag. Try again.</p>}
+            </div>
+          )}
         </div>
 
         <div className="border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
