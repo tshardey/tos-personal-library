@@ -68,3 +68,25 @@ describe("scroll anchor", () => {
     expect(takeScrollAnchor()).toBeNull();
   });
 });
+
+describe("ask results in the view", () => {
+  const done = {
+    prompt: "cozy",
+    status: "done" as const,
+    response: { outcome: "ok" as const, answerable: true, note: null, matches: [] },
+  };
+
+  it("keeps ask on an ask-only patch, clears it on any other, and survives remount", () => {
+    resetLibraryView();
+    const first = renderHook(() => useLibraryView("h1"));
+    act(() => first.result.current[1]({ ask: { prompt: "cozy", status: "asking", response: null } }));
+    act(() => first.result.current[1]({ ask: done }));
+    expect(first.result.current[0].ask).toEqual(done);
+    first.unmount();
+    const second = renderHook(() => useLibraryView("h1"));
+    expect(second.result.current[0].ask).toEqual(done);
+    act(() => second.result.current[1]({ owner: "shared" }));
+    expect(second.result.current[0].ask).toBeNull();
+    expect(second.result.current[0].libraryTags).toEqual([]);
+  });
+});

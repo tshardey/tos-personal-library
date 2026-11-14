@@ -17,6 +17,9 @@ export interface FilterOptions {
   /** The book must have every one of these tag ids. */
   tags?: string[];
   tagsByBook?: Map<string, string[]>;
+  /** Library tags: the same all-of rule as `tags`. */
+  libraryTags?: string[];
+  libraryTagsByBook?: Map<string, string[]>;
   /** Case-insensitive series name. */
   series?: string | null;
   /** Only books with at least one unhauled copy. */
@@ -38,6 +41,7 @@ export function filterBooks(books: BookWithCopies[], opts: FilterOptions): BookW
   const edition = opts.edition ? opts.edition.trim().toLowerCase() : null;
   const series = opts.series ? opts.series.trim().toLowerCase() : null;
   const wanted = opts.tags ?? [];
+  const wantedLibrary = opts.libraryTags ?? [];
   const q = fold(opts.query.trim());
   const showUnhauled = showsUnhauled(opts);
   let from = opts.publishedFrom ?? null;
@@ -60,6 +64,10 @@ export function filterBooks(books: BookWithCopies[], opts: FilterOptions): BookW
     if (wanted.length > 0) {
       const have = opts.tagsByBook?.get(b.id) ?? [];
       if (!wanted.every((t) => have.includes(t))) return false;
+    }
+    if (wantedLibrary.length > 0) {
+      const have = opts.libraryTagsByBook?.get(b.id) ?? [];
+      if (!wantedLibrary.every((t) => have.includes(t))) return false;
     }
     if (from !== null || to !== null) {
       const year = publishYear(b.publishDate);

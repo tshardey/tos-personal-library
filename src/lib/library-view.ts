@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import type { CoverFilter } from "@/lib/covers/eligibility";
 import type { OwnerFilter } from "@/lib/filter-books";
+import type { AskResponse } from "@/lib/tagging/types";
+
+export interface AskView {
+  prompt: string;
+  status: "asking" | "done";
+  response: AskResponse | null;
+}
 
 export interface LibraryView {
   query: string;
   owner: OwnerFilter;
   edition: string | null;
   tags: string[];
+  libraryTags: string[];
   coverFilter: CoverFilter;
   unhauled: boolean;
   deluxe: boolean;
@@ -14,6 +22,8 @@ export interface LibraryView {
   addedDay: string | null;
   publishedFrom: number | null;
   publishedTo: number | null;
+  /** D11: Ask results live here; any other view change clears them. */
+  ask: AskView | null;
 }
 
 export const DEFAULT_VIEW: LibraryView = {
@@ -21,6 +31,7 @@ export const DEFAULT_VIEW: LibraryView = {
   owner: "all",
   edition: null,
   tags: [],
+  libraryTags: [],
   coverFilter: "all",
   unhauled: false,
   deluxe: false,
@@ -28,6 +39,7 @@ export const DEFAULT_VIEW: LibraryView = {
   addedDay: null,
   publishedFrom: null,
   publishedTo: null,
+  ask: null,
 };
 
 /**
@@ -65,7 +77,8 @@ export function useLibraryView(householdId: string | null): [LibraryView, (patch
   const update = useCallback(
     (patch: Partial<LibraryView>) => {
       const base = state.householdId === householdId ? state.view : DEFAULT_VIEW;
-      setState({ householdId, view: { ...base, ...patch } });
+      const onlyAsk = Object.keys(patch).every((k) => k === "ask");
+      setState({ householdId, view: { ...base, ...(onlyAsk ? {} : { ask: null }), ...patch } });
     },
     [householdId],
   );
