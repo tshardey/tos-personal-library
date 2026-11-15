@@ -55,6 +55,17 @@ function mergeKey(r: HistoryUploadRow): string {
   return `t:${titleKey(r.title)}|${r.authors.map(authorKey).join(";")}`;
 }
 
+// The server rejects the whole batch if any row passes these, so clip here.
+const MAX_TITLE_CHARS = 500;
+const MAX_AUTHORS = 50;
+const MAX_AUTHOR_CHARS = 500;
+const MAX_UID_CHARS = 100;
+
+/** Clip to n characters (code points, as the server counts them). */
+function clip(s: string, n: number): string {
+  return s.length <= n ? s : Array.from(s).slice(0, n).join("");
+}
+
 export function parseStoryGraph(text: string): ParsedHistory {
   if (text.includes("\u0000")) throw new StoryGraphFileError("not_text");
   const parsed = Papa.parse<Record<string, string>>(text.replace(/^\uFEFF/, ""), {
@@ -84,9 +95,11 @@ export function parseStoryGraph(text: string): ParsedHistory {
       continue;
     }
     const row: HistoryUploadRow = {
-      title,
-      authors: joinNameSuffixes(get("Authors").split(",").map((n) => n.trim()).filter(Boolean)),
-      isbnUid: get("ISBN/UID") || null,
+      title: clip(title, MAX_TITLE_CHARS),
+      authors: joinNameSuffixes(get("Authors").split(",").map((n) => n.trim()).filter(Boolean))
+        .slice(0, MAX_AUTHORS)
+        .map((a) => clip(a, MAX_AUTHOR_CHARS)),
+      isbnUid: clip(get("ISBN/UID"), MAX_UID_CHARS) || null,
       status,
       lastRead: parseSgDate(get("Last Date Read")) ?? lastDateRead(get("Dates Read")),
     };

@@ -27,6 +27,21 @@ describe("mapping", () => {
   });
 });
 
+describe("server limits", () => {
+  it("clips long titles, author lists and UIDs instead of failing", () => {
+    const authors = Array.from({ length: 60 }, (_, i) => `Author ${i}`).join(", ");
+    const r = parseStoryGraph(sgCsv([row({ Title: "T".repeat(600), Authors: authors, "ISBN/UID": "9".repeat(150) })]));
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].title).toHaveLength(500);
+    expect(r.rows[0].authors).toHaveLength(50);
+    expect(r.rows[0].isbnUid).toHaveLength(100);
+  });
+  it("clips a long author name", () => {
+    const r = parseStoryGraph(sgCsv([row({ Authors: "A".repeat(700) })]));
+    expect(r.rows[0].authors[0]).toHaveLength(500);
+  });
+});
+
 describe("real-world shape", () => {
   it("parses a BOM with CRLF", () => {
     expect(parseStoryGraph(sgCsv([row()], { bom: true, crlf: true })).rows).toHaveLength(1);
