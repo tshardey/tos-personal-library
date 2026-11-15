@@ -17,6 +17,14 @@ function formatDay(day: string): string {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
+/** A real calendar day written YYYY-MM-DD. */
+function isCompleteDay(v: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
 const STATES: { state: ReadState; label: string }[] = [
   { state: "unread", label: "Unread" },
   { state: "read", label: "Read" },
@@ -37,6 +45,8 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
   // What the member just chose, shown until the save settles.
   const [pending, setPending] = useState<Shown | null>(null);
   const [error, setError] = useState(false);
+  // The date being typed, kept here until it is a complete date and the input is committed.
+  const [draft, setDraft] = useState<string | null>(null);
   const seq = useRef(0);
   if (!available || userId === null) return null;
 
@@ -58,6 +68,14 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
       setError(true);
     } finally {
       if (seq.current === mine) setPending(null);
+    }
+  }
+
+  function commitDate() {
+    const value = draft;
+    setDraft(null);
+    if (value !== null && isCompleteDay(value) && value !== shown.finishedOn) {
+      void save({ state: "read", finishedOn: value });
     }
   }
 
@@ -93,8 +111,12 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
             <input
               type="date"
               disabled={busy}
-              value={shown.finishedOn ?? ""}
-              onChange={(e) => void save({ state: "read", finishedOn: e.target.value || null })}
+              value={(busy ? null : draft) ?? shown.finishedOn ?? ""}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commitDate}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitDate();
+              }}
               className="rounded border border-stone-400 px-2 py-1"
             />
           </label>

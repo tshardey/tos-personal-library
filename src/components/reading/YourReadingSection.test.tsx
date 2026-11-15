@@ -65,12 +65,35 @@ describe("YourReadingSection", () => {
     expect(h.setStatus).toHaveBeenLastCalledWith(["b1"], "unread", null, false);
   });
 
-  it("changing the date sends that date", async () => {
+  it("changing the date saves once, when the input is committed", async () => {
     setup(mine("read", "2026-03-02"));
     const input = screen.getByLabelText("Finished");
     expect(input).toHaveValue("2026-03-02");
     fireEvent.change(input, { target: { value: "2026-04-05" } });
+    expect(h.setStatus).not.toHaveBeenCalled();
+    expect(input).toBeEnabled();
+    fireEvent.blur(input);
+    expect(h.setStatus).toHaveBeenCalledTimes(1);
     expect(h.setStatus).toHaveBeenLastCalledWith(["b1"], "read", "2026-04-05", false);
+  });
+
+  it("Enter commits the date, and a following blur does not save again", async () => {
+    setup(mine("read", "2026-03-02"));
+    const input = screen.getByLabelText("Finished");
+    fireEvent.change(input, { target: { value: "2026-04-05" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.blur(input);
+    expect(h.setStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not save an incomplete or unchanged date", async () => {
+    setup(mine("read", "2026-03-02"));
+    const input = screen.getByLabelText("Finished");
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+    fireEvent.change(input, { target: { value: "2026-03-02" } });
+    fireEvent.blur(input);
+    expect(h.setStatus).not.toHaveBeenCalled();
   });
 
   it("Clear date sends null", async () => {
