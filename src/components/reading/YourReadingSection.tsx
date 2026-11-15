@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useReading } from "@/contexts/ReadingContext";
 import { localDay } from "@/lib/date-added";
@@ -41,6 +41,18 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
   // The date being typed, kept here until it is a complete date and the input is committed.
   const [draft, setDraft] = useState<string | null>(null);
   const seq = useRef(0);
+  const inFlight = useRef(false);
+  // The latest date picked while a save was running; sent when that save settles.
+  const queued = useRef<string | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const setStatusRef = useRef(setStatus);
+  setStatusRef.current = setStatus;
   if (!available || userId === null) return null;
 
   const entries = byBook.get(bookId);
@@ -49,27 +61,47 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
 
   const busy = pending !== null;
 
-  async function save(next: Shown) {
-    if (busy) return;
+  // Runs off refs only, so a queued date is still sent after the component unmounts.
+  async function save(first: Shown) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     const mine = ++seq.current;
-    setError(false);
-    setPending(next);
+    let sent = first;
+    if (mounted.current) {
+      setError(false);
+      setPending(sent);
+    }
     try {
-      await setStatus([bookId], next.state, next.finishedOn, false);
-    } catch (err) {
-      console.error("Failed to save reading", err instanceof Error ? err.name : "unknown");
-      setError(true);
+      for (;;) {
+        try {
+          await setStatusRef.current([bookId], sent.state, sent.finishedOn, false);
+        } catch (err) {
+          console.error("Failed to save reading", err instanceof Error ? err.name : "unknown");
+          queued.current = null;
+          if (mounted.current) setError(true);
+          break;
+        }
+        const q = queued.current;
+        queued.current = null;
+        if (q === null || q === sent.finishedOn) break;
+        sent = { state: "read", finishedOn: q };
+        if (mounted.current) setPending(sent);
+      }
     } finally {
-      if (seq.current === mine) setPending(null);
+      inFlight.current = false;
+      const last = sent.finishedOn;
+      if (mounted.current && seq.current === mine) {
+        setPending(null);
+        setDraft((d) => (d === last ? null : d));
+      }
     }
   }
 
-  function commitDate() {
-    const value = draft;
-    setDraft(null);
-    if (value !== null && isCompleteDay(value) && value !== shown.finishedOn) {
-      void save({ state: "read", finishedOn: value });
-    }
+  function changeDate(value: string) {
+    setDraft(value);
+    if (!isCompleteDay(value)) return;
+    if (inFlight.current) queued.current = value;
+    else if (value !== shown.finishedOn) void save({ state: "read", finishedOn: value });
   }
 
   function choose(state: ReadState) {
@@ -103,13 +135,8 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
             Finished
             <input
               type="date"
-              disabled={busy}
-              value={(busy ? null : draft) ?? shown.finishedOn ?? ""}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={commitDate}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitDate();
-              }}
+              value={draft ?? shown.finishedOn ?? ""}
+              onChange={(e) => changeDate(e.target.value)}
               className="rounded border border-stone-400 px-2 py-1"
             />
           </label>

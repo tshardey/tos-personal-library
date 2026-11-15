@@ -65,35 +65,51 @@ describe("YourReadingSection", () => {
     expect(h.setStatus).toHaveBeenLastCalledWith(["b1"], "unread", null, false);
   });
 
-  it("changing the date saves once, when the input is committed", async () => {
+  it("a picked date saves at once, with no blur", async () => {
     setup(mine("read", "2026-03-02"));
     const input = screen.getByLabelText("Finished");
     expect(input).toHaveValue("2026-03-02");
     fireEvent.change(input, { target: { value: "2026-04-05" } });
-    expect(h.setStatus).not.toHaveBeenCalled();
-    expect(input).toBeEnabled();
-    fireEvent.blur(input);
     expect(h.setStatus).toHaveBeenCalledTimes(1);
     expect(h.setStatus).toHaveBeenLastCalledWith(["b1"], "read", "2026-04-05", false);
+    expect(input).toBeEnabled();
   });
 
-  it("Enter commits the date, and a following blur does not save again", async () => {
-    setup(mine("read", "2026-03-02"));
-    const input = screen.getByLabelText("Finished");
-    fireEvent.change(input, { target: { value: "2026-04-05" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    fireEvent.blur(input);
-    expect(h.setStatus).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not save an incomplete or unchanged date", async () => {
+  it("does not save an incomplete, empty or unchanged date", async () => {
     setup(mine("read", "2026-03-02"));
     const input = screen.getByLabelText("Finished");
     fireEvent.change(input, { target: { value: "" } });
-    fireEvent.blur(input);
     fireEvent.change(input, { target: { value: "2026-03-02" } });
-    fireEvent.blur(input);
     expect(h.setStatus).not.toHaveBeenCalled();
+  });
+
+  it("two quick changes end with the last date saved", async () => {
+    let finish: () => void = () => {};
+    h.setStatus.mockReturnValueOnce(new Promise<void>((r) => (finish = r)));
+    setup(mine("read", "2026-03-02"));
+    const input = screen.getByLabelText("Finished");
+    fireEvent.change(input, { target: { value: "2026-04-05" } });
+    fireEvent.change(input, { target: { value: "2026-04-06" } });
+    fireEvent.change(input, { target: { value: "2026-04-07" } });
+    expect(h.setStatus).toHaveBeenCalledTimes(1);
+    expect(input).toBeEnabled();
+    expect(input).toHaveValue("2026-04-07");
+    finish();
+    await waitFor(() => expect(h.setStatus).toHaveBeenCalledTimes(2));
+    expect(h.setStatus).toHaveBeenLastCalledWith(["b1"], "read", "2026-04-07", false);
+  });
+
+  it("unmounting while a save is in flight still sends the queued date", async () => {
+    let finish: () => void = () => {};
+    h.setStatus.mockReturnValueOnce(new Promise<void>((r) => (finish = r)));
+    const { unmount } = setup(mine("read", "2026-03-02"));
+    const input = screen.getByLabelText("Finished");
+    fireEvent.change(input, { target: { value: "2026-04-05" } });
+    fireEvent.change(input, { target: { value: "2026-04-06" } });
+    unmount();
+    finish();
+    await waitFor(() => expect(h.setStatus).toHaveBeenCalledTimes(2));
+    expect(h.setStatus).toHaveBeenLastCalledWith(["b1"], "read", "2026-04-06", false);
   });
 
   it("Clear date sends null", async () => {
@@ -133,20 +149,18 @@ describe("YourReadingSection", () => {
     expect(screen.getByRole("button", { name: "Did not finish" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("disables every control while a save is pending", async () => {
+  it("disables the buttons, not the date, while a save is pending", async () => {
     let finish: () => void = () => {};
     h.setStatus.mockReturnValue(new Promise<void>((r) => (finish = r)));
     setup();
     fireEvent.click(screen.getByRole("button", { name: "Read" }));
-    const day = localDay(new Date().toISOString());
-    expect(screen.getByLabelText("Finished")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Clear date" })).toBeDisabled();
     for (const name of ["Unread", "Read", "Did not finish"]) {
       expect(screen.getByRole("button", { name })).toBeDisabled();
     }
+    expect(screen.getByLabelText("Finished")).toBeEnabled();
     fireEvent.change(screen.getByLabelText("Finished"), { target: { value: "2026-04-05" } });
     expect(h.setStatus).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText("Finished")).toHaveValue(day);
     finish();
     await waitFor(() => expect(screen.getByRole("button", { name: "Unread" })).toBeEnabled());
   });
