@@ -39,6 +39,8 @@ interface Props {
   libraryTagFilter?: { vocabulary: LibraryTag[]; selected: string[]; onChange(ids: string[]): void };
   /** D11: the Ask button beside the box; absent while tagging is unavailable. `note` explains a disabled button. */
   ask?: { disabled: boolean; note: string | null; onAsk(): void };
+  /** D10: the Read status select; absent while reading is unavailable. */
+  readStatusFilter?: { options: { value: string; label: string }[]; value: string; onChange(v: string): void };
 }
 
 /** Strict four-digit-or-longer whole number from typed text; anything else (a partly typed year too) is no bound. */
@@ -108,6 +110,7 @@ export default function LibraryFilters({
   onChange,
   libraryTagFilter,
   ask,
+  readStatusFilter,
 }: Props) {
   const [tagsOpen, setTagsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -198,6 +201,20 @@ export default function LibraryFilters({
           <option value="no_cover">No cover</option>
           <option value="marked">Marked for cover</option>
           <option value="nothing_found">Nothing found</option>
+        </select>
+      )}
+      {readStatusFilter && (
+        <select
+          aria-label="Read status"
+          value={readStatusFilter.value}
+          onChange={(e) => readStatusFilter.onChange(e.target.value)}
+          className="w-full rounded border px-3 py-2"
+        >
+          {readStatusFilter.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
       )}
       <select
