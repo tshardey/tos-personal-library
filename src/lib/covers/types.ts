@@ -1,12 +1,13 @@
-export type CoverReason = "wrong_language" | "placeholder" | "wrong_book" | "low_quality";
+export type CoverReason = "wrong_language" | "placeholder" | "wrong_book" | "low_quality" | "angled";
 
-export const COVER_REASONS: readonly CoverReason[] = ["wrong_language", "placeholder", "wrong_book", "low_quality"];
+export const COVER_REASONS: readonly CoverReason[] = ["wrong_language", "placeholder", "wrong_book", "low_quality", "angled"];
 
 export const REASON_LABELS: Record<CoverReason, string> = {
   wrong_language: "Wrong language",
   placeholder: "Placeholder",
   wrong_book: "Wrong book",
   low_quality: "Low quality",
+  angled: "Angled or shows edges",
 };
 
 export type CoverSearchStatus =
