@@ -140,18 +140,18 @@ describe("openLibraryCandidates", () => {
           json({
             entries: [
               ed("The Salt Road", 1000002, EN),
-              ed("The Salt Road", 1000006, EN, { isbn_13: ["9780306406157"] }),
+              ed("The Salt Road", 1000006, EN, { isbn_13: ["9780000000057"] }),
             ],
           }),
       },
     });
-    const out = await gatherCandidates(book({ isbn13: ["9780306406157"] }), {
+    const out = await gatherCandidates(book({ isbn13: ["9780000000057"] }), {
       fetchImpl,
       googleKey: null,
       measure: async () => ({ width: 300, height: 450 }),
     });
     expect(out.map((c) => c.url)).toEqual([olUrl(1000006), olUrl(1000002)]);
-    const raw = await openLibraryCandidates(book({ isbn13: ["9780306406157"] }), fetchImpl);
+    const raw = await openLibraryCandidates(book({ isbn13: ["9780000000057"] }), fetchImpl);
     expect(raw.map((c) => c.isbnMatch)).toEqual([false, true]);
   });
 
