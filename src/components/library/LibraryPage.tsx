@@ -7,6 +7,7 @@ import { useCatalog } from "@/hooks/useCatalog";
 import { useRestoreScroll } from "@/hooks/useRestoreScroll";
 import { useTagging } from "@/contexts/TaggingContext";
 import { ASK_MAX_BOOKS, ASK_MAX_PROMPT, askBookIds, askRows, filterView } from "@/lib/ask";
+import type { ReadStatusMap } from "@/lib/reading/types";
 import { remainingMicro } from "@/lib/covers/cost";
 import { editionLabels } from "@/lib/editions";
 import { hasUnhauledCopy } from "@/lib/copy-flags";
@@ -21,6 +22,9 @@ import AskResults from "./AskResults";
 import CoverWall from "./CoverWall";
 import LibraryFilters from "./LibraryFilters";
 import MassEditSheet from "./MassEditSheet";
+
+// Task 11 wires the real read statuses in; until then no one has read anything.
+const noReadStatus: ReadStatusMap = new Map();
 
 export default function LibraryPage({ series: routeSeries }: { series?: string } = {}) {
   const { household, members } = useHousehold();
@@ -81,6 +85,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       libraryTagsByBook: tagging.libraryTagsByBook,
       series,
       cover,
+      readStatusByBook: noReadStatus,
     });
     if (!series) return found;
     // D5: within a series, volume order (nulls last), so 2.5 sorts between 2 and 3.
@@ -91,7 +96,16 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   }, [books, view, tags, tagging.libraryTagsByBook, series, cover]);
   // D11: the Ask set is the view as if the box were empty.
   const askIds = useMemo(
-    () => (tagging.available ? askBookIds(books, view, tags, tagging.libraryTagsByBook, series, cover) : []),
+    () =>
+      tagging.available
+        ? askBookIds(books, view, {
+            tagsByBook: tags,
+            libraryTagsByBook: tagging.libraryTagsByBook,
+            series,
+            cover,
+            readStatusByBook: noReadStatus,
+          })
+        : [],
     [tagging.available, books, view, tags, tagging.libraryTagsByBook, series, cover],
   );
   // ToS reserves per Ask call (reserveMicro is 0), so the cap is simply nothing left.

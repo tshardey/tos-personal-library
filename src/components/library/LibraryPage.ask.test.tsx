@@ -157,10 +157,13 @@ describe("LibraryPage Ask", () => {
     const expected = askBookIds(
       books,
       { ...DEFAULT_VIEW, query: "  Paper  ", libraryTags: ["found-family"] },
-      new Map(),
-      libraryTagsByBook,
-      null,
-      { available: false, marks: new Map(), latest: new Map() },
+      {
+        tagsByBook: new Map(),
+        libraryTagsByBook,
+        series: null,
+        cover: { available: false, marks: new Map(), latest: new Map() },
+        readStatusByBook: new Map(),
+      },
     );
     expect(expected).toEqual(["The Salt Road", "Paper Tide"]);
     expect(ask).toHaveBeenCalledWith("Paper", expected);

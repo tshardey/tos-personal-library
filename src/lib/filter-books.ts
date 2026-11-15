@@ -2,6 +2,8 @@ import type { BookWithCopies } from "@/lib/types";
 import { countedCopies, hasUnhauledCopy } from "@/lib/copy-flags";
 import { localDay } from "@/lib/date-added";
 import { publishYear } from "@/lib/publish-year";
+import { stateFor } from "@/lib/reading/status";
+import type { ReadState, ReadStatusMap } from "@/lib/reading/types";
 
 /** 'all' | 'shared' | a member's userId */
 export type OwnerFilter = "all" | "shared" | string;
@@ -30,6 +32,9 @@ export interface FilterOptions {
   addedDay?: string | null;
   publishedFrom?: number | null;
   publishedTo?: number | null;
+  /** Keep books whose status for this member is this state. A missing map means every book is unread. */
+  readStatus?: { userId: string; state: ReadState } | null;
+  readStatusByBook?: ReadStatusMap;
 }
 
 /** Unhauled copies and books are shown for the Unhauled filter or a non-blank search. */
@@ -74,6 +79,10 @@ export function filterBooks(books: BookWithCopies[], opts: FilterOptions): BookW
       if (year === null) return false;
       if (from !== null && year < from) return false;
       if (to !== null && year > to) return false;
+    }
+    if (opts.readStatus) {
+      const have = stateFor(opts.readStatusByBook ?? new Map(), b.id, opts.readStatus.userId);
+      if (have !== opts.readStatus.state) return false;
     }
     if (!q) return true;
     const notes = b.copies.flatMap((c) => (c.editionNote ? [c.editionNote] : []));
