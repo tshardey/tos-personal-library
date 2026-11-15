@@ -69,3 +69,26 @@ export async function rest<T>(user: TestUser, pathAndQuery: string): Promise<T> 
     headers: { "Accept-Profile": "library" },
   })) as T;
 }
+
+/** A fresh user who joins `owner`'s household with its invite code (`join_household`). */
+export async function newMemberOf(owner: TestUser, displayName: string): Promise<TestUser> {
+  const [household] = await rest<{ invite_code: string }[]>(
+    owner,
+    `households?select=invite_code&id=eq.${owner.householdId}`,
+  );
+  if (!household) throw new Error("the owner can't read their household's invite code");
+  const email = `e2e-${randomUUID()}@example.test`;
+  const password = `pw-${randomUUID()}`;
+  const session = (await call("/auth/v1/signup", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  })) as Record<string, unknown> & { access_token: string; user: { id: string } };
+  if (!session.access_token) throw new Error("sign-up returned no session (are email confirmations on?)");
+  const householdId = (await call("/rest/v1/rpc/join_household", {
+    method: "POST",
+    token: session.access_token,
+    headers: { "Content-Profile": "library" },
+    body: JSON.stringify({ p_invite_code: household.invite_code, p_display_name: displayName }),
+  })) as string;
+  return { email, userId: session.user.id, householdId, displayName, accessToken: session.access_token, session };
+}
