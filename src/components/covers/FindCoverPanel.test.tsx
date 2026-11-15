@@ -228,6 +228,16 @@ describe("FindCoverPanel", () => {
       expect(screen.getByRole("button", { name: "Placeholder" })).toHaveAttribute("aria-pressed", "true");
     });
 
+    it("is ticked again when the panel is re-opened after unticking", () => {
+      render(<FindCoverPanel book={withCopies({ deluxe: true })} />);
+      open();
+      fireEvent.click(angled());
+      expect(angled()).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      open();
+      expect(angled()).toHaveAttribute("aria-pressed", "true");
+    });
+
     it("can be unticked and is then not sent", async () => {
       render(<FindCoverPanel book={withCopies({ deluxe: true })} />);
       open();
