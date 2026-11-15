@@ -761,3 +761,21 @@ export interface ReadChange { book: Book; from: ReadState; to: ReadState }
 ## Open questions for the coordinator
 
 1. **The StoryGraph header row.** The plan builds from the commonly documented columns and needs only five of them (D6). Could Tierra paste just their export's **header line** (no data rows) so the builder can confirm the names before Task 7? **Default if unanswered:** build from D6. A mismatch then shows at rollout step 4 as a named missing column and gets a one-line fix.
+   - *2026-11-15 build note:* the header line wasn't supplied, so the build uses D6. A missing required column shows as a named error.
+
+## Build notes (2026-11-15)
+
+These are the places where the build differs from the plan text, with the reason for each.
+
+1. **Task 2 adds three expression indexes on `library.books`.** They cover the match keys and are not in D2. A 500-row upload against 2,000 books took 58 s without them and 0.33 s with them. Task 3 changed the base-title history index to `text_pattern_ops`, so prefix lookups can use it.
+2. **Task 3's forced-failure test replaces `library._match_history_row`, not `match_title_key`.** The new expression indexes use the key functions, so a raising key function would fail the index rather than the hook. The test still proves that a matcher error leaves the book write intact, with the `read_history_match_failed` warning.
+3. **Task 3, Link and Not this book.**
+   - Link removes all of the row's pending candidates, the linked one included, so a matched row leaves Possible matches.
+   - Not this book only recomputes the row's state. It doesn't re-run matching, so dismissing one of two `several_books` candidates can't auto-link the other.
+4. **Task 10: Your reading sits under Copies, at the end of the book page.** In the real `BookDetail`, Tome of Secrets comes before Copies, so D10's "under the copies and above Tome of Secrets" can't both hold.
+5. **Task 12: the mass-edit writer calls the repo's `setReadStatus` once per 1,000-book chunk, then reloads.** It doesn't go through the provider's `setStatus`, because that ignores a second call while one is running and would drop chunk 2.
+6. **Task 12: a blank-date Read skips books that are already read, including ones with no date** (brief text). "Today for new ones" applies to newly read books only.
+7. **Task 14.**
+   - Step 2 seeded the ToS link and completion into the player's local save instead of clicking through. It blocked the RPC route in Playwright instead of using DevTools offline.
+   - Step 5 was simulated by answering `read_statuses` with a 404 `PGRST205`. A second stack at ToS `origin/main` can't run next to this one.
+
