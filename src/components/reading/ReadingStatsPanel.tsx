@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatDay } from "@/lib/reading/format-day";
 import { readingStats } from "@/lib/reading/stats";
 import type { ReadStatusMap } from "@/lib/reading/types";
 import type { BookWithCopies, HouseholdMember } from "@/lib/types";
@@ -40,7 +41,7 @@ export default function ReadingStatsPanel({ books, byBook, members, me, today }:
                 <>
                   <p>{`Read of owned: ${s.read} of ${s.owned}, ${s.pct}%`}</p>
                   <p>{`Read this year: ${s.readThisYear}`}</p>
-                  {s.readSince !== null && <p>{`Read since ${since}: ${s.readSince}`}</p>}
+                  {s.readSince !== null && <p>{`Read since ${formatDay(since)}: ${s.readSince}`}</p>}
                   <p>{`Did not finish: ${s.dnf}`}</p>
                 </>
               )}

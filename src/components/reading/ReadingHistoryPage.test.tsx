@@ -112,7 +112,7 @@ describe("Reading history: stats", () => {
   it("shows the Since line once a date is chosen", () => {
     setup({ byBook: statuses([["b1", "u1", "read", "2026-06-01"], ["b2", "u1", "read", "2026-01-01"]]) });
     fireEvent.change(screen.getByLabelText("Since"), { target: { value: "2026-03-01" } });
-    expect(screen.getAllByText("Read since 2026-03-01: 1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Read since 1 Mar 2026: 1").length).toBeGreaterThan(0);
   });
 
   it("does not count books the member has no status for as read", () => {
