@@ -1,9 +1,10 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const hh = vi.hoisted(() => ({ id: "h1" }));
 vi.mock("@/contexts/HouseholdContext", () => ({
   useHousehold: () => ({
-    household: { id: "h1", name: "Home", inviteCode: "abc123", createdAt: "" },
+    household: { id: hh.id, name: "Home", inviteCode: "abc123", createdAt: "" },
     members: [],
     loading: false,
     error: null,
@@ -49,7 +50,10 @@ async function mount(deps: ReadingDeps) {
   await act(async () => {});
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  hh.id = "h1";
+});
 
 describe("ReadingProvider", () => {
   it("loads the household's statuses and exposes the signed-in user", async () => {
@@ -126,5 +130,70 @@ describe("ReadingProvider", () => {
     }
     render(<Bare />);
     expect(screen.getByTestId("a")).toHaveTextContent("false");
+  });
+
+  it("a rejected write rejects to the caller and releases the guard", async () => {
+    const setReadStatus = vi
+      .fn<ReadingDeps["setReadStatus"]>()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue([]);
+    const deps = fakeDeps({ setReadStatus });
+    await mount(deps);
+    await act(async () => {
+      await expect(latest.setStatus(["book-1"], "read", null, false)).rejects.toThrow("boom");
+    });
+    await act(async () => {
+      await latest.setStatus(["book-1"], "read", null, false);
+    });
+    expect(setReadStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("a household change drops the old rows, even when the new load fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const list = vi.fn(async (id: string) => {
+      if (id === "h2") throw { code: "500" };
+      return [ROW];
+    });
+    const deps = fakeDeps({ listReadStatuses: list });
+    const view = render(
+      <ReadingProvider deps={deps}>
+        <Probe />
+      </ReadingProvider>,
+    );
+    await act(async () => {});
+    expect(latest.rows).toEqual([ROW]);
+    hh.id = "h2";
+    view.rerender(
+      <ReadingProvider deps={deps}>
+        <Probe />
+      </ReadingProvider>,
+    );
+    await act(async () => {});
+    expect(latest.rows).toEqual([]);
+    expect(latest.available).toBe(false);
+    expect(latest.loading).toBe(false);
+    warn.mockRestore();
+  });
+
+  it("a stale load that resolves after a newer one does not overwrite it", async () => {
+    const stale = { ...ROW, bookId: "old-book" };
+    const resolvers: ((r: ReadStatusRow[]) => void)[] = [];
+    const list = vi
+      .fn<ReadingDeps["listReadStatuses"]>()
+      .mockResolvedValueOnce([])
+      .mockImplementation(() => new Promise((res) => resolvers.push(res)));
+    await mount(fakeDeps({ listReadStatuses: list }));
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(resolvers).toHaveLength(2);
+    await act(async () => {
+      resolvers[1]([ROW]);
+    });
+    await act(async () => {
+      resolvers[0]([stale]);
+    });
+    expect(latest.rows).toEqual([ROW]);
   });
 });

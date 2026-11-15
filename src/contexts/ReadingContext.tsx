@@ -60,35 +60,47 @@ export function ReadingProvider(props: { children: ReactNode; deps?: Partial<Rea
   const userId = user?.id ?? null;
   const [d] = useState<ReadingDeps>(() => ({ ...defaultDeps(), ...props.deps }));
 
-  const [available, setAvailable] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<ReadStatusRow[]>(EMPTY_ROWS);
+  // The last settled load, tagged with its household so a switch never shows the old one's rows.
+  const [data, setData] = useState<{ hid: string | null; rows: ReadStatusRow[]; available: boolean }>({
+    hid: null,
+    rows: EMPTY_ROWS,
+    available: false,
+  });
+  const mine = data.hid === householdId;
+  const rows = mine ? data.rows : EMPTY_ROWS;
+  const available = mine && data.available;
+  const loading = !mine;
   const loadedRef = useRef(false);
   const mountedRef = useRef(true);
   const writingRef = useRef(false);
+  /** Bumped by every load and on unmount or household change; only the newest load may apply. */
+  const generationRef = useRef(0);
 
   const load = useCallback(async (): Promise<void> => {
     if (householdId === null) return;
+    const generation = ++generationRef.current;
+    const current = () => mountedRef.current && generationRef.current === generation;
     try {
       const next = await d.listReadStatuses(householdId);
-      if (!mountedRef.current) return;
+      if (!current()) return;
       loadedRef.current = true;
-      setRows(next);
-      setAvailable(true);
+      setData({ hid: householdId, rows: next, available: true });
     } catch (err) {
       console.warn("reading load failed", errorCode(err));
       // Before the migration (or on any first-load error) all reading UI stays hidden.
-      if (mountedRef.current && (!loadedRef.current || isMissingFeature(err))) setAvailable(false);
-    } finally {
-      if (mountedRef.current) setLoading(false);
+      if (current() && (!loadedRef.current || isMissingFeature(err))) {
+        setData({ hid: householdId, rows: EMPTY_ROWS, available: false });
+      }
     }
   }, [d, householdId]);
 
   useEffect(() => {
     mountedRef.current = true;
+    loadedRef.current = false;
     void load();
     return () => {
       mountedRef.current = false;
+      generationRef.current += 1;
     };
   }, [load]);
 
