@@ -10,6 +10,7 @@ import {
   WRITE_BATCH,
   type MassEditTargets,
 } from "./mass-edit";
+import type { ReadStatusMap } from "./reading/types";
 import type { BookWithCopies } from "./types";
 
 const NOW = "2026-11-13T10:00:00.000Z";
@@ -41,7 +42,14 @@ const all = (books: BookWithCopies[]): MassEditTargets => ({
 describe("buildChangeSet", () => {
   it("writes nothing when every field is left as no change", () => {
     const books = catalog();
-    expect(buildChangeSet(books, all(books), {}, LABELS, NOW)).toEqual({ copies: [], books: [], libraryTags: [] });
+    expect(buildChangeSet(books, all(books), {}, LABELS, NOW)).toEqual({
+      copies: [],
+      books: [],
+      libraryTags: [],
+      reads: [],
+      keepDates: false,
+      readDate: null,
+    });
   });
 
   it("patches only touched fields that change, and adds each changed key to user_edited_fields once", () => {
@@ -295,5 +303,89 @@ describe("describeCounts with tags", () => {
     expect(describeCounts(0, 0, 1)).toBe("1 book's tags");
     expect(describeCounts(1, 0, 2)).toBe("1 copy and 2 books' tags");
     expect(describeCounts(14, 3, 2)).toBe("14 copies, 3 books' series and 2 books' tags");
+  });
+});
+
+describe("marking read status", () => {
+  const ME = "u-me";
+  const TODAY = "2026-11-15";
+  const entry = (state: "read" | "dnf", finishedOn: string | null) => ({ state, finishedOn });
+  const books = (): BookWithCopies[] =>
+    ["Atlas", "Codex", "Ember", "Fable"].map((t) => bookFixture(t, [copyFixture({ id: t + "1", bookId: t })]));
+  const readMap = (): ReadStatusMap =>
+    new Map([
+      ["Codex", new Map([[ME, entry("read", "2026-03-01")]])],
+      ["Ember", new Map([[ME, entry("dnf", null)]])],
+    ]);
+  const targetsOf = (ids: string[]): MassEditTargets => ({ copyIds: new Set(), bookIds: new Set(ids) });
+  const build = (markAs: { state: "read" | "dnf" | "unread"; finishedOn: string | null }, ids = ["Atlas", "Codex", "Ember"]) =>
+    buildChangeSet(books(), targetsOf(ids), { markAs }, LABELS, NOW, new Map(), readMap(), ME, TODAY);
+
+  it("a blank-date Read skips books already read and keeps dates", () => {
+    const set = build({ state: "read", finishedOn: null });
+    expect(set.reads.map((r) => [r.book.id, r.from, r.to])).toEqual([
+      ["Atlas", "unread", "read"],
+      ["Ember", "dnf", "read"],
+    ]);
+    expect(set.keepDates).toBe(true);
+    expect(set.readDate).toBe(TODAY);
+    expect(set.copies).toEqual([]);
+  });
+
+  it("an explicit date includes a read book whose date differs and drops keepDates", () => {
+    const set = build({ state: "read", finishedOn: "2026-03-01" });
+    expect(set.reads.map((r) => r.book.id)).toEqual(["Atlas", "Ember"]);
+    expect(set.keepDates).toBe(false);
+    expect(set.readDate).toBe("2026-03-01");
+    const other = build({ state: "read", finishedOn: "2026-04-02" });
+    expect(other.reads.map((r) => r.book.id)).toEqual(["Atlas", "Codex", "Ember"]);
+  });
+
+  it("Unread includes only books that are read or not finished, never cleared ones", () => {
+    const cleared = buildChangeSet(books(), targetsOf(["Atlas", "Codex", "Fable"]), { markAs: { state: "unread", finishedOn: null } }, LABELS, NOW, new Map(), readMap(), ME, TODAY);
+    expect(cleared.reads.map((r) => r.book.id)).toEqual(["Codex"]);
+    expect(cleared.readDate).toBeNull();
+  });
+
+  it("Did not finish keeps existing dates and sends no date", () => {
+    const set = build({ state: "dnf", finishedOn: null });
+    expect(set.reads.map((r) => r.book.id)).toEqual(["Atlas", "Codex"]);
+    expect(set.keepDates).toBe(true);
+    expect(set.readDate).toBeNull();
+  });
+
+  it("ignores books outside the targets, and does nothing without a signed-in member", () => {
+    expect(build({ state: "read", finishedOn: null }, ["Fable"]).reads.map((r) => r.book.id)).toEqual(["Fable"]);
+    expect(build({ state: "read", finishedOn: null }, []).reads).toEqual([]);
+    const none = buildChangeSet(books(), targetsOf(["Atlas"]), { markAs: { state: "read", finishedOn: null } }, LABELS, NOW, new Map(), readMap(), null, TODAY);
+    expect(none.reads).toEqual([]);
+  });
+
+  it("sends one setReadStatus call per 1,000 books and fails a whole chunk together", async () => {
+    const many = Array.from({ length: 1500 }, (_, i) => bookFixture(`B${i}`, []));
+    const set = buildChangeSet(many, { copyIds: new Set(), bookIds: new Set(many.map((b) => b.id)) }, { markAs: { state: "read", finishedOn: null } }, LABELS, NOW, new Map(), new Map(), ME, TODAY);
+    const calls: string[][] = [];
+    const setReadStatus = vi.fn(async (ids: string[]) => {
+      calls.push(ids);
+      if (calls.length === 2) throw new Error("network");
+    });
+    const result = await applyChangeSet(set, { writeCopy: vi.fn(), writeBook: vi.fn(), setReadStatus });
+    expect(calls.map((c) => c.length)).toEqual([1000, 500]);
+    expect(setReadStatus).toHaveBeenCalledWith(expect.any(Array), "read", TODAY, true);
+    expect(result.changedReadBooks).toBe(1000);
+    expect(result.failedReads).toHaveLength(500);
+    expect(retryTargets(result).bookIds.size).toBe(500);
+  });
+
+  it("fails the books when there is no read writer", async () => {
+    const set = build({ state: "read", finishedOn: null });
+    const result = await applyChangeSet(set, { writeCopy: vi.fn(), writeBook: vi.fn() });
+    expect(result.failedReads).toHaveLength(2);
+    expect(result.changedReadBooks).toBe(0);
+  });
+
+  it("describes marked books after copies", () => {
+    expect(describeCounts(1, 0, 0, 2)).toBe("1 copy and 2 books marked");
+    expect(describeCounts(0, 0, 0, 1)).toBe("1 book marked");
   });
 });

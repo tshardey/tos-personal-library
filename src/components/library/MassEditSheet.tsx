@@ -2,7 +2,9 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import EditionPicker from "@/components/edition/EditionPicker";
 import LibraryTagPicker from "@/components/tags/LibraryTagPicker";
 import RetagConfirm from "@/components/tags/RetagConfirm";
+import { useReading } from "@/contexts/ReadingContext";
 import { useTagging } from "@/contexts/TaggingContext";
+import { localDay } from "@/lib/date-added";
 import { isUnhauled } from "@/lib/copy-flags";
 import { updateBook, updateCopyFields } from "@/lib/library-repo";
 import {
@@ -15,6 +17,7 @@ import {
   type MassEditResult,
   type MassEditTargets,
 } from "@/lib/mass-edit";
+import { setReadStatus } from "@/lib/reading/reading-repo";
 import { MAX_SERIES, seriesNames } from "@/lib/series";
 import { addLibraryTag, removeLibraryTag } from "@/lib/tagging/tagging-repo";
 import type { BookWithCopies, Copy, HouseholdMember } from "@/lib/types";
@@ -22,6 +25,8 @@ import type { BookWithCopies, Copy, HouseholdMember } from "@/lib/types";
 type Flag = "" | "on" | "off";
 /** A text field: no change, set to the typed value, or clear. */
 type TextMode = "" | "set" | "clear";
+/** Mark as: no change, or the state to give the signed-in member. */
+type MarkMode = "" | "read" | "dnf" | "unread";
 
 function ownerLabel(ownerUserId: string | null, members: HouseholdMember[]): string {
   if (ownerUserId === null) return "Shared";
@@ -74,13 +79,16 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const [series, setSeries] = useState("");
   const [addTags, setAddTags] = useState<string[]>([]);
   const [removeTags, setRemoveTags] = useState<string[]>([]);
+  const [markMode, setMarkMode] = useState<MarkMode>("");
+  const [finishDate, setFinishDate] = useState("");
   const tagging = useTagging();
+  const reading = useReading();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MassEditResult | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
   /** Changes written so far, across the first run and any retries. */
-  const [totals, setTotals] = useState({ copies: 0, books: 0, tags: 0 });
+  const [totals, setTotals] = useState({ copies: 0, books: 0, tags: 0, reads: 0 });
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Focus moves into the sheet on open (so Escape and Tab start there) and back on close.
@@ -106,6 +114,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
     return [...ids];
   }, [tagging.vocabulary, selected, tagMap]);
 
+  const readOn = reading.available && reading.userId !== null;
   const edit: MassEdit = {
     editionNote: label,
     location: locationMode === "set" ? location : locationMode === "clear" ? null : undefined,
@@ -116,6 +125,10 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
     seriesName: seriesMode === "set" ? series : seriesMode === "clear" ? null : undefined,
     addLibraryTags: tagsOn && addTags.length > 0 ? addTags : undefined,
     removeLibraryTags: tagsOn && removeTags.length > 0 ? removeTags : undefined,
+    markAs:
+      readOn && markMode !== ""
+        ? { state: markMode, finishedOn: markMode === "read" && finishDate !== "" ? finishDate : null }
+        : undefined,
   };
   const blank =
     seriesMode === "set" && series.trim() === ""
@@ -130,11 +143,13 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
     bookIds: new Set(selected.map((b) => b.id)),
   };
   // Counts only; the real timestamp is taken when saving.
-  const preview = buildChangeSet(catalog, targets, edit, labels, "", tagMap);
+  const today = localDay(new Date().toISOString());
+  const preview = buildChangeSet(catalog, targets, edit, labels, "", tagMap, reading.byBook, reading.userId, today);
   const copyCount = preview.copies.length;
   const bookCount = preview.books.length;
   const tagCount = preview.libraryTags.length;
-  const nothing = copyCount + bookCount + tagCount === 0;
+  const readCount = preview.reads.length;
+  const nothing = copyCount + bookCount + tagCount + readCount === 0;
 
   function toggle(id: string) {
     setConfirming(false);
@@ -149,25 +164,31 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   async function run(runTargets: MassEditTargets) {
     setBusy(true);
     try {
-      const set = buildChangeSet(catalog, runTargets, edit, labels, new Date().toISOString(), tagMap);
+      const set = buildChangeSet(catalog, runTargets, edit, labels, new Date().toISOString(), tagMap, reading.byBook, reading.userId, today);
       const out = await applyChangeSet(set, {
         writeCopy: updateCopyFields,
         writeBook: updateBook,
         addLibraryTag: (bookId, tagId) => addLibraryTag(bookId, householdOf.get(bookId) ?? "", tagId),
         removeLibraryTag,
+        // Straight to the repo: the provider's single-flight guard would drop every chunk after the first.
+        setReadStatus: async (bookIds, state, finishedOn, keepDates) => {
+          await setReadStatus(householdOf.get(bookIds[0]) ?? "", bookIds, state, finishedOn, keepDates);
+        },
       });
       const [refreshed] = await Promise.all([
         refresh(),
         set.libraryTags.length > 0 ? tagging.reload() : Promise.resolve(),
+        set.reads.length > 0 ? reading.reload() : Promise.resolve(),
       ]);
-      const failed = out.failedCopies.length + out.failedBooks.length + out.failedTags.length;
+      const failed = out.failedCopies.length + out.failedBooks.length + out.failedTags.length + out.failedReads.length;
       const sum = {
         copies: totals.copies + out.changedCopies,
         books: totals.books + out.changedBooks,
         tags: totals.tags + out.changedTagBooks,
+        reads: totals.reads + out.changedReadBooks,
       };
       if (failed === 0 && refreshed) {
-        onDone(`Changed ${describeCounts(sum.copies, sum.books, sum.tags) || "nothing"}.`);
+        onDone(`Changed ${describeCounts(sum.copies, sum.books, sum.tags, sum.reads) || "nothing"}.`);
         return;
       }
       setTotals(sum);
@@ -189,7 +210,9 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
     }
   }
 
-  const failures = result ? result.failedCopies.length + result.failedBooks.length + result.failedTags.length : 0;
+  const failures = result
+    ? result.failedCopies.length + result.failedBooks.length + result.failedTags.length + result.failedReads.length
+    : 0;
   const choice = "mt-1 block w-full rounded border p-2";
   const field = "block text-sm";
 
@@ -220,7 +243,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
               }`}
             >
               <p>
-                {`Changed ${describeCounts(totals.copies, totals.books, totals.tags) || "nothing"}.`}
+                {`Changed ${describeCounts(totals.copies, totals.books, totals.tags, totals.reads) || "nothing"}.`}
                 {failures > 0 && ` ${failures} couldn't be changed:`}
               </p>
               {failures > 0 && (
@@ -233,6 +256,9 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                   ))}
                   {result.failedTags.map((c) => (
                     <li key={`tags-${c.book.id}`}>{`${c.book.title}: tags`}</li>
+                  ))}
+                  {result.failedReads.map((c) => (
+                    <li key={`reading-${c.book.id}`}>{`${c.book.title}: reading`}</li>
                   ))}
                 </ul>
               )}
@@ -406,6 +432,38 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
               </div>
             )}
 
+            {readOn && (
+              <div>
+                <label className={field}>
+                  Mark as… (for you)
+                  <select
+                    value={markMode}
+                    onChange={(e) => { setMarkMode(e.target.value as MarkMode); setConfirming(false); }}
+                    className={choice}
+                  >
+                    <option value="">No change</option>
+                    <option value="read">Read</option>
+                    <option value="dnf">Did not finish</option>
+                    <option value="unread">Unread</option>
+                  </select>
+                </label>
+                {markMode === "read" && (
+                  <>
+                    <label className={`${field} mt-2`}>
+                      Finish date
+                      <input
+                        type="date"
+                        value={finishDate}
+                        onChange={(e) => { setFinishDate(e.target.value); setConfirming(false); }}
+                        className={choice}
+                      />
+                    </label>
+                    <p className="mt-1 text-xs text-stone-600">Blank keeps existing dates; books without one get today.</p>
+                  </>
+                )}
+              </div>
+            )}
+
             <div>
               <h3 className="text-sm font-medium">Copies</h3>
               <p className="text-xs text-stone-600">
@@ -452,7 +510,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
             </button>
           ) : confirming && !nothing ? (
             <div role="group" aria-label="Confirm" className="space-y-2">
-              <p className="text-sm font-medium">{`This will change ${describeCounts(copyCount, bookCount, tagCount)}. There is no undo.`}</p>
+              <p className="text-sm font-medium">{`This will change ${describeCounts(copyCount, bookCount, tagCount, readCount)}. There is no undo.`}</p>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -481,7 +539,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                 Cancel
               </button>
               <p className="text-sm text-stone-600">
-                {blank ?? (nothing ? "Nothing to change yet." : describeCounts(copyCount, bookCount, tagCount))}
+                {blank ?? (nothing ? "Nothing to change yet." : describeCounts(copyCount, bookCount, tagCount, readCount))}
               </p>
             </div>
           )}
