@@ -740,8 +740,8 @@ export interface ReadChange { book: Book; from: ReadState; to: ReadState }
    - push, then remove the push worktree.
    - No function deploy is needed. ToS's Pages build ships `ReadStatusSync.js` on merge.
 3. **Tierra merges the library PR,** then hard-refreshes (GitHub Pages caches JS for about 10 minutes).
-4. **Tierra exports from StoryGraph and uploads the file** on Reading history, then reviews Possible matches. If the screen reports a missing column, report the header names (not the data) for a one-line alias fix.
-5. **Tierra and AJ each open ToS once**, so the catch-up records past completions (D8).
+4. **Tierra and AJ each open ToS once**, so the catch-up records past completions (D8). *2026-11-15 build note:* this goes before the upload, because a StoryGraph did-not-finish uploaded first is stamped with the upload time, and the catch-up could then no longer replace it with an older completion.
+5. **Tierra exports from StoryGraph and uploads the file** on Reading history, then reviews Possible matches. If the screen reports a missing column, report the header names (not the data) for a one-line alias fix.
 6. **AJ marks his books from memory** with mass edit.
 
 ## User checks after rollout
