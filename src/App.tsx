@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { HouseholdProvider, useHousehold } from "@/contexts/HouseholdContext";
 import { CoverFinderProvider } from "@/contexts/CoverFinderContext";
 import { TaggingProvider } from "@/contexts/TaggingContext";
+import { ReadingProvider } from "@/contexts/ReadingContext";
 import SignIn from "@/components/auth/SignIn";
 import HouseholdSetup from "@/components/household/HouseholdSetup";
 import InviteCode from "@/components/household/InviteCode";
@@ -18,6 +19,7 @@ import CoverStopBanner from "@/components/covers/CoverStopBanner";
 import CoversBadge from "@/components/covers/CoversBadge";
 import TagStopBanner from "@/components/tags/TagStopBanner";
 import TagSuggestionsPage from "@/components/tags/TagSuggestionsPage";
+import ReadingHistoryPage from "@/components/reading/ReadingHistoryPage";
 import AccountMenu from "@/components/nav/AccountMenu";
 import TabBar from "@/components/nav/TabBar";
 import { useRoute } from "@/lib/router";
@@ -50,6 +52,7 @@ function SignedIn() {
   return (
     <CoverFinderProvider>
       <TaggingProvider>
+        <ReadingProvider>
         <div>
           <header className="flex items-center justify-between gap-2 px-3 py-2 sm:px-4">
             <h1 className="text-lg font-semibold sm:text-xl">
@@ -80,6 +83,8 @@ function SignedIn() {
             <CoverReviewPage />
           ) : route.name === "tags" ? (
             <TagSuggestionsPage />
+          ) : route.name === "reading" ? (
+            <ReadingHistoryPage />
           ) : route.name === "editions" ? (
             <EditionLabelsPage />
           ) : route.name === "scan" ? (
@@ -92,6 +97,7 @@ function SignedIn() {
             <LibraryPage series={route.name === "library" ? route.series : undefined} />
           )}
         </div>
+        </ReadingProvider>
       </TaggingProvider>
     </CoverFinderProvider>
   );
