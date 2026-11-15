@@ -60,6 +60,7 @@ describe("YourReadingSection", () => {
     setup(mine("read", "2026-03-02"));
     fireEvent.click(screen.getByRole("button", { name: "Did not finish" }));
     expect(h.setStatus).toHaveBeenLastCalledWith(["b1"], "dnf", null, false);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Unread" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Unread" }));
     expect(h.setStatus).toHaveBeenLastCalledWith(["b1"], "unread", null, false);
   });
@@ -107,5 +108,23 @@ describe("YourReadingSection", () => {
       expect(screen.getByRole("button", { name: "Unread" })).toHaveAttribute("aria-pressed", "true"),
     );
     expect(screen.getByRole("button", { name: "Did not finish" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("disables every control while a save is pending", async () => {
+    let finish: () => void = () => {};
+    h.setStatus.mockReturnValue(new Promise<void>((r) => (finish = r)));
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Read" }));
+    const day = localDay(new Date().toISOString());
+    expect(screen.getByLabelText("Finished")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Clear date" })).toBeDisabled();
+    for (const name of ["Unread", "Read", "Did not finish"]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+    fireEvent.change(screen.getByLabelText("Finished"), { target: { value: "2026-04-05" } });
+    expect(h.setStatus).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Finished")).toHaveValue(day);
+    finish();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Unread" })).toBeEnabled());
   });
 });

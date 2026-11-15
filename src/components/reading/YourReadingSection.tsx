@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useReading } from "@/contexts/ReadingContext";
 import { localDay } from "@/lib/date-added";
@@ -37,13 +37,18 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
   // What the member just chose, shown until the save settles.
   const [pending, setPending] = useState<Shown | null>(null);
   const [error, setError] = useState(false);
+  const seq = useRef(0);
   if (!available || userId === null) return null;
 
   const entries = byBook.get(bookId);
   const stored = entries?.get(userId);
   const shown: Shown = pending ?? { state: stored?.state ?? "unread", finishedOn: stored?.finishedOn ?? null };
 
+  const busy = pending !== null;
+
   async function save(next: Shown) {
+    if (busy) return;
+    const mine = ++seq.current;
     setError(false);
     setPending(next);
     try {
@@ -52,7 +57,7 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
       console.error("Failed to save reading", err instanceof Error ? err.name : "unknown");
       setError(true);
     } finally {
-      setPending(null);
+      if (seq.current === mine) setPending(null);
     }
   }
 
@@ -71,6 +76,7 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
             key={state}
             type="button"
             aria-pressed={shown.state === state}
+            disabled={busy}
             onClick={() => choose(state)}
             className={`rounded border px-3 py-2 text-sm ${
               shown.state === state ? "border-stone-800 bg-stone-800 text-white" : "border-stone-400"
@@ -86,12 +92,18 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
             Finished
             <input
               type="date"
+              disabled={busy}
               value={shown.finishedOn ?? ""}
               onChange={(e) => void save({ state: "read", finishedOn: e.target.value || null })}
               className="rounded border border-stone-400 px-2 py-1"
             />
           </label>
-          <button type="button" onClick={() => void save({ state: "read", finishedOn: null })} className="underline">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void save({ state: "read", finishedOn: null })}
+            className="underline"
+          >
             Clear date
           </button>
         </div>
