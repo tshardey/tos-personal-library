@@ -8,7 +8,9 @@ const h = vi.hoisted(() => ({ state: {} as Record<string, unknown> }));
 vi.mock("@/contexts/CoverFinderContext", () => ({ useCoverFinder: () => h.state }));
 import FindCoverPanel from "./FindCoverPanel";
 
-const book = { id: "b1", title: "The Salt Road" } as BookWithCopies;
+const book = { id: "b1", title: "The Salt Road", copies: [] } as unknown as BookWithCopies;
+const withCopies = (...flags: { deluxe?: boolean; signed?: boolean }[]) =>
+  ({ ...book, copies: flags.map((f, i) => ({ id: `c${i}`, deluxe: false, signed: false, ...f })) }) as unknown as BookWithCopies;
 
 const fns = {
   mark: vi.fn(),
@@ -198,5 +200,41 @@ describe("FindCoverPanel", () => {
     rerender(<FindCoverPanel book={book} />);
     expect(screen.queryByText("Looking for covers…")).toBeNull();
     expect(screen.getByRole("link", { name: "Review covers" })).toBeInTheDocument();
+  });
+
+  describe("angled pre-tick", () => {
+    const angled = () => screen.getByRole("button", { name: "Angled or shows edges" });
+
+    it("is ticked when a copy is deluxe", async () => {
+      render(<FindCoverPanel book={withCopies({}, { deluxe: true })} />);
+      open();
+      expect(angled()).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Add to batch" }));
+      await waitFor(() => expect(fns.mark).toHaveBeenCalledWith("b1", ["angled"], null));
+    });
+
+    it("is off for a book with no deluxe copy, even a signed one", () => {
+      render(<FindCoverPanel book={withCopies({ signed: true })} />);
+      open();
+      expect(angled()).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("lets a saved mark win over the deluxe default", () => {
+      const mark = { bookId: "b1", reasons: ["placeholder"], note: null } as CoverMark;
+      setState({ marks: new Map([["b1", mark]]) });
+      render(<FindCoverPanel book={withCopies({ deluxe: true })} />);
+      open();
+      expect(angled()).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByRole("button", { name: "Placeholder" })).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("can be unticked and is then not sent", async () => {
+      render(<FindCoverPanel book={withCopies({ deluxe: true })} />);
+      open();
+      fireEvent.click(angled());
+      expect(angled()).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(screen.getByRole("button", { name: "Find now" }));
+      await waitFor(() => expect(fns.findNow).toHaveBeenCalledWith("b1", [], null));
+    });
   });
 });

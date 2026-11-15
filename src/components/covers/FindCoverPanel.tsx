@@ -9,6 +9,9 @@ const SAVE_ERROR = "Couldn't save this. Try again.";
 
 const btn = "rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50";
 
+/** A deluxe copy usually gets an angled photo of the physical book as its cover, so "angled" starts ticked. */
+const defaultReasons = (book: BookWithCopies): CoverReason[] => (book.copies.some((c) => c.deluxe) ? ["angled"] : []);
+
 export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
   const { marks, latest, budget, mark, unmark, findNow, retry } = useCoverFinder();
   const current = marks.get(book.id);
@@ -31,7 +34,7 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
   const retryable = !requested && (status === "nothing_found" || status === "failed");
 
   function openPanel() {
-    setReasons(current ? [...current.reasons] : []);
+    setReasons(current ? [...current.reasons] : defaultReasons(book));
     setNote(current?.note ?? "");
     setError(false);
     setOpen(true);
