@@ -46,6 +46,12 @@
     border-color: var(--color-line);
   }
 
+  button,
+  [role="button"],
+  a[role="button"] {
+    border-color: var(--color-field);
+  }
+
   input,
   select,
   textarea {

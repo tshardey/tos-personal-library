@@ -58,3 +58,11 @@ describe("contrast", () => {
     expect(contrastRatio(t("danger"), t("danger-surface"))).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+describe("control borders", () => {
+  it("buttons get the field border colour in the base layer", () => {
+    expect(css).toMatch(
+      /button,\s*\[role="button"\],\s*a\[role="button"\]\s*\{\s*border-color:\s*var\(--color-field\);\s*\}/,
+    );
+  });
+});

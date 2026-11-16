@@ -206,7 +206,7 @@ export default function UploadPanel({
         <div className="mb-3">
           <p className="mb-2 text-sm">Cover taken.</p>
           <div className="flex flex-wrap gap-2">
-            <label className="cursor-pointer rounded border px-3 py-2">
+            <label className="cursor-pointer rounded border border-field px-3 py-2">
               Add title page
               <input
                 type="file"
@@ -250,7 +250,7 @@ export default function UploadPanel({
               }}
             />
           </label>
-          <label className="cursor-pointer rounded border px-3 py-2">
+          <label className="cursor-pointer rounded border border-field px-3 py-2">
             Take a photo
             <input
               type="file"
@@ -264,7 +264,7 @@ export default function UploadPanel({
               }}
             />
           </label>
-          <a href="#/scan" className="rounded border px-3 py-2">
+          <a href="#/scan" className="rounded border border-field px-3 py-2">
             Scan barcodes
           </a>
         </div>
