@@ -60,7 +60,7 @@ These settle spec §6 and the brief.
 - **They don't stack.** PR 1 puts every shared part, token and the nav in place. PRs 2, 3 and 4 then each touch their own screens only, so each branches from `origin/main` once PR 1 is merged. They can be built in parallel and merged in any order.
   - *Why:* Tierra merges, and a PR based on `main` never needs retargeting.
 - **Files PRs 2–4 might all touch:** `e2e/visual.spec.ts` (each adds routes) and `src/components/ui/*` (only if a part needs a small extension). Before opening each of PRs 2–4, run `git fetch origin` and `git rebase origin/main`, then rerun the gates.
-- **Fallback if PR 1 is still unmerged when a builder is ready for PR 2/3/4:** branch from `origin/tshardey/ui-overhaul-design` and open the PR against that branch as base. The body then says: `Stacked on PR 1. After PR 1 merges, retarget this PR to main and run git rebase --onto origin/main origin/tshardey/ui-overhaul-design before merging.` Ask the coordinator before using the fallback.
+- **No stacking (Tierra, 2026-11-15):** if PR 1 is still unmerged when a builder is ready for PR 2/3/4, the builder waits. Don't branch from `tshardey/ui-overhaul-design`.
 - **Every PR leaves the app working and fully dark.** PR 1's colour sweep (Task 2) covers every screen, so later PRs change layout and parts, not readability.
 - **Rollback:** each PR is a plain frontend change. Reverting any one restores the previous look, with no data effect. Reverting PR 1 after 2–4 have merged needs those reverted first, since they import `src/components/ui/`.
 
@@ -1000,4 +1000,5 @@ Hard-refresh first (Pages caches JS for about 10 minutes).
 
 ## Open questions for the coordinator
 
-1. **Merge timing.** D1 has PRs 2–4 branch from `main` after Tierra merges PR 1, so nothing needs retargeting. Should builders instead start PRs 2–4 straight away, stacked on `tshardey/ui-overhaul-design` (D1's fallback, with a retarget note in each body)? **Default if unanswered:** wait for PR 1's merge, and use the fallback only after asking.
+1. **Merge timing.** D1 has PRs 2–4 branch from `main` after Tierra merges PR 1, so nothing needs retargeting. Should builders instead start PRs 2–4 straight away, stacked on `tshardey/ui-overhaul-design` (D1's fallback, with a retarget note in each body)?
+   - *2026-11-15 answer (Tierra):* **wait for PR 1 to merge first.** PRs 2–4 start only after PR 1 is merged, each from `origin/main`. The stacking fallback is not used.
