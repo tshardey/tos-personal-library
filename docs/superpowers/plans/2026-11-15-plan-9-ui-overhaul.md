@@ -1002,3 +1002,35 @@ Hard-refresh first (Pages caches JS for about 10 minutes).
 
 1. **Merge timing.** D1 has PRs 2–4 branch from `main` after Tierra merges PR 1, so nothing needs retargeting. Should builders instead start PRs 2–4 straight away, stacked on `tshardey/ui-overhaul-design` (D1's fallback, with a retarget note in each body)?
    - *2026-11-15 answer (Tierra):* **wait for PR 1 to merge first.** PRs 2–4 start only after PR 1 is merged, each from `origin/main`. The stacking fallback is not used.
+
+## Build notes
+
+**2026-11-16, PR 1 (Tasks 1–7).** Where the build departed from the text above, and why:
+
+1. **Task 1, contrast test:** Vitest returns an empty string for CSS `?raw` imports, so `contrast.test.ts` reads `src/index.css` from disk, resolved relative to the test file.
+2. **Task 2, control borders:** the mapping table had no row for a bare `border`. After the sweep, the base rule painted those borders in `line` (about 1.2:1), against D2's "no control relies on `line`". A base-layer rule now gives `button`, `[role=button]` and `a[role=button]` the `field` border. Non-button controls (file-input labels, button-styled links) get `border-field` explicitly. A test pins the rule.
+3. **Task 2, palette guard:** it scans `src/**/*.{ts,tsx}` (not only `.tsx`), because class strings also live in `.ts` style files (`button-styles.ts`, `nav-styles.ts`).
+4. **Task 3, `buttonClass`:** it lives in `src/components/ui/button-styles.ts` (re-exported from `index.ts`), so `Button.tsx` exports only components (react-refresh lint rule).
+5. **Task 3, Chip:** the remove button is `size-11` below `sm` (D11 44px), `sm:size-6`.
+6. **Task 6, read summary:** the summary sentence and its omit rule live in one shared `src/components/reading/ReadSummary.tsx`, which both More and Reading history use.
+7. **Task 6, InviteCode:** its `Copy` control got a 44px target in PR 1 (not Task 18), because it now sits in the More sheet and Task 7's tap-target check covers that sheet.
+8. **Task 7, legacy overlays:** the z-30 tab bar covered the Save/Add buttons of the hand-made sheets on the phone. Seven overlays moved to `z-50`: MassEditSheet, BulkConfirmSheet, EditionPicker, SeriesPicker, LibraryTagPicker, the ToS tags dialog and LibraryTagFilter. Two of them sit inside the sticky filter bar, which is a stacking context, so they are now portalled to `document.body`. All of them still move onto `Sheet` in Tasks 11, 12 and 17.
+9. **Whole-PR-1 review fixes:**
+   - The library's sticky filter block uses `top-[var(--toolbar-top)]`. Without it, the sticky desktop header hid the search row.
+   - `Tabs` scroll horizontally on narrow screens.
+   - `Sheet` locks page scroll, nested-safe. It keeps a module-level count of open sheets, because a per-sheet saved value broke when nested sheets mount in the same commit.
+   - The bar's Add and More buttons have `aria-haspopup="dialog"`.
+   - `expectTapTargets` fails on zero matches.
+   - Disabled primary buttons use `disabled:bg-control disabled:text-muted`, not faded accent.
+   - ESLint ignores `playwright-report/` and `test-results/`.
+10. **Known e2e failure, not PR 1's:** `scan.spec` test 4 ("not found, then a photo…") fails the same way on `main` (1 row expected, 2 found).
+
+**For PRs 2–4:**
+- Use `top-[var(--toolbar-top)]` for anything sticky under the desktop header.
+- The palette guard covers `.ts` style files too.
+- Parked review items:
+  - `Menu` doesn't close when focus Tabs out of it.
+  - `Sheet`'s `motion-safe:transition` has no start state, so there is no visible motion.
+  - Pressed legacy chips in `LibraryFilters` show a grey `field` ring around the accent fill; this goes away when PR 2 moves them onto `Chip`.
+  - `Tabs` puts `aria-controls` on panels that aren't rendered.
+  - `Sheet` focus return doesn't check `isConnected`.
