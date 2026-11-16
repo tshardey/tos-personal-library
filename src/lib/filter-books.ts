@@ -4,13 +4,10 @@ import { localDay } from "@/lib/date-added";
 import { publishYear } from "@/lib/publish-year";
 import { stateFor } from "@/lib/reading/status";
 import type { ReadState, ReadStatusMap } from "@/lib/reading/types";
+import { matchesSearchWords, searchWords } from "@/lib/search-words";
 
 /** 'all' | 'shared' | a member's userId */
 export type OwnerFilter = "all" | "shared" | string;
-
-function fold(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
 
 export interface FilterOptions {
   query: string;
@@ -47,7 +44,7 @@ export function filterBooks(books: BookWithCopies[], opts: FilterOptions): BookW
   const series = opts.series ? opts.series.trim().toLowerCase() : null;
   const wanted = opts.tags ?? [];
   const wantedLibrary = opts.libraryTags ?? [];
-  const q = fold(opts.query.trim());
+  const words = searchWords(opts.query);
   const showUnhauled = showsUnhauled(opts);
   let from = opts.publishedFrom ?? null;
   let to = opts.publishedTo ?? null;
@@ -84,8 +81,8 @@ export function filterBooks(books: BookWithCopies[], opts: FilterOptions): BookW
       const have = stateFor(opts.readStatusByBook ?? new Map(), b.id, opts.readStatus.userId);
       if (have !== opts.readStatus.state) return false;
     }
-    if (!q) return true;
+    if (words.length === 0) return true;
     const notes = b.copies.flatMap((c) => (c.editionNote ? [c.editionNote] : []));
-    return [b.title, ...b.authors, ...notes].some((s) => fold(s).includes(q));
+    return matchesSearchWords(words, [b.title, ...b.authors, ...notes]);
   });
 }

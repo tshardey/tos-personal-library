@@ -70,6 +70,11 @@ describe("filterBooks", () => {
   it("matches the second author", () => {
     expect(filterBooks(all, { query: "second", owner: "all" })).toEqual([multi]);
   });
+  it("matches every word in any order and ignores a leading article", () => {
+    expect(filterBooks(all, { query: "the orphan", owner: "all" })).toEqual([none]);
+    expect(filterBooks(all, { query: "writer co", owner: "all" })).toEqual([multi]);
+    expect(filterBooks(all, { query: "orphan writer", owner: "all" })).toEqual([]);
+  });
   it("empty query keeps input order", () => {
     expect(filterBooks(all, { query: "", owner: "all" })).toEqual(all);
   });
