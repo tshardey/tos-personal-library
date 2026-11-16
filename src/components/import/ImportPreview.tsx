@@ -203,7 +203,7 @@ export default function ImportPreview(p: Props) {
             type="button"
             onClick={p.onConfirm}
             disabled={awaitingOwner}
-            className="rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50"
+            className="rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
           >
             {state === "ledger_only" ? "Finish the earlier import" : "Import"}
           </button>

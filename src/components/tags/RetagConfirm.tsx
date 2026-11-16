@@ -84,7 +84,7 @@ export default function RetagConfirm({
               type="button"
               disabled={step === "queueing" || usedUp}
               onClick={() => void retag()}
-              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
             >
               {step === "queueing" ? "Queueing…" : "Confirm"}
             </button>

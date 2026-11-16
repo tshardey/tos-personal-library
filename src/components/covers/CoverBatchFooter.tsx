@@ -51,7 +51,7 @@ export default function CoverBatchFooter({ books }: { books: BookWithCopies[] })
           type="button"
           disabled={disabled}
           onClick={() => void go()}
-          className="rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50"
+          className="rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
         >
           Find covers
         </button>

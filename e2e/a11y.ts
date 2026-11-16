@@ -17,9 +17,10 @@ const CONTROLS = 'button, a[href], [role="tab"], select, input[type="checkbox"]'
  */
 export async function expectTapTargets(page: Page, scope: Locator, min = 44): Promise<void> {
   await expect(scope).toBeVisible();
-  const small = await scope.evaluate(
+  const { small, checked } = await scope.evaluate(
     (root, [selector, least]) => {
       const out: string[] = [];
+      let seen = 0;
       const visible = (el: Element) => {
         const r = el.getBoundingClientRect();
         const s = getComputedStyle(el);
@@ -28,6 +29,7 @@ export async function expectTapTargets(page: Page, scope: Locator, min = 44): Pr
       for (const el of Array.from(root.querySelectorAll(selector))) {
         if (!visible(el)) continue;
         if (el.tagName === "A" && el.closest("p")) continue;
+        seen++;
         let box = el.getBoundingClientRect();
         if (el instanceof HTMLInputElement && el.type === "checkbox") {
           const label = el.closest("label");
@@ -39,10 +41,11 @@ export async function expectTapTargets(page: Page, scope: Locator, min = 44): Pr
           out.push(`${el.tagName.toLowerCase()} "${name}" ${Math.round(box.width)}x${Math.round(box.height)}`);
         }
       }
-      return out;
+      return { small: out, checked: seen };
     },
     [CONTROLS, min] as const,
   );
+  expect(checked, "no visible controls found to check").toBeGreaterThan(0);
   expect(small, `controls smaller than ${min}x${min}px`).toEqual([]);
 }
 

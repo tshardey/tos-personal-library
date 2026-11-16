@@ -8,6 +8,9 @@ describe("shared parts", () => {
     const b = screen.getByRole("button", { name: "Save" });
     expect(b).toHaveAttribute("type", "button");
     expect(b).toBeDisabled();
+    // A disabled primary reads as a control, not faded amber.
+    expect(b).toHaveClass("disabled:bg-control", "disabled:text-muted");
+    expect(b).not.toHaveClass("disabled:opacity-50");
   });
 
   it("IconButton is named by label and hides its icon", () => {

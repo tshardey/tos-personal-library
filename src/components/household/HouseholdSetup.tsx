@@ -4,7 +4,7 @@ import { useHousehold } from "@/contexts/HouseholdContext";
 import { createHousehold, joinHousehold } from "@/lib/household-repo";
 
 const INPUT = "rounded border px-2 py-1";
-const BUTTON = "rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50";
+const BUTTON = "rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted";
 
 function joinMessage(err: unknown): string {
   if (err instanceof Error && err.message === "invalid_invite_code") {

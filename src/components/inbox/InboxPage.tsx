@@ -210,7 +210,7 @@ export default function InboxPage() {
             setBulkResult(null);
             setSheetOpen(true);
           }}
-          className="mb-3 rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50"
+          className="mb-3 rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
         >
           {`Add ${eligible.length} new books`}
         </button>

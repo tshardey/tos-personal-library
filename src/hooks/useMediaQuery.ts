@@ -8,10 +8,10 @@ const hasMatchMedia = () => typeof window !== "undefined" && typeof window.match
 export function useMediaQuery(query: string): boolean {
   const subscribe = useCallback(
     (cb: () => void) => {
-    if (!hasMatchMedia()) return () => {};
-    const mql = window.matchMedia(query);
-    mql.addEventListener("change", cb);
-    return () => mql.removeEventListener("change", cb);
+      if (!hasMatchMedia()) return () => {};
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", cb);
+      return () => mql.removeEventListener("change", cb);
     },
     [query],
   );

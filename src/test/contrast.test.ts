@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { contrastRatio, themeTokens } from "../lib/contrast";
 
 const EXPECTED: Record<string, string> = {
@@ -21,7 +23,9 @@ const EXPECTED: Record<string, string> = {
 };
 
 // Vitest stubs CSS imports (even ?raw) to an empty string, so read the file directly.
-const css = readFileSync("src/index.css", "utf8");
+// Resolved from this file, so the test passes from any working directory.
+const here = dirname(fileURLToPath(import.meta.url));
+const css = readFileSync(resolve(here, "../index.css"), "utf8");
 const tokens = themeTokens(css);
 const t = (name: string) => tokens[`--color-${name}`];
 const backgrounds = ["surface", "raised", "control"];

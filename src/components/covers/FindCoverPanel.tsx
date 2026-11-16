@@ -7,7 +7,7 @@ import type { BookWithCopies } from "@/lib/types";
 const ACTIVE = new Set(["queued", "gathered", "processing"]);
 const SAVE_ERROR = "Couldn't save this. Try again.";
 
-const btn = "rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50";
+const btn = "rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted";
 
 /** A deluxe copy usually gets an angled photo of the physical book as its cover, so "angled" starts ticked. */
 const defaultReasons = (book: BookWithCopies): CoverReason[] => (book.copies.some((c) => c.deluxe) ? ["angled"] : []);

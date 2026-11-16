@@ -180,7 +180,7 @@ export default function EditionLabelsPage() {
                           type="button"
                           disabled={busy}
                           onClick={() => void run(plan)}
-                          className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+                          className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                         >
                           {busy ? "Changing…" : `Change ${plural(plan.copies.length)}`}
                         </button>
@@ -194,7 +194,7 @@ export default function EditionLabelsPage() {
                       <button
                         type="submit"
                         disabled={plan.kind === "invalid"}
-                        className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+                        className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                       >
                         {plan.kind === "merge" ? "Merge" : plan.kind === "clear" ? "Clear label" : "Rename"}
                       </button>

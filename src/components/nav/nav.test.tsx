@@ -87,8 +87,8 @@ describe("phone navigation", () => {
     expect(nav.getByRole("link", { name: "Library" })).toHaveAttribute("href", "#/");
     expect(nav.getByRole("link", { name: "Scan" })).toHaveAttribute("href", "#/scan");
     expect(nav.getByRole("link", { name: "Covers" })).toHaveAttribute("href", "#/covers");
-    expect(nav.getByRole("button", { name: "Add" })).toBeInTheDocument();
-    expect(nav.getByRole("button", { name: "More" })).toBeInTheDocument();
+    expect(nav.getByRole("button", { name: "Add" })).toHaveAttribute("aria-haspopup", "dialog");
+    expect(nav.getByRole("button", { name: "More" })).toHaveAttribute("aria-haspopup", "dialog");
     expect(nav.getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
   });
 

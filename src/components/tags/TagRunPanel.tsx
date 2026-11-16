@@ -83,7 +83,7 @@ export default function TagRunPanel({
               onClick={() => void go(a)}
               className={
                 i === 0
-                  ? "min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+                  ? "min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                   : "min-h-10 rounded border px-3 disabled:opacity-50"
               }
             >

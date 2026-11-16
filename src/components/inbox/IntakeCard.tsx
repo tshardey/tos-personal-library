@@ -405,7 +405,7 @@ export default function IntakeCard(props: Props) {
           type="button"
           disabled={busy || props.stale || (writes && effectiveTitle.trim() === "")}
           onClick={() => void submit(chosen)}
-          className="rounded bg-accent min-h-10 px-3 py-2 text-on-accent disabled:opacity-50"
+          className="rounded bg-accent min-h-10 px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
         >
           Confirm
         </button>

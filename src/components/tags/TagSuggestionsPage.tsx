@@ -88,7 +88,7 @@ function SuggestionItem({
               type="button"
               disabled={pending || label.trim() === ""}
               onClick={() => void act(() => approve(s.id, label.trim(), category), "Couldn't approve the tag.")}
-              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
             >
               Confirm
             </button>
@@ -103,7 +103,7 @@ function SuggestionItem({
             type="button"
             disabled={pending}
             onClick={() => setEditing(true)}
-            className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+            className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
           >
             Approve
           </button>
@@ -188,7 +188,7 @@ function AddTagForm({ createTag }: { createTag(label: string, category: LibraryT
         <button
           type="submit"
           disabled={pending || tagIdFromLabel(label) === ""}
-          className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+          className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
         >
           Add tag
         </button>

@@ -280,7 +280,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                   type="button"
                   disabled={busy}
                   onClick={() => void run(retryTargets(result))}
-                  className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+                  className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                 >
                   {busy ? "Trying again…" : "Try again"}
                 </button>
@@ -516,7 +516,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                   type="button"
                   disabled={busy}
                   onClick={() => void run(targets)}
-                  className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+                  className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                 >
                   {busy ? "Saving…" : "Confirm"}
                 </button>
@@ -531,7 +531,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                 type="button"
                 disabled={nothing || blank !== null}
                 onClick={() => setConfirming(true)}
-                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
               >
                 Save
               </button>

@@ -93,7 +93,7 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
               type="button"
               disabled={busy || checked.length === 0}
               onClick={() => onConfirm(checked)}
-              className="min-h-10 rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50"
+              className="min-h-10 rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
             >
               {checked.length === 1 ? "Add 1 book" : `Add ${checked.length} books`}
             </button>

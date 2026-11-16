@@ -153,7 +153,7 @@ export default function CoverReviewPage() {
                 type="button"
                 disabled={running}
                 onClick={() => void apply()}
-                className="rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50"
+                className="rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
               >
                 {n > 0 ? `Apply ${n}` : "Done"}
               </button>

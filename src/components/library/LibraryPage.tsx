@@ -346,7 +346,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
                 type="button"
                 disabled={selectedBooks.length === 0}
                 onClick={() => setEditing(true)}
-                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
               >
                 Edit
               </button>

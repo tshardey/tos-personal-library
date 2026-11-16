@@ -114,7 +114,7 @@ export default function HistoryUpload({ householdId, onDone }: Props) {
               type="button"
               disabled={progress !== null}
               onClick={() => void upload()}
-              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
             >
               Upload
             </button>

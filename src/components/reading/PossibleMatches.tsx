@@ -91,7 +91,7 @@ export default function PossibleMatches({ books, refreshKey = 0 }: Props) {
                     type="button"
                     disabled={disabled}
                     onClick={() => void act(m, () => linkHistory(m.historyId, m.bookId), reload)}
-                    className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
+                    className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                   >
                     Link
                   </button>

@@ -153,7 +153,7 @@ export default function LibraryFilters({
             type="button"
             disabled={ask.disabled}
             onClick={ask.onAsk}
-            className="shrink-0 rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50"
+            className="shrink-0 rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
           >
             Ask ✨
           </button>

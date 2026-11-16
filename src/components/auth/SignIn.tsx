@@ -44,7 +44,7 @@ export default function SignIn() {
         <button
           type="submit"
           disabled={!configured || status === "sending"}
-          className="rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50"
+          className="rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
         >
           Sign in
         </button>

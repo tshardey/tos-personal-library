@@ -34,6 +34,7 @@ export default function BottomTabBar({ route, email, onSignOut }: Props) {
           <button
             type="button"
             aria-current={page(tab === "add")}
+            aria-haspopup="dialog"
             onClick={() => setSheet("add")}
             className={barItemClass(tab === "add")}
           >
@@ -50,6 +51,7 @@ export default function BottomTabBar({ route, email, onSignOut }: Props) {
           <button
             type="button"
             aria-current={page(tab === "more")}
+            aria-haspopup="dialog"
             onClick={() => setSheet("more")}
             className={barItemClass(tab === "more")}
           >
