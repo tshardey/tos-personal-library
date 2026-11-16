@@ -1,1 +1,88 @@
 @import "tailwindcss";
+
+@theme {
+  --color-surface: #0f1115;
+  --color-raised: #171a21;
+  --color-control: #232835;
+  --color-line: #262a33;
+  --color-line-strong: #2f3440;
+  --color-field: #6b7285;
+  --color-fg: #e6e6e6;
+  --color-fg-strong: #ffffff;
+  --color-muted: #8a909c;
+  --color-accent: #e8b44c;
+  --color-on-accent: #111111;
+  --color-danger: #f2726b;
+  --color-danger-surface: #3a1d1f;
+  --color-success: #7ccf96;
+  --color-notice: #2a2619;
+  --color-notice-line: #5c4d24;
+}
+
+:root {
+  color-scheme: dark;
+  --nav-bottom: calc(56px + env(safe-area-inset-bottom));
+  --toolbar-top: 0px;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --nav-bottom: 0px;
+    --toolbar-top: 3.5rem;
+  }
+}
+
+@layer base {
+  html,
+  body {
+    @apply bg-surface text-fg;
+  }
+
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-line);
+  }
+
+  input,
+  select,
+  textarea {
+    background-color: var(--color-control);
+    color: var(--color-fg);
+    border-color: var(--color-field);
+  }
+
+  ::placeholder {
+    color: var(--color-muted);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+.cover-grid {
+  display: grid;
+  gap: var(--cover-gap);
+  grid-template-columns: repeat(var(--cover-cols), minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .cover-grid {
+    grid-template-columns: repeat(auto-fill, minmax(var(--cover-min), 1fr));
+  }
+}
