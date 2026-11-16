@@ -138,7 +138,7 @@ export default function LibraryFilters({
     ...members.map((m) => ({ value: m.userId, label: m.displayName })),
   ];
   return (
-    <div className="sticky top-0 z-10 space-y-2 border-b bg-raised p-3">
+    <div className="sticky top-[var(--toolbar-top)] z-10 space-y-2 border-b bg-raised p-3">
       <div className="flex gap-2">
         <input
           type="search"

@@ -145,4 +145,28 @@ test.describe("computer (1280px)", () => {
     await expect(page).toHaveURL(/#\/add$/);
     await expect(add).toHaveAttribute("aria-expanded", "false");
   });
+
+  test("the library's sticky filters stay below the sticky header when the page scrolls", async ({ page }) => {
+    const user = await newUserWithHousehold("Member A");
+    await seedShelf(user, 60);
+    await routeFakeCovers(page);
+    await signIn(page, user);
+    await page.goto("#/");
+    await expect(count(page)).toHaveText("60 books");
+
+    await page.mouse.wheel(0, 3000);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
+
+    const search = page.getByRole("searchbox", { name: "Search books" });
+    await expect(search).toBeVisible();
+    const box = await search.boundingBox();
+    expect(box).not.toBeNull();
+    const header = await page.locator("header").boundingBox();
+    expect(box!.y).toBeGreaterThanOrEqual(header!.y + header!.height - 0.5);
+    const hit = await search.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === el;
+    });
+    expect(hit, "the element at the search box's centre is the input, not the header").toBe(true);
+  });
 });
