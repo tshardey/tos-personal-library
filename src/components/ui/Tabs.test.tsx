@@ -80,7 +80,10 @@ describe("Tabs", () => {
     setup("a");
     expect(screen.getByRole("tablist")).toHaveClass("overflow-x-auto");
     for (const tab of screen.getAllByRole("tab")) {
-      expect(tab).toHaveClass("shrink-0", "whitespace-nowrap");
+      expect(tab).toHaveClass("shrink-0", "whitespace-nowrap", "sm:min-h-9");
     }
+    // The selected tab keeps its accent underline.
+    expect(screen.getByRole("tab", { name: "Alpha" })).toHaveClass("border-accent");
+    expect(screen.getByRole("tab", { name: "Beta" })).toHaveClass("border-transparent");
   });
 });

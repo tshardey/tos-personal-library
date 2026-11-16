@@ -53,7 +53,7 @@ export function Tabs<T extends string>({
               tabIndex={selected ? 0 : -1}
               onClick={() => onChange(t.id)}
               onKeyDown={(e) => onKeyDown(e, i)}
-              className={`min-h-11 shrink-0 whitespace-nowrap border-b-2 px-3 sm:min-h-9${selected ? "border-accent text-fg-strong" : "border-transparent text-muted hover:text-fg"}`}
+              className={`min-h-11 shrink-0 whitespace-nowrap border-b-2 px-3 sm:min-h-9 ${selected ? "border-accent text-fg-strong" : "border-transparent text-muted hover:text-fg"}`}
             >
               {t.label}
             </button>
