@@ -36,7 +36,7 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
   }
 
   return (
-    <div className="fixed inset-0 z-10 flex items-end justify-center bg-black/40 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div
         role="dialog"
         aria-modal="true"

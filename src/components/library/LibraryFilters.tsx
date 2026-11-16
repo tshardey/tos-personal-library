@@ -7,6 +7,7 @@ import { groupTags, isSharedTag, type TosTag } from "@/lib/tos-tags";
 import type { LibraryTag } from "@/lib/tagging/types";
 import LibraryTagFilter from "@/components/tags/LibraryTagFilter";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface Props {
   query: string;
@@ -262,8 +263,9 @@ export default function LibraryFilters({
           onChange={libraryTagFilter.onChange}
         />
       )}
-      {tagsOpen && !tagsUnavailable && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+      {/* Portalled: the sticky z-10 filter bar would otherwise keep this sheet under the z-30 tab bar. */}
+      {tagsOpen && !tagsUnavailable && createPortal(
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div
             role="dialog"
             aria-modal="true"
@@ -300,7 +302,8 @@ export default function LibraryFilters({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       <div className="flex gap-2 overflow-x-auto">
         {chips.map((c) => (

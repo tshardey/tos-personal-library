@@ -44,7 +44,7 @@ test("renaming a label into another merges them and the Edition filter follows",
   await edition.selectOption("Lantern Box Edition");
   await expect(count).toHaveText("2 books");
 
-  await page.getByRole("button", { name: "Account" }).click();
+  await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("link", { name: "Edition labels" }).click();
   await expect(page.getByRole("heading", { name: "Edition labels" })).toBeVisible();
   const list = page.getByRole("list", { name: "Edition labels" });

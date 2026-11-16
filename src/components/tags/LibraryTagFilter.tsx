@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { groupLibraryTags } from "@/lib/tagging/group";
 import type { LibraryTag } from "@/lib/tagging/types";
 
@@ -49,8 +50,9 @@ export default function LibraryTagFilter({
           </button>
         )}
       </div>
-      {open && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+      {/* Portalled: it renders inside the sticky z-10 filter bar, which would keep it under the z-30 tab bar. */}
+      {open && createPortal(
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div
             role="dialog"
             aria-modal="true"
@@ -83,7 +85,8 @@ export default function LibraryTagFilter({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

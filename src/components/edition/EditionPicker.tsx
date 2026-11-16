@@ -53,7 +53,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
         {`${label}: ${valueText ?? value ?? "none"}`}
       </button>
       {open && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div
             role="dialog"
             aria-modal="true"

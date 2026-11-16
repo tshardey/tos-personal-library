@@ -107,10 +107,10 @@ test("StoryGraph upload, Link, sticky Unread, filter and Ask, auto-link and mass
   const { askBodies } = await routeFunctions(page);
   await signIn(page, a);
 
-  // The account menu links to Reading history.
+  // The More sheet links to Reading history.
   await page.goto("#/");
   await expect(page.locator("p[aria-live='polite']")).toHaveText("8 books");
-  await page.getByRole("button", { name: "Account" }).click();
+  await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("link", { name: "Reading history" }).click();
   await expect(page.getByRole("heading", { name: "Reading history" })).toBeVisible();
 
@@ -251,7 +251,7 @@ test("before the read-status migration, no reading UI shows and the library stil
   // Tagging still loads (its Ask button shows), so only reading is hidden.
   await expect(page.getByRole("button", { name: "Ask ✨" })).toBeVisible();
   await expect(page.getByLabel("Read status")).toHaveCount(0);
-  await page.getByRole("button", { name: "Account" }).click();
+  await page.getByRole("button", { name: "More" }).click();
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Reading history" })).toHaveCount(0);
   await expect(page.getByText(/^You've read /)).toHaveCount(0);

@@ -217,7 +217,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const field = "block text-sm";
 
   return (
-    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div
         ref={dialogRef}
         tabIndex={-1}
