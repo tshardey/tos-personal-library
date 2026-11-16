@@ -34,7 +34,9 @@ export function Tabs<T extends string>({
 
   return (
     <div>
-      <div role="tablist" aria-label={label} className="flex gap-1 border-b border-line-strong">
+      {/* Scrolls sideways at 390px. The baseline is an inset shadow, not a border, so the
+          scroll box doesn't clip the selected tab's underline, which paints over it. */}
+      <div role="tablist" aria-label={label} className="flex gap-1 overflow-x-auto shadow-[inset_0_-1px_0_var(--color-line-strong)]">
         {tabs.map((t, i) => {
           const selected = t.id === value;
           return (
@@ -51,7 +53,7 @@ export function Tabs<T extends string>({
               tabIndex={selected ? 0 : -1}
               onClick={() => onChange(t.id)}
               onKeyDown={(e) => onKeyDown(e, i)}
-              className={`-mb-px min-h-11 sm:min-h-9 border-b-2 px-3 ${selected ? "border-accent text-fg-strong" : "border-transparent text-muted hover:text-fg"}`}
+              className={`min-h-11 shrink-0 whitespace-nowrap border-b-2 px-3 sm:min-h-9${selected ? "border-accent text-fg-strong" : "border-transparent text-muted hover:text-fg"}`}
             >
               {t.label}
             </button>

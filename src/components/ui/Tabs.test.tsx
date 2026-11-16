@@ -75,4 +75,12 @@ describe("Tabs", () => {
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     expect(screen.getByRole("tab", { name: "Beta" }).getAttribute("aria-controls")).toBe(panel.id);
   });
+
+  it("scrolls sideways instead of squeezing the tabs on a narrow screen", () => {
+    setup("a");
+    expect(screen.getByRole("tablist")).toHaveClass("overflow-x-auto");
+    for (const tab of screen.getAllByRole("tab")) {
+      expect(tab).toHaveClass("shrink-0", "whitespace-nowrap");
+    }
+  });
 });
