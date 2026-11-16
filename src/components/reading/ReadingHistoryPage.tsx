@@ -54,7 +54,7 @@ export default function ReadingHistoryPage() {
             </>
           )}
           {unmatched !== null && (
-            <p className="text-sm text-stone-600">{`${unmatched} books from your history aren't on the shelf yet. They link by themselves when added.`}</p>
+            <p className="text-sm text-muted">{`${unmatched} books from your history aren't on the shelf yet. They link by themselves when added.`}</p>
           )}
         </>
       )}

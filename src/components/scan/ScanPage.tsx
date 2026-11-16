@@ -811,7 +811,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         <button
           type="button"
           onClick={start}
-          className="mb-4 block w-full rounded bg-stone-800 px-4 py-4 text-lg font-semibold text-white"
+          className="mb-4 block w-full rounded bg-accent px-4 py-4 text-lg font-semibold text-on-accent"
         >
           Start scanning
         </button>
@@ -823,18 +823,18 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
   }
 
   const flashBorder =
-    flash === "accept" ? "border-green-500" : flash === "notice" ? "border-amber-500" : "border-transparent";
+    flash === "accept" ? "border-success" : flash === "notice" ? "border-accent" : "border-transparent";
 
   return (
     <div
-      className="fixed inset-0 z-10 flex flex-col overflow-y-auto bg-white"
+      className="fixed inset-0 z-10 flex flex-col overflow-y-auto bg-raised"
       onPointerDown={() => {
         feedback.unlock();
         lastActivity.current = d.now();
       }}
     >
       <div className="flex flex-wrap items-center gap-1.5 border-b p-1.5 text-sm sm:gap-2 sm:p-2 sm:text-base">
-        <button type="button" onClick={done} className="rounded bg-stone-800 px-3 py-2 text-white">
+        <button type="button" onClick={done} className="rounded bg-accent px-3 py-2 text-on-accent">
           Done
         </button>
         <div className="min-w-0 flex-1">
@@ -860,32 +860,32 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         {cameraError === null && !idle && (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute top-[32.5%] left-[5%] h-[35%] w-[90%] rounded border-2 border-white/80"
+            className="pointer-events-none absolute top-[32.5%] left-[5%] h-[35%] w-[90%] rounded border-2 border-fg-strong/80"
           />
         )}
         {idle && cameraError === null && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-white">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-fg-strong">
             <p>Camera paused to save battery.</p>
-            <button type="button" onClick={resume} className="rounded bg-white px-3 py-2 text-stone-900">
+            <button type="button" onClick={resume} className="rounded bg-raised px-3 py-2 text-fg-strong">
               Resume camera
             </button>
           </div>
         )}
         {photoOpen && !idle && cameraError === null && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-white">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-fg-strong">
             <p>Camera paused for the photo.</p>
-            <button type="button" onClick={resume} className="rounded bg-white px-3 py-2 text-stone-900">
+            <button type="button" onClick={resume} className="rounded bg-raised px-3 py-2 text-fg-strong">
               Resume camera
             </button>
           </div>
         )}
         {cameraError !== null && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-stone-900 p-4 text-center text-white">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface p-4 text-center text-fg-strong">
             <p>{CAMERA_TEXT[cameraError]}</p>
             {cameraError === "denied" && (
-              <p className="text-sm text-stone-300">On iPhone: Settings → Safari → Camera.</p>
+              <p className="text-sm text-fg">On iPhone: Settings → Safari → Camera.</p>
             )}
-            <button type="button" onClick={resume} className="rounded bg-white px-3 py-2 text-stone-900">
+            <button type="button" onClick={resume} className="rounded bg-raised px-3 py-2 text-fg-strong">
               Resume camera
             </button>
           </div>
@@ -893,11 +893,11 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
       </div>
 
       <div className="mx-auto w-full max-w-2xl p-2 text-[15px] sm:p-3 sm:text-base">
-        {notIsbn && <p className="mb-2 text-sm text-amber-800">{NOT_ISBN_TEXT}</p>}
+        {notIsbn && <p className="mb-2 text-sm text-fg">{NOT_ISBN_TEXT}</p>}
         {nudge && (
           <div
             role="status"
-            className="mb-2 flex flex-wrap items-center gap-2 rounded border border-amber-400 bg-amber-50 p-2 text-sm"
+            className="mb-2 flex flex-wrap items-center gap-2 rounded border border-notice-line bg-notice p-2 text-sm"
           >
             <span className="flex-1">{NUDGE_TEXT}</span>
             <button type="button" onClick={() => takePhoto(null)} className="rounded border px-2 py-1">
@@ -934,14 +934,14 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
             role="alertdialog"
             aria-modal="true"
             aria-label="Another copy?"
-            className="w-full max-w-lg rounded-t bg-white p-4 sm:rounded"
+            className="w-full max-w-lg rounded-t bg-raised p-4 sm:rounded"
           >
             <p className="mb-3">{PROMPT_TEXT}</p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => answerPrompt(true)}
-                className="rounded bg-stone-800 px-3 py-2 text-white"
+                className="rounded bg-accent px-3 py-2 text-on-accent"
               >
                 Add another copy
               </button>

@@ -67,7 +67,7 @@ export default function LibraryTagsSection({ bookId }: { bookId: string }) {
     <section>
       <h3 className="mb-2 font-semibold">Library tags</h3>
       {groups.length === 0 ? (
-        <p className="text-sm text-stone-700">No library tags yet.</p>
+        <p className="text-sm text-muted">No library tags yet.</p>
       ) : (
         <div className="space-y-1 text-sm">
           {groups.map((g) => (
@@ -78,7 +78,7 @@ export default function LibraryTagsSection({ bookId }: { bookId: string }) {
         </div>
       )}
       {error && (
-        <p role="alert" className="mt-1 text-red-700">
+        <p role="alert" className="mt-1 text-danger">
           {error}
         </p>
       )}
@@ -97,7 +97,7 @@ export default function LibraryTagsSection({ bookId }: { bookId: string }) {
           {retagLabel}
         </button>
       </div>
-      {usedUp && <p className="mt-1 text-sm text-stone-700">This month's tagging budget is used up.</p>}
+      {usedUp && <p className="mt-1 text-sm text-muted">This month's tagging budget is used up.</p>}
       {editing && vocabulary.length > 0 && (
         <div className="mt-2 space-y-3 rounded border p-3">
           {editable.map((g) => (

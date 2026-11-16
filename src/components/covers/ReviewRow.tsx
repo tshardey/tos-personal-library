@@ -14,8 +14,8 @@ interface Props {
   onRetry(): void;
 }
 
-const tile = "relative h-32 w-24 shrink-0 overflow-hidden rounded border bg-stone-100 text-xs";
-const ring = "ring-2 ring-stone-800 ring-offset-1";
+const tile = "relative h-32 w-24 shrink-0 overflow-hidden rounded border bg-control text-xs";
+const ring = "ring-2 ring-accent ring-offset-1";
 
 export default function ReviewRow({ row, choice, failed, retryFailed = false, onChoose, onTileError, onRetry }: Props) {
   const { search, book } = row;
@@ -28,7 +28,7 @@ export default function ReviewRow({ row, choice, failed, retryFailed = false, on
         {book.title}
       </a>
       {(reasons || search.note) && (
-        <p className="text-sm text-stone-600">
+        <p className="text-sm text-muted">
           {reasons}
           {reasons && search.note ? " " : ""}
           {search.note ? `“${search.note}”` : ""}
@@ -38,7 +38,7 @@ export default function ReviewRow({ row, choice, failed, retryFailed = false, on
       {row.kind === "failed" && <p className="text-sm">The search failed.</p>}
       {row.kind === "results" && (
         <>
-          {row.coverChanged && <p className="text-sm text-amber-800">This cover was changed after the search.</p>}
+          {row.coverChanged && <p className="text-sm text-fg">This cover was changed after the search.</p>}
           {visible.length === 0 ? (
             <div className="flex items-center gap-3 text-sm">
               <p>These covers no longer load.</p>
@@ -48,7 +48,7 @@ export default function ReviewRow({ row, choice, failed, retryFailed = false, on
             </div>
           ) : null}
           {visible.length === 0 && retryFailed && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-danger">
               Couldn't search again. Try again.
             </p>
           )}
@@ -63,9 +63,9 @@ export default function ReviewRow({ row, choice, failed, retryFailed = false, on
               {book.coverUrl ? (
                 <img src={book.coverUrl} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="flex h-full items-center justify-center text-stone-500">none</span>
+                <span className="flex h-full items-center justify-center text-muted">none</span>
               )}
-              <span className="absolute inset-x-0 bottom-0 bg-white/90 py-0.5 text-center">Current</span>
+              <span className="absolute inset-x-0 bottom-0 bg-raised/90 py-0.5 text-center">Current</span>
             </button>
             {visible.map((r) => (
               <button

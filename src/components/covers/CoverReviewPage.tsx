@@ -109,7 +109,7 @@ export default function CoverReviewPage() {
     <div className={`p-3 sm:p-4 ${hasFooter ? "pb-32" : ""}`}>
       <h2 className="text-lg font-semibold">Covers to review</h2>
       {budget && (
-        <p className="text-sm text-stone-600">{`This month: ${formatUsd(budget.spentMicro)} of ${formatUsd(budget.budgetMicro)} used.`}</p>
+        <p className="text-sm text-muted">{`This month: ${formatUsd(budget.spentMicro)} of ${formatUsd(budget.budgetMicro)} used.`}</p>
       )}
       {rows.length === 0 ? (
         <div className="mt-4 space-y-2">
@@ -135,7 +135,7 @@ export default function CoverReviewPage() {
         </ul>
       )}
       {hasFooter && (
-        <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-raised p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
             {rows.length > 0 && <p className="text-sm font-medium">{`${n} picked`}</p>}
             {rows.length > 0 && (
@@ -143,13 +143,13 @@ export default function CoverReviewPage() {
                 type="button"
                 disabled={running}
                 onClick={() => void apply()}
-                className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+                className="rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50"
               >
                 {n > 0 ? `Apply ${n}` : "Done"}
               </button>
             )}
           </div>
-          <div className="mx-auto max-w-3xl space-y-0.5 text-sm text-stone-700">
+          <div className="mx-auto max-w-3xl space-y-0.5 text-sm text-muted">
             {sentences.map((s) => (
               <p key={s}>{s}</p>
             ))}

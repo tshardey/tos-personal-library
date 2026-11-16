@@ -62,11 +62,11 @@ export default function PossibleMatches({ books, refreshKey = 0 }: Props) {
     <section aria-label="Possible matches" className="space-y-2">
       <h3 className="font-medium">Possible matches</h3>
       {loadError && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           Couldn't load possible matches.
         </p>
       )}
-      {matches !== null && shown.length === 0 && <p className="text-sm text-stone-700">No possible matches to review.</p>}
+      {matches !== null && shown.length === 0 && <p className="text-sm text-muted">No possible matches to review.</p>}
       {shown.length > 0 && (
         <ul className="space-y-2">
           {shown.map((m) => {
@@ -79,11 +79,11 @@ export default function PossibleMatches({ books, refreshKey = 0 }: Props) {
                   {book.coverUrl ? (
                     <img src={book.coverUrl} alt="" className="h-16 w-11 rounded object-cover" />
                   ) : (
-                    <span className="h-16 w-11 rounded bg-stone-200" aria-hidden="true" />
+                    <span className="h-16 w-11 rounded bg-control" aria-hidden="true" />
                   )}
                   <span>
                     <span className="block font-medium">{book.title}</span>
-                    <span className="block text-stone-700">{book.authors.join(", ")}</span>
+                    <span className="block text-muted">{book.authors.join(", ")}</span>
                   </span>
                 </a>
                 <div className="mt-2 flex gap-2">
@@ -91,7 +91,7 @@ export default function PossibleMatches({ books, refreshKey = 0 }: Props) {
                     type="button"
                     disabled={disabled}
                     onClick={() => void act(m, () => linkHistory(m.historyId, m.bookId), reload)}
-                    className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                    className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
                   >
                     Link
                   </button>
@@ -110,7 +110,7 @@ export default function PossibleMatches({ books, refreshKey = 0 }: Props) {
         </ul>
       )}
       {rowError && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {rowError}
         </p>
       )}

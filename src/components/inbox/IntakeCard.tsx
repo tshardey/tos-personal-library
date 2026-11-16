@@ -133,7 +133,7 @@ export default function IntakeCard(props: Props) {
     return (
       <article aria-label={heading} className="flex gap-2 rounded border p-2 text-[13px] sm:gap-3 sm:p-3 sm:text-sm">
         <p className="font-medium">{heading}</p>
-        <p className="text-stone-600">
+        <p className="text-muted">
           {item.status === "confirmed"
             ? "Added to the library."
             : isScan
@@ -154,7 +154,7 @@ export default function IntakeCard(props: Props) {
       className="h-24 w-16 shrink-0 rounded object-cover"
     />
   ) : (
-    <div aria-hidden className="h-24 w-16 shrink-0 rounded bg-stone-200" />
+    <div aria-hidden className="h-24 w-16 shrink-0 rounded bg-control" />
   );
 
   if (item.status === "pending" || item.status === "processing") {
@@ -163,7 +163,7 @@ export default function IntakeCard(props: Props) {
         {thumb}
         <div>
           {extracted && <p className="font-medium">{extracted}</p>}
-          <p className="text-sm text-stone-600">{line}</p>
+          <p className="text-sm text-muted">{line}</p>
         </div>
       </article>
     );
@@ -231,10 +231,10 @@ export default function IntakeCard(props: Props) {
         {thumb}
         <div className="min-w-0">
           <p className="font-medium">{extracted || (isScan ? heading : "No title read")}</p>
-          {ownAuthors.length > 0 && <p className="text-sm text-stone-600">{ownAuthors.join(", ")}</p>}
-          {item.scannedIsbn && <p className="text-sm text-stone-600">{`Scanned ISBN ${item.scannedIsbn}`}</p>}
-          {line && <p className="text-sm text-stone-600">{line}</p>}
-          {clues.length > 0 && <p className="text-sm text-stone-600">{`Claude saw: ${clues.join(", ")}`}</p>}
+          {ownAuthors.length > 0 && <p className="text-sm text-muted">{ownAuthors.join(", ")}</p>}
+          {item.scannedIsbn && <p className="text-sm text-muted">{`Scanned ISBN ${item.scannedIsbn}`}</p>}
+          {line && <p className="text-sm text-muted">{line}</p>}
+          {clues.length > 0 && <p className="text-sm text-muted">{`Claude saw: ${clues.join(", ")}`}</p>}
         </div>
       </div>
       <div className="mb-2">
@@ -248,7 +248,7 @@ export default function IntakeCard(props: Props) {
 
       {failed && (
         <div className="mb-2 text-sm">
-          <p className="text-red-700">{`${FAILED_TEXT[item.errorCode ?? "vision_unreadable"]} Type the title to add it.`}</p>
+          <p className="text-danger">{`${FAILED_TEXT[item.errorCode ?? "vision_unreadable"]} Type the title to add it.`}</p>
           {item.attempts < MAX_ATTEMPTS && (
             <button type="button" onClick={() => void onRetry()} className="mt-1 rounded border px-3 py-1">
               Try again
@@ -285,13 +285,13 @@ export default function IntakeCard(props: Props) {
                 {b.coverUrl ? (
                   <img src={b.coverUrl} alt="" className="h-12 w-8 shrink-0 rounded object-cover" />
                 ) : (
-                  <span aria-hidden className="h-12 w-8 shrink-0 rounded bg-stone-200" />
+                  <span aria-hidden className="h-12 w-8 shrink-0 rounded bg-control" />
                 )}
                 <span className="min-w-0">
                   <span className="block">{addLabel}</span>
-                  {b.authors.length > 0 && <span className="block text-sm text-stone-600">{b.authors.join(", ")}</span>}
+                  {b.authors.length > 0 && <span className="block text-sm text-muted">{b.authors.join(", ")}</span>}
                   {b.copies.map((cp) => (
-                    <span key={cp.id} className="block text-sm text-stone-600">
+                    <span key={cp.id} className="block text-sm text-muted">
                       {cp.editionNote ? `${ownerName(members, cp.ownerUserId)} · ${cp.editionNote}` : ownerName(members, cp.ownerUserId)}
                     </span>
                   ))}
@@ -396,7 +396,7 @@ export default function IntakeCard(props: Props) {
       )}
 
       {error && (
-        <p role="alert" className="mb-2 text-sm text-red-700">
+        <p role="alert" className="mb-2 text-sm text-danger">
           {error}
         </p>
       )}
@@ -405,7 +405,7 @@ export default function IntakeCard(props: Props) {
           type="button"
           disabled={busy || props.stale || (writes && effectiveTitle.trim() === "")}
           onClick={() => void submit(chosen)}
-          className="rounded bg-stone-800 min-h-10 px-3 py-2 text-white disabled:opacity-50"
+          className="rounded bg-accent min-h-10 px-3 py-2 text-on-accent disabled:opacity-50"
         >
           Confirm
         </button>

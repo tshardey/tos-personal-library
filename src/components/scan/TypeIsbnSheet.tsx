@@ -37,7 +37,7 @@ export default function TypeIsbnSheet({ onAdd, onClose }: Props) {
             onClose();
           }
         }}
-        className="w-full max-w-lg rounded-t bg-white p-4 text-stone-900 sm:rounded"
+        className="w-full max-w-lg rounded-t bg-raised p-4 text-fg-strong sm:rounded"
       >
         <form
           onSubmit={(e) => {
@@ -61,9 +61,9 @@ export default function TypeIsbnSheet({ onAdd, onClose }: Props) {
             }}
             className="mb-2 block w-full rounded border p-2"
           />
-          {invalid && <p className="mb-2 text-sm text-red-700">That isn't a valid ISBN. Check the digits.</p>}
+          {invalid && <p className="mb-2 text-sm text-danger">That isn't a valid ISBN. Check the digits.</p>}
           <div className="flex gap-2">
-            <button type="submit" className="rounded bg-stone-800 px-3 py-2 text-white">
+            <button type="submit" className="rounded bg-accent px-3 py-2 text-on-accent">
               Add
             </button>
             <button type="button" onClick={onClose} className="rounded border px-3 py-2">

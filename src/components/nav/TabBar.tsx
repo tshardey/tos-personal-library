@@ -19,7 +19,7 @@ export default function TabBar({ route }: { route: Route }) {
             href={t.href}
             aria-current={active ? "page" : undefined}
             className={`flex min-h-10 flex-1 items-center justify-center border-b-2 px-2 text-sm ${
-              active ? "border-stone-800 font-semibold text-stone-900" : "border-transparent text-stone-600"
+              active ? "border-accent font-semibold text-fg-strong" : "border-transparent text-muted"
             }`}
           >
             {t.label}

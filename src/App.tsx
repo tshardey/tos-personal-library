@@ -35,13 +35,13 @@ function SignedIn() {
   if (!household && error) {
     return (
       <div className="p-6">
-        <p role="alert" className="mb-3 text-red-700">
+        <p role="alert" className="mb-3 text-danger">
           {error}
         </p>
         <button
           type="button"
           onClick={() => void refresh()}
-          className="rounded bg-stone-800 px-3 py-2 text-white"
+          className="rounded bg-accent px-3 py-2 text-on-accent"
         >
           Retry
         </button>

@@ -42,7 +42,7 @@ function Cover({ book, photoUrl }: { book: BookWithCopies; photoUrl?: string }) 
   const [failed, setFailed] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   return (
-    <div className="mx-auto aspect-[2/3] w-40 overflow-hidden rounded bg-stone-200 shadow-sm">
+    <div className="mx-auto aspect-[2/3] w-40 overflow-hidden rounded bg-control shadow-sm">
       {book.coverUrl && !failed ? (
         <img
           src={book.coverUrl}
@@ -122,13 +122,13 @@ export default function BookDetail({ id }: { id: string }) {
   if (error) {
     return (
       <div className="p-6">
-        <p role="alert" className="mb-3 text-red-700">
+        <p role="alert" className="mb-3 text-danger">
           {error}
         </p>
         <button
           type="button"
           onClick={() => void reload()}
-          className="rounded bg-stone-800 px-3 py-2 text-white"
+          className="rounded bg-accent px-3 py-2 text-on-accent"
         >
           Retry
         </button>
@@ -216,7 +216,7 @@ export default function BookDetail({ id }: { id: string }) {
       ) : (
         <div>
           <h2 className="text-xl font-semibold">{book.title}</h2>
-          <p className="text-stone-700">{book.authors.join(", ")}</p>
+          <p className="text-muted">{book.authors.join(", ")}</p>
           {book.synopsis && <p className="mt-2 text-sm">{book.synopsis}</p>}
           <div className="mt-2 flex gap-3 text-sm">
             <button type="button" onClick={() => setEditing(true)} className="underline">
@@ -229,7 +229,7 @@ export default function BookDetail({ id }: { id: string }) {
         </div>
       )}
       {actionError && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           {actionError}
         </p>
       )}
@@ -268,7 +268,7 @@ export default function BookDetail({ id }: { id: string }) {
       <section>
         <h3 className="font-semibold">Copies</h3>
         {unhauledCount > 0 && (
-          <p className="text-sm text-stone-700">
+          <p className="text-sm text-muted">
             {book.copies.length - unhauledCount} on the shelf · {unhauledCount} unhauled
           </p>
         )}

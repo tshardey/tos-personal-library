@@ -65,10 +65,10 @@ export default function AccountMenu({ email, onSignOut }: Props) {
         </svg>
       </button>
       {open && (
-        <div id={panelId} className="absolute right-0 z-20 mt-1 w-64 rounded border bg-white p-3 shadow">
-          <p className="mb-2 break-words text-sm text-stone-600">{email}</p>
+        <div id={panelId} className="absolute right-0 z-20 mt-1 w-64 rounded border bg-raised p-3 shadow">
+          <p className="mb-2 break-words text-sm text-muted">{email}</p>
           {summary && (
-            <p className="mb-2 text-sm text-stone-600">
+            <p className="mb-2 text-sm text-muted">
               {`You've read ${summary.read} of ${summary.owned} (${summary.pct}%)`}
             </p>
           )}

@@ -71,7 +71,7 @@ export default function RetagConfirm({
           {label}
         </button>
       )}
-      {usedUp && <p className="text-sm text-stone-700">This month's tagging budget is used up.</p>}
+      {usedUp && <p className="text-sm text-muted">This month's tagging budget is used up.</p>}
       {step !== "idle" && (
         <div role="group" aria-label="Confirm retag" className="space-y-2 rounded border p-2 text-sm">
           <p className="font-medium">
@@ -84,7 +84,7 @@ export default function RetagConfirm({
               type="button"
               disabled={step === "queueing" || usedUp}
               onClick={() => void retag()}
-              className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:opacity-50"
             >
               {step === "queueing" ? "Queueing…" : "Confirm"}
             </button>
@@ -100,7 +100,7 @@ export default function RetagConfirm({
         </div>
       )}
       {message && <p role="status" className="text-sm">{message}</p>}
-      {error && <p role="alert" className="text-sm text-red-700">Couldn't queue the retag. Try again.</p>}
+      {error && <p role="alert" className="text-sm text-danger">Couldn't queue the retag. Try again.</p>}
     </>
   );
 }

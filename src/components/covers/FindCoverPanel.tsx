@@ -7,7 +7,7 @@ import type { BookWithCopies } from "@/lib/types";
 const ACTIVE = new Set(["queued", "gathered", "processing"]);
 const SAVE_ERROR = "Couldn't save this. Try again.";
 
-const btn = "rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50";
+const btn = "rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50";
 
 /** A deluxe copy usually gets an angled photo of the physical book as its cover, so "angled" starts ticked. */
 const defaultReasons = (book: BookWithCopies): CoverReason[] => (book.copies.some((c) => c.deluxe) ? ["angled"] : []);
@@ -89,9 +89,9 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
       return true;
     });
 
-  const budgetCopy = <p className="text-sm text-stone-700">This month's cover-finding budget is used up.</p>;
+  const budgetCopy = <p className="text-sm text-muted">This month's cover-finding budget is used up.</p>;
   const alert = error && (
-    <p role="alert" className="text-sm text-red-700">
+    <p role="alert" className="text-sm text-danger">
       {SAVE_ERROR}
     </p>
   );
@@ -130,7 +130,7 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
         </button>
       )}
       {open && (
-        <div className="space-y-3 rounded border border-stone-300 p-3">
+        <div className="space-y-3 rounded border border-field p-3">
           <div className="flex flex-wrap gap-2">
             {COVER_REASONS.map((r) => (
               <button
@@ -139,7 +139,7 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
                 aria-pressed={reasons.includes(r)}
                 onClick={() => toggle(r)}
                 className={`rounded-full border px-3 py-1 ${
-                  reasons.includes(r) ? "border-stone-800 bg-stone-800 text-white" : "border-stone-400 bg-white"
+                  reasons.includes(r) ? "border-accent bg-accent text-on-accent" : "border-field bg-raised"
                 }`}
               >
                 {REASON_LABELS[r]}
@@ -153,7 +153,7 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
               maxLength={MAX_NOTE}
               placeholder="e.g. this is the Spanish edition"
               onChange={(e) => setNote(e.target.value)}
-              className="mt-1 w-full rounded border border-stone-400 p-2"
+              className="mt-1 w-full rounded border border-field p-2"
               rows={2}
             />
           </label>

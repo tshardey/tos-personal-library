@@ -46,7 +46,7 @@ export default function LibraryTagPicker({
           {label}
         </button>
         {selected.map((id) => (
-          <span key={id} className="rounded-full bg-stone-200 px-3 py-1 text-sm">
+          <span key={id} className="rounded-full bg-control px-3 py-1 text-sm">
             {labelOf(id)}
           </span>
         ))}
@@ -68,10 +68,10 @@ export default function LibraryTagPicker({
                 close();
               }
             }}
-            className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-t bg-white sm:rounded"
+            className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-t bg-raised sm:rounded"
           >
             <div className="overflow-y-auto p-4">
-              {groups.length === 0 && <p className="text-sm text-stone-700">No tags to choose.</p>}
+              {groups.length === 0 && <p className="text-sm text-muted">No tags to choose.</p>}
               {groups.map((g) => (
                 <fieldset key={g.category} className="mb-3">
                   <legend className="text-sm font-medium">{g.label}</legend>
@@ -81,7 +81,7 @@ export default function LibraryTagPicker({
                         type="checkbox"
                         checked={selected.includes(t.id)}
                         onChange={(e) => toggle(t.id, e.target.checked)}
-                        className="h-5 w-5 accent-stone-800"
+                        className="h-5 w-5 accent-accent"
                       />
                       {t.label}
                     </label>

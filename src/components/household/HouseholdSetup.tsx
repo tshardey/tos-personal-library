@@ -4,7 +4,7 @@ import { useHousehold } from "@/contexts/HouseholdContext";
 import { createHousehold, joinHousehold } from "@/lib/household-repo";
 
 const INPUT = "rounded border px-2 py-1";
-const BUTTON = "rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50";
+const BUTTON = "rounded bg-accent px-3 py-2 text-on-accent disabled:opacity-50";
 
 function joinMessage(err: unknown): string {
   if (err instanceof Error && err.message === "invalid_invite_code") {
@@ -87,7 +87,7 @@ export default function HouseholdSetup() {
             Create household
           </button>
           {createError && (
-            <p role="alert" className="text-red-700">
+            <p role="alert" className="text-danger">
               {createError}
             </p>
           )}
@@ -122,7 +122,7 @@ export default function HouseholdSetup() {
             Join household
           </button>
           {joinError && (
-            <p role="alert" className="text-red-700">
+            <p role="alert" className="text-danger">
               {joinError}
             </p>
           )}

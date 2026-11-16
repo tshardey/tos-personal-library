@@ -19,7 +19,7 @@ export default function InviteCode() {
   return (
     <div className="flex items-center gap-2">
       <span>Invite code:</span>
-      <code className="rounded bg-stone-100 px-2 py-1">{code}</code>
+      <code className="rounded bg-control px-2 py-1">{code}</code>
       <button type="button" onClick={() => void copy()} className="underline">
         {copied ? "Copied" : "Copy"}
       </button>

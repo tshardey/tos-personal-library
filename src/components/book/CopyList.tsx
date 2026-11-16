@@ -84,7 +84,7 @@ export default function CopyList({
   return (
     <div className="mt-2">
       {error && (
-        <p role="alert" className="mb-2 text-red-700">
+        <p role="alert" className="mb-2 text-danger">
           {error}
         </p>
       )}
@@ -108,9 +108,9 @@ export default function CopyList({
               <>
                 <p className="font-medium">{ownerLabel(copy.ownerUserId, members)}</p>
                 {copy.editionNote && <p className="text-sm">{copy.editionNote}</p>}
-                {copy.copyNote && <p className="text-sm text-stone-700">{copy.copyNote}</p>}
+                {copy.copyNote && <p className="text-sm text-muted">{copy.copyNote}</p>}
                 {copy.location && <p className="text-sm">Location: {copy.location}</p>}
-                <p className="text-xs text-stone-600">Origin: {copy.origin}</p>
+                <p className="text-xs text-muted">Origin: {copy.origin}</p>
                 {copy.unhauledAt && <p className="text-sm">Unhauled {dayLabel(localDay(copy.unhauledAt))}</p>}
                 <div className="mt-2 flex gap-2 text-sm">
                   {(["deluxe", "signed"] as const).map((flag) => (
@@ -120,7 +120,7 @@ export default function CopyList({
                       aria-pressed={copy[flag]}
                       disabled={pendingIds.has(copy.id)}
                       onClick={() => void toggle(copy, { [flag]: !copy[flag] })}
-                      className={`rounded border px-2 py-1 ${copy[flag] ? "bg-stone-800 text-white" : ""}`}
+                      className={`rounded border px-2 py-1 ${copy[flag] ? "bg-accent text-on-accent" : ""}`}
                     >
                       {flag === "deluxe" ? "Deluxe" : "Signed"}
                     </button>

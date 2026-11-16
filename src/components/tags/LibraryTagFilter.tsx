@@ -39,7 +39,7 @@ export default function LibraryTagFilter({
           Library tags
         </button>
         {selected.map((id) => (
-          <span key={id} className="rounded-full bg-stone-200 px-3 py-1 text-sm">
+          <span key={id} className="rounded-full bg-control px-3 py-1 text-sm">
             {labelOf(id)}
           </span>
         ))}
@@ -61,7 +61,7 @@ export default function LibraryTagFilter({
                 close();
               }
             }}
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-white p-4 sm:rounded"
+            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-raised p-4 sm:rounded"
           >
             {groups.map((g) => (
               <fieldset key={g.category} className="mb-3">

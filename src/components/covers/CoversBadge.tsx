@@ -7,7 +7,7 @@ export default function CoversBadge() {
   return (
     <a
       href="#/covers"
-      className="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-900 hover:bg-amber-200"
+      className="rounded-full bg-notice px-3 py-1 text-sm font-medium text-fg hover:bg-notice-line"
     >
       Covers to review ({reviewCount})
     </a>
