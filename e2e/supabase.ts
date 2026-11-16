@@ -50,8 +50,20 @@ export async function newUserWithHousehold(displayName = "Tester"): Promise<Test
   return { email, userId: session.user.id, householdId, displayName, accessToken: session.access_token, session };
 }
 
+/** A fresh user through the public sign-up API who belongs to no household yet. */
+export async function newUserWithoutHousehold(): Promise<Pick<TestUser, "email" | "session">> {
+  const email = `e2e-${randomUUID()}@example.test`;
+  const password = `pw-${randomUUID()}`;
+  const session = (await call("/auth/v1/signup", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  })) as Record<string, unknown> & { access_token: string };
+  if (!session.access_token) throw new Error("sign-up returned no session (are email confirmations on?)");
+  return { email, session };
+}
+
 /** Signs the page in by storing the session where supabase-js looks for it. */
-export async function signIn(page: Page, user: TestUser): Promise<void> {
+export async function signIn(page: Page, user: Pick<TestUser, "session">): Promise<void> {
   const { url } = supabaseEnv();
   const storageKey = `sb-${new URL(url).hostname.split(".")[0]}-auth-token`;
   await page.addInitScript(
