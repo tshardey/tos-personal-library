@@ -1,5 +1,6 @@
-export { Button, buttonClass } from "./Button";
-export type { Variant } from "./Button";
+export { Button } from "./Button";
+export { buttonClass } from "./button-styles";
+export type { Variant } from "./button-styles";
 export { IconButton } from "./IconButton";
 export { Chip } from "./Chip";
 export { Badge } from "./Badge";

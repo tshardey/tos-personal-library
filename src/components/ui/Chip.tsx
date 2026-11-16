@@ -1,6 +1,6 @@
 import { CloseIcon } from "./icons";
 
-const BASE = "inline-flex items-center gap-1 rounded-full text-sm min-h-11 sm:min-h-9 px-3 disabled:opacity-50";
+const BASE = "inline-flex items-center gap-1 rounded-full text-sm min-h-11 sm:min-h-9 px-3";
 
 export function Chip({
   label,
@@ -21,7 +21,7 @@ export function Chip({
           type="button"
           aria-label={`Remove filter: ${label}`}
           onClick={onRemove}
-          className="inline-flex size-6 items-center justify-center rounded-full"
+          className="-mr-3 inline-flex size-11 sm:size-6 items-center justify-center rounded-full"
         >
           <CloseIcon className="size-4" />
         </button>

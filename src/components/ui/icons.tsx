@@ -35,8 +35,8 @@ export const PlusIcon = (p: P) => (
 export const ScanIcon = (p: P) => (
   <Svg {...p}>
     <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
-    <path d="M8 9v6M11 9v6M16 9v6" />
-    <path d="M13.5 9v6" strokeWidth={2.5} />
+    <path d="M7.5 9v6M10 9v6M14 9v6M16.5 9v6" />
+    <path d="M12 9v6" strokeWidth={2.5} />
   </Svg>
 );
 export const CoversIcon = (p: P) => (
