@@ -118,4 +118,44 @@ describe("Sheet", () => {
     fireEvent.keyDown(screen.getByRole("dialog", { name: "Outer" }), { key: "Escape" });
     expect(outer).toHaveBeenCalledTimes(1);
   });
+  it("locks the page scroll while open and restores the previous value on close", () => {
+    document.body.style.overflow = "scroll";
+    const { unmount } = render(
+      <Sheet label="S" onClose={() => {}}>
+        <button>One</button>
+      </Sheet>,
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+    unmount();
+    expect(document.body.style.overflow).toBe("scroll");
+    document.body.style.overflow = "";
+  });
+
+  it("keeps the lock when a nested sheet closes, until the outer one closes", () => {
+    function Host({ inner, outer }: { inner: boolean; outer: boolean }) {
+      return outer ? (
+        <Sheet label="Outer" onClose={() => {}}>
+          <button>Outer button</button>
+          {inner && (
+            <Sheet label="Inner" onClose={() => {}}>
+              <button>Inner button</button>
+            </Sheet>
+          )}
+        </Sheet>
+      ) : null;
+    }
+    // Opened together (React runs the inner effect first) ...
+    const { rerender } = render(<Host outer inner />);
+    expect(document.body.style.overflow).toBe("hidden");
+    rerender(<Host outer inner={false} />);
+    expect(document.body.style.overflow).toBe("hidden");
+    // ... and the inner opened later, on top of the outer.
+    rerender(<Host outer inner />);
+    expect(document.body.style.overflow).toBe("hidden");
+    rerender(<Host outer inner={false} />);
+    expect(screen.queryByRole("dialog", { name: "Inner" })).toBeNull();
+    expect(document.body.style.overflow).toBe("hidden");
+    rerender(<Host outer={false} inner={false} />);
+    expect(document.body.style.overflow).toBe("");
+  });
 });

@@ -5,6 +5,26 @@ import { createPortal } from "react-dom";
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/**
+ * The page behind doesn't scroll while any sheet is open. Open sheets are counted: the first saves
+ * the body's overflow and the last to close restores it. A per-sheet saved value would break for
+ * nested sheets that mount together, since React runs the inner sheet's effect first.
+ */
+let openSheets = 0;
+let savedOverflow = "";
+
+function lockBodyScroll() {
+  if (openSheets === 0) {
+    savedOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  openSheets++;
+  return () => {
+    openSheets--;
+    if (openSheets === 0) document.body.style.overflow = savedOverflow;
+  };
+}
+
 export function Sheet({
   label,
   title,
@@ -35,6 +55,8 @@ export function Sheet({
     // Focus is captured and restored once per mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(lockBodyScroll, []);
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape") {
