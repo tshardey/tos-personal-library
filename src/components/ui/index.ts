@@ -6,3 +6,6 @@ export { Chip } from "./Chip";
 export { Badge } from "./Badge";
 export { Select } from "./Select";
 export * from "./icons";
+export { Sheet } from "./Sheet";
+export { Menu } from "./Menu";
+export { Tabs } from "./Tabs";
