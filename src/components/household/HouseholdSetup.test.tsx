@@ -10,7 +10,7 @@ const signOut = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/household-repo", () => repo);
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: { email: "a@b.co" }, loading: false, signOut }),
+  useAuth: () => ({ user: { email: "reader@example.com" }, loading: false, signOut }),
 }));
 vi.mock("@/contexts/HouseholdContext", () => ({
   useHousehold: () => ({ household: null, members: [], loading: false, error: null, refresh }),
@@ -93,6 +93,16 @@ describe("HouseholdSetup", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByRole("button", { name: /create household/i })).toBeEnabled());
     expect(screen.queryByText(/Couldn't create/)).not.toBeInTheDocument();
+  });
+
+  it("says which email is signed in and how to switch", () => {
+    render(<HouseholdSetup />);
+    const note = screen.getByText(/You're signed in as/);
+    expect(note).toHaveTextContent(
+      "You're signed in as reader@example.com. This email isn't part of a household yet. " +
+        "Already have a library? Sign out and use the email you set it up with.",
+    );
+    expect(screen.getAllByRole("button", { name: /sign out/i })).toHaveLength(1);
   });
 
   it("offers sign out", () => {

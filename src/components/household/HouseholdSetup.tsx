@@ -16,7 +16,8 @@ function joinMessage(err: unknown): string {
 
 export default function HouseholdSetup() {
   const { refresh } = useHousehold();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const email = user?.email;
   const [name, setName] = useState("");
   const [createName, setCreateName] = useState("");
   const [code, setCode] = useState("");
@@ -61,11 +62,20 @@ export default function HouseholdSetup() {
 
   return (
     <main className="mx-auto flex max-w-sm flex-col gap-8 p-6">
-      <div className="flex justify-end">
+      <p className="rounded border border-stone-300 bg-stone-50 p-3">
+        {email ? (
+          <>
+            You're signed in as <strong>{email}</strong>. This email isn't part of a household yet.
+          </>
+        ) : (
+          "This account isn't part of a household yet."
+        )}{" "}
+        Already have a library?{" "}
         <button type="button" onClick={() => void signOut()} className="underline">
           Sign out
-        </button>
-      </div>
+        </button>{" "}
+        and use the email you set it up with.
+      </p>
       <section>
         <h2 className="mb-3 text-xl font-semibold">Create a household</h2>
         <form onSubmit={onCreate} className="flex flex-col gap-3">
