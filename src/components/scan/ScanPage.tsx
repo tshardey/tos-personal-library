@@ -827,7 +827,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
 
   return (
     <div
-      className="fixed inset-0 z-10 flex flex-col overflow-y-auto bg-raised"
+      className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-raised"
       onPointerDown={() => {
         feedback.unlock();
         lastActivity.current = d.now();
@@ -929,7 +929,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
       </div>
 
       {prompt !== null && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 sm:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div
             role="alertdialog"
             aria-modal="true"

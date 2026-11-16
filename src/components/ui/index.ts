@@ -9,3 +9,4 @@ export * from "./icons";
 export { Sheet } from "./Sheet";
 export { Menu } from "./Menu";
 export { Tabs } from "./Tabs";
+export { BottomBar } from "./BottomBar";

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { BottomBar } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { formatUsd } from "@/lib/covers/cost";
@@ -27,7 +28,7 @@ function effectiveChoice(row: Row, explicit: RowChoice | undefined, failed: Read
 }
 
 export default function CoverReviewPage() {
-  const { searches, budget, runReview, retry } = useCoverFinder();
+  const { available, searches, budget, runReview, retry } = useCoverFinder();
   const { books, reload } = useCatalog();
   const [choices, setChoices] = useState<Map<string, RowChoice>>(new Map());
   const [failed, setFailed] = useState<Map<string, Set<string>>>(new Map());
@@ -105,6 +106,15 @@ export default function CoverReviewPage() {
   }
   const hasFooter = rows.length > 0 || summary !== null || error;
 
+  if (!available) {
+    return (
+      <div className="p-3 sm:p-4">
+        <h2 className="text-lg font-semibold">Covers to review</h2>
+        <p className="mt-2">The cover finder isn't available yet.</p>
+      </div>
+    );
+  }
+
   return (
     <div className={`p-3 sm:p-4 ${hasFooter ? "pb-32" : ""}`}>
       <h2 className="text-lg font-semibold">Covers to review</h2>
@@ -135,7 +145,7 @@ export default function CoverReviewPage() {
         </ul>
       )}
       {hasFooter && (
-        <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-raised p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <BottomBar>
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
             {rows.length > 0 && <p className="text-sm font-medium">{`${n} picked`}</p>}
             {rows.length > 0 && (
@@ -155,7 +165,7 @@ export default function CoverReviewPage() {
             ))}
             {error && <p>Couldn't apply those. Try again.</p>}
           </div>
-        </div>
+        </BottomBar>
       )}
     </div>
   );

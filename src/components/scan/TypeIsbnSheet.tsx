@@ -26,7 +26,7 @@ export default function TypeIsbnSheet({ onAdd, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div
         role="dialog"
         aria-modal="true"

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { BottomBar } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { booksCovered, budgetUsedUp, estimateMicro, formatUsd } from "@/lib/covers/cost";
 import { batchSelection } from "@/lib/covers/eligibility";
@@ -43,7 +44,7 @@ export default function CoverBatchFooter({ books }: { books: BookWithCopies[] })
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-raised p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+    <BottomBar>
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
         <p className="text-sm font-medium">{`${booksWord(n)} · ${estimateText(estimateMicro(n))}`}</p>
         <button
@@ -70,6 +71,6 @@ export default function CoverBatchFooter({ books }: { books: BookWithCopies[] })
         )}
         {failed && <p role="alert">Couldn't start the search. Try again.</p>}
       </div>
-    </div>
+    </BottomBar>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CoverBatchFooter from "@/components/covers/CoverBatchFooter";
 import NothingFoundList from "@/components/covers/NothingFoundList";
+import { BottomBar } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
@@ -329,11 +330,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       )}
       {showFooter && <CoverBatchFooter books={visible} />}
       {showSelecting && (
-        <div
-          role="region"
-          aria-label="Selection"
-          className="fixed inset-x-0 bottom-0 z-10 border-t bg-raised p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        >
+        <BottomBar label="Selection">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-2">
             <p className="text-sm font-medium">{`${selectedBooks.length} selected`}</p>
             <div className="flex gap-2">
@@ -355,7 +352,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
               </button>
             </div>
           </div>
-        </div>
+        </BottomBar>
       )}
       {editing && showSelecting && selectedBooks.length > 0 && (
         <MassEditSheet
