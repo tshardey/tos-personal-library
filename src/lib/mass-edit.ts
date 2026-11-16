@@ -1,5 +1,7 @@
 import { markEdited } from "@/lib/edited-fields";
 import { canonicalLabel } from "@/lib/editions";
+import { stateFor } from "@/lib/reading/status";
+import type { ReadState, ReadStatusMap } from "@/lib/reading/types";
 import { canonicalSeries, seriesNames } from "@/lib/series";
 import type { Book, BookWithCopies, Copy, CopyPatch } from "@/lib/types";
 
@@ -18,6 +20,8 @@ export interface MassEdit {
   /** Library tag ids to add to / remove from every target book. A tag in both is ignored. */
   addLibraryTags?: string[];
   removeLibraryTags?: string[];
+  /** Mark the books for the signed-in member. `finishedOn` only applies to read; null is a blank date. */
+  markAs?: { state: ReadState; finishedOn: string | null };
 }
 
 /** Which rows the edit reaches: copy changes go to these copies, the series to these books. */
@@ -47,10 +51,22 @@ export interface LibraryTagChange {
   remove: string[];
 }
 
+/** One book's read status change for the signed-in member. */
+export interface ReadChange {
+  book: Book;
+  from: ReadState;
+  to: ReadState;
+}
+
 export interface ChangeSet {
   copies: CopyChange[];
   books: BookChange[];
   libraryTags: LibraryTagChange[];
+  reads: ReadChange[];
+  /** Read with a blank date, and did not finish, keep dates the server already has. */
+  keepDates: boolean;
+  /** The finish date to send: the typed one, or today for a blank-date Read. */
+  readDate: string | null;
 }
 
 const key = (s: string): string => s.toLowerCase();
@@ -99,11 +115,19 @@ export function buildChangeSet(
   labels: string[],
   now: string,
   libraryTagsByBook: ReadonlyMap<string, string[]> = new Map(),
+  readMap: ReadStatusMap = new Map(),
+  me: string | null = null,
+  today = "",
 ): ChangeSet {
   const edit = resolve(rawEdit, books, labels);
   const copies: CopyChange[] = [];
   const bookChanges: BookChange[] = [];
   const tagChanges: LibraryTagChange[] = [];
+  const readChanges: ReadChange[] = [];
+  const mark = me !== null ? edit.markAs : undefined;
+  const explicitDate = mark?.state === "read" ? mark.finishedOn : null;
+  const keepDates = mark !== undefined && (mark.state === "dnf" || (mark.state === "read" && explicitDate === null));
+  const readDate = mark?.state === "read" ? (explicitDate ?? today) : null;
   const toAdd = new Set(edit.addLibraryTags ?? []);
   const toRemove = new Set(edit.removeLibraryTags ?? []);
   for (const id of [...toAdd]) {
@@ -141,20 +165,27 @@ export function buildChangeSet(
       const remove = [...toRemove].filter((t) => has.has(t));
       if (add.length + remove.length > 0) tagChanges.push({ book, add, remove });
     }
+    if (mark && me !== null && targets.bookIds.has(book.id)) {
+      const from = stateFor(readMap, book.id, me);
+      const dateDiffers = explicitDate !== null && readMap.get(book.id)?.get(me)?.finishedOn !== explicitDate;
+      if (from !== mark.state || dateDiffers) readChanges.push({ book, from, to: mark.state });
+    }
   }
-  return { copies, books: bookChanges, libraryTags: tagChanges };
+  return { copies, books: bookChanges, libraryTags: tagChanges, reads: readChanges, keepDates, readDate };
 }
 
 export const copiesWord = (n: number): string => `${n} ${n === 1 ? "copy" : "copies"}`;
 export const seriesWord = (n: number): string => `${n} ${n === 1 ? "book's" : "books'"} series`;
 export const tagsWord = (n: number): string => `${n} ${n === 1 ? "book's" : "books'"} tags`;
+export const markedWord = (n: number): string => `${n} ${n === 1 ? "book" : "books"} marked`;
 
 /** "14 copies and 3 books' series", "1 copy", "2 books' tags", "1 copy, 2 books' series and 3 books' tags". */
-export function describeCounts(copies: number, books: number, tagBooks = 0): string {
+export function describeCounts(copies: number, books: number, tagBooks = 0, readBooks = 0): string {
   const parts = [
     copies > 0 && copiesWord(copies),
     books > 0 && seriesWord(books),
     tagBooks > 0 && tagsWord(tagBooks),
+    readBooks > 0 && markedWord(readBooks),
   ].filter((p): p is string => typeof p === "string");
   if (parts.length <= 1) return parts.join("");
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
@@ -167,6 +198,8 @@ export interface MassEditWriters {
   addLibraryTag?(bookId: string, tagId: string): Promise<void>;
   /** A delete, so the server trigger records the tag as removed by hand. */
   removeLibraryTag?(bookId: string, tagId: string): Promise<void>;
+  /** Called once per chunk of up to READ_CHUNK books; needed only when the change set has read changes. */
+  setReadStatus?(bookIds: string[], state: ReadState, finishedOn: string | null, keepDates: boolean): Promise<void>;
 }
 
 export interface MassEditResult {
@@ -177,7 +210,13 @@ export interface MassEditResult {
   changedTagBooks: number;
   /** A book is here if any of its tag writes failed. */
   failedTags: LibraryTagChange[];
+  changedReadBooks: number;
+  /** A failed chunk fails all its books. */
+  failedReads: ReadChange[];
 }
+
+/** Books per setReadStatus call (the server's limit). */
+export const READ_CHUNK = 1000;
 
 /** At most this many writes in flight at once. */
 export const WRITE_BATCH = 8;
@@ -195,6 +234,8 @@ export async function applyChangeSet(set: ChangeSet, writers: MassEditWriters): 
     failedBooks: [],
     changedTagBooks: 0,
     failedTags: [],
+    changedReadBooks: 0,
+    failedReads: [],
   };
   const writeTags = async (c: LibraryTagChange): Promise<void> => {
     const { addLibraryTag, removeLibraryTag } = writers;
@@ -206,6 +247,18 @@ export async function applyChangeSet(set: ChangeSet, writers: MassEditWriters): 
     const failed = settled.find((r) => r.status === "rejected");
     if (failed) throw (failed as PromiseRejectedResult).reason;
   };
+  const readJobs: Job[] = [];
+  for (let i = 0; i < set.reads.length; i += READ_CHUNK) {
+    const chunk = set.reads.slice(i, i + READ_CHUNK);
+    readJobs.push({
+      run: async () => {
+        if (!writers.setReadStatus) throw new Error("no read writer");
+        await writers.setReadStatus(chunk.map((c) => c.book.id), chunk[0].to, set.readDate, set.keepDates);
+      },
+      ok: () => (result.changedReadBooks += chunk.length),
+      fail: () => result.failedReads.push(...chunk),
+    });
+  }
   const jobs: Job[] = [
     ...set.copies.map((c) => ({
       run: () => writers.writeCopy(c.copy.id, c.patch, c.editedFields),
@@ -222,6 +275,7 @@ export async function applyChangeSet(set: ChangeSet, writers: MassEditWriters): 
       ok: () => result.changedTagBooks++,
       fail: () => result.failedTags.push(c),
     })),
+    ...readJobs,
   ];
   for (let i = 0; i < jobs.length; i += WRITE_BATCH) {
     const batch = jobs.slice(i, i + WRITE_BATCH);
@@ -235,6 +289,10 @@ export async function applyChangeSet(set: ChangeSet, writers: MassEditWriters): 
 export function retryTargets(result: MassEditResult): MassEditTargets {
   return {
     copyIds: new Set(result.failedCopies.map((c) => c.copy.id)),
-    bookIds: new Set([...result.failedBooks.map((b) => b.book.id), ...result.failedTags.map((c) => c.book.id)]),
+    bookIds: new Set([
+      ...result.failedBooks.map((b) => b.book.id),
+      ...result.failedTags.map((c) => c.book.id),
+      ...result.failedReads.map((c) => c.book.id),
+    ]),
   };
 }

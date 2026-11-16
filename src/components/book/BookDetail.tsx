@@ -22,6 +22,7 @@ import SeriesPicker from "@/components/series/SeriesPicker";
 import TosTagsSection from "./TosTagsSection";
 import LibraryTagsSection from "@/components/tags/LibraryTagsSection";
 import { useTagging } from "@/contexts/TaggingContext";
+import YourReadingSection from "@/components/reading/YourReadingSection";
 
 const EDITABLE: (keyof BookInput)[] = [
   "title",
@@ -307,6 +308,7 @@ export default function BookDetail({ id }: { id: string }) {
           </button>
         )}
       </section>
+      <YourReadingSection bookId={book.id} />
     </div>
   );
 }

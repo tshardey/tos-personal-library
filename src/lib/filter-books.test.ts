@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { filterBooks } from "./filter-books";
+import { filterBooks, type FilterOptions } from "./filter-books";
+import { toStatusMap } from "./reading/status";
+import type { ReadStatusRow } from "./reading/types";
 import type { BookWithCopies, Copy } from "./types";
 import { bookBadges } from "./copy-flags";
 import { bookFixture, copyFixture } from "./flag-fixtures.test-util";
@@ -177,5 +179,53 @@ describe("filterBooks library tags", () => {
     ]);
     const out = filterBooks([a, b], { query: "", owner: "all", libraryTags: ["vampires", "cover-red"], libraryTagsByBook });
     expect(out.map((x) => x.title)).toEqual(["Glass Orchard"]);
+  });
+});
+
+describe("filterBooks read status", () => {
+  const a = bookFixture("Glass Orchard", [copyFixture()]);
+  const b = bookFixture("The Salt Road", [copyFixture()]);
+  const c = bookFixture("Hollow Tide", [copyFixture()]);
+  const d = bookFixture("Paper Tide", [copyFixture()]);
+  const gone = bookFixture("Lost Ferry", [copyFixture({ unhauledAt: "2026-11-01T00:00:00" })]);
+  const all = [a, b, c, d, gone];
+  const rows = (id: string, userId: string, status: "read" | "dnf" | "cleared"): ReadStatusRow => ({
+    bookId: id,
+    userId,
+    status,
+    finishedOn: null,
+    source: "app",
+    markedAt: "2026-01-01T00:00:00Z",
+  });
+  const readStatusByBook = toStatusMap([
+    rows(a.id, "a", "read"),
+    rows(b.id, "a", "dnf"),
+    rows(c.id, "a", "cleared"),
+    rows(d.id, "b", "read"),
+  ]);
+  const titles = (opts: Partial<FilterOptions>) =>
+    filterBooks(all, { query: "", owner: "all", readStatusByBook, ...opts }).map((x) => x.title);
+
+  it("Unread by me keeps no-status and cleared books, drops my read and dnf", () => {
+    expect(titles({ readStatus: { userId: "a", state: "unread" } })).toEqual(["Hollow Tide", "Paper Tide"]);
+  });
+  it("Read by me and Did not finish (me) keep only those", () => {
+    expect(titles({ readStatus: { userId: "a", state: "read" } })).toEqual(["Glass Orchard"]);
+    expect(titles({ readStatus: { userId: "a", state: "dnf" } })).toEqual(["The Salt Road"]);
+  });
+  it("Unread by B uses B's map", () => {
+    expect(titles({ readStatus: { userId: "b", state: "unread" } })).toEqual([
+      "Glass Orchard",
+      "The Salt Road",
+      "Hollow Tide",
+    ]);
+  });
+  it("counts every book as unread with no map", () => {
+    const out = filterBooks(all, { query: "", owner: "all", readStatus: { userId: "a", state: "unread" } });
+    expect(out.map((x) => x.title)).toEqual(["Glass Orchard", "The Salt Road", "Hollow Tide", "Paper Tide"]);
+    expect(filterBooks(all, { query: "", owner: "all", readStatus: { userId: "a", state: "read" } })).toEqual([]);
+  });
+  it("keeps unhauled books hidden", () => {
+    expect(titles({ readStatus: { userId: "z", state: "unread" } })).not.toContain("Lost Ferry");
   });
 });

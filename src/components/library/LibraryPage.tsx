@@ -7,6 +7,8 @@ import { useCatalog } from "@/hooks/useCatalog";
 import { useRestoreScroll } from "@/hooks/useRestoreScroll";
 import { useTagging } from "@/contexts/TaggingContext";
 import { ASK_MAX_BOOKS, ASK_MAX_PROMPT, askBookIds, askRows, filterView } from "@/lib/ask";
+import { useReading } from "@/contexts/ReadingContext";
+import { readStatusOptions } from "@/lib/reading/filter-options";
 import { remainingMicro } from "@/lib/covers/cost";
 import { editionLabels } from "@/lib/editions";
 import { hasUnhauledCopy } from "@/lib/copy-flags";
@@ -30,10 +32,24 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const [storedView, patch] = useLibraryView(householdId);
   const tagging = useTagging();
   // Library tags can only filter while tagging is available; a stale choice is ignored, not applied to empty lookups.
-  const view = useMemo(
-    () => (tagging.available || storedView.libraryTags.length === 0 ? storedView : { ...storedView, libraryTags: [] }),
-    [storedView, tagging.available],
+  const reading = useReading();
+  const readOptions = useMemo(
+    () => (reading.available && reading.userId ? readStatusOptions(members, reading.userId) : null),
+    [reading.available, reading.userId, members],
   );
+  // A stored read status only applies while reading is available and its member is still here.
+  const readOption = useMemo(() => {
+    const rs = storedView.readStatus;
+    return rs ? readOptions?.find((o) => o.readStatus?.userId === rs.userId && o.readStatus.state === rs.state) ?? null : null;
+  }, [storedView.readStatus, readOptions]);
+  const view = useMemo(() => {
+    const libraryTags = tagging.available ? storedView.libraryTags : [];
+    const readStatus = readOption ? storedView.readStatus : null;
+    return libraryTags === storedView.libraryTags && readStatus === storedView.readStatus
+      ? storedView
+      : { ...storedView, libraryTags, readStatus };
+  }, [storedView, tagging.available, readOption]);
+  const readStatusByBook = reading.byBook;
   const { query, owner, edition, tags: tagFilter, coverFilter, unhauled, deluxe, signed, addedDay, publishedFrom, publishedTo } =
     view;
   const [series, setSeries] = useState<string | null>(routeSeries ?? null);
@@ -81,6 +97,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       libraryTagsByBook: tagging.libraryTagsByBook,
       series,
       cover,
+      readStatusByBook,
     });
     if (!series) return found;
     // D5: within a series, volume order (nulls last), so 2.5 sorts between 2 and 3.
@@ -88,11 +105,20 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       (a, b) =>
         (a.seriesVolume ?? Infinity) - (b.seriesVolume ?? Infinity) || a.title.localeCompare(b.title),
     );
-  }, [books, view, tags, tagging.libraryTagsByBook, series, cover]);
+  }, [books, view, tags, tagging.libraryTagsByBook, series, cover, readStatusByBook]);
   // D11: the Ask set is the view as if the box were empty.
   const askIds = useMemo(
-    () => (tagging.available ? askBookIds(books, view, tags, tagging.libraryTagsByBook, series, cover) : []),
-    [tagging.available, books, view, tags, tagging.libraryTagsByBook, series, cover],
+    () =>
+      tagging.available
+        ? askBookIds(books, view, {
+            tagsByBook: tags,
+            libraryTagsByBook: tagging.libraryTagsByBook,
+            series,
+            cover,
+            readStatusByBook,
+          })
+        : [],
+    [tagging.available, books, view, tags, tagging.libraryTagsByBook, series, cover, readStatusByBook],
   );
   // ToS reserves per Ask call (reserveMicro is 0), so the cap is simply nothing left.
   const askBudgetUsedUp = tagging.budgets.ask !== null && remainingMicro(tagging.budgets.ask) <= 0;
@@ -236,6 +262,15 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         libraryTagFilter={
           tagging.available
             ? { vocabulary: tagging.vocabulary, selected: view.libraryTags, onChange: (libraryTags) => patch({ libraryTags }) }
+            : undefined
+        }
+        readStatusFilter={
+          readOptions
+            ? {
+                options: readOptions,
+                value: readOption?.value ?? "any",
+                onChange: (v) => patch({ readStatus: readOptions.find((o) => o.value === v)?.readStatus ?? null }),
+              }
             : undefined
         }
         ask={tagging.available ? { disabled: askDisabled, note: askNote, onAsk: () => void runAsk() } : undefined}

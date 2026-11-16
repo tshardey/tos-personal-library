@@ -68,6 +68,16 @@ vi.mock("@/lib/tagging/tagging-repo", async (importOriginal) => ({
   ...taggingRepo,
 }));
 
+const readingRepo = vi.hoisted(() => ({
+  listReadStatuses: vi.fn(async () => []),
+  setReadStatus: vi.fn(async () => []),
+}));
+
+vi.mock("@/lib/reading/reading-repo", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/reading/reading-repo")>()),
+  ...readingRepo,
+}));
+
 import App from "./App";
 
 beforeEach(() => {
@@ -112,6 +122,23 @@ describe("App", () => {
     expect(taggingRepo.listVocabulary).not.toHaveBeenCalled();
     expect(taggingRepo.listTagJobs).not.toHaveBeenCalled();
     expect(taggingRepo.runTagJob).not.toHaveBeenCalled();
+  });
+
+  it("does not mount the reading provider when signed out", async () => {
+    auth.user = null;
+    readingRepo.listReadStatuses.mockClear();
+    await renderApp();
+    expect(readingRepo.listReadStatuses).not.toHaveBeenCalled();
+  });
+
+  it("renders the Reading history page on #/reading, and the menu links to it", async () => {
+    signedIn();
+    window.location.hash = "#/reading";
+    await renderApp();
+    expect(screen.getByRole("heading", { name: "Reading history" })).toBeInTheDocument();
+    expect(readingRepo.listReadStatuses).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    expect(screen.getByRole("link", { name: "Reading history" })).toHaveAttribute("href", "#/reading");
   });
 
   it("renders the tag suggestions page on #/tags under the Library tab, and the menu links to it", async () => {

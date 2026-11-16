@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaggingState } from "@/contexts/TaggingContext";
-import type { BookWithCopies } from "@/lib/types";
+import type { ReadingState } from "@/contexts/ReadingContext";
+import type { BookWithCopies, HouseholdMember } from "@/lib/types";
 import type { AskResponse } from "@/lib/tagging/types";
 import { bookFixture, copyFixture } from "@/lib/flag-fixtures.test-util";
 import { aiBudget, mkTag, taggingState } from "@/components/tags/testkit";
@@ -9,9 +10,15 @@ import { aiBudget, mkTag, taggingState } from "@/components/tags/testkit";
 const h = vi.hoisted(() => ({
   catalog: {} as Record<string, unknown>,
   tagging: null as unknown as TaggingState,
+  members: [] as HouseholdMember[],
+  reading: null as unknown as ReadingState,
 }));
 
-vi.mock("@/contexts/HouseholdContext", () => ({ useHousehold: () => ({ household: { id: "h1" }, members: [] }) }));
+vi.mock("@/contexts/HouseholdContext", () => ({ useHousehold: () => ({ household: { id: "h1" }, members: h.members }) }));
+vi.mock("@/contexts/ReadingContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/contexts/ReadingContext")>()),
+  useReading: () => h.reading,
+}));
 vi.mock("@/hooks/useCatalog", () => ({ useCatalog: () => h.catalog }));
 vi.mock("@/hooks/useCopyPhotoUrls", () => ({ useCopyPhotoUrls: () => new Map() }));
 vi.mock("@/contexts/TaggingContext", () => ({ useTagging: () => h.tagging }));
@@ -22,6 +29,7 @@ vi.mock("@/lib/tos-tags", async (importOriginal) => ({
 import LibraryPage from "./LibraryPage";
 import { askBookIds } from "@/lib/ask";
 import { DEFAULT_VIEW, takeScrollAnchor } from "@/lib/library-view";
+import { UNAVAILABLE_READING } from "@/contexts/ReadingContext";
 
 const shelved = (title: string, over: Partial<BookWithCopies> = {}) => bookFixture(title, [copyFixture()], over);
 const salt = shelved("The Salt Road", { coverUrl: "https://example.test/salt.jpg" });
@@ -53,6 +61,8 @@ function setup(over: Partial<TaggingState> = {}, catalogBooks: BookWithCopies[] 
     refresh: vi.fn(),
   };
   h.tagging = taggingState({ vocabulary, libraryTagsByBook, ...over });
+  h.members = [];
+  h.reading = UNAVAILABLE_READING;
 }
 
 const okResponse: AskResponse = {
@@ -157,10 +167,13 @@ describe("LibraryPage Ask", () => {
     const expected = askBookIds(
       books,
       { ...DEFAULT_VIEW, query: "  Paper  ", libraryTags: ["found-family"] },
-      new Map(),
-      libraryTagsByBook,
-      null,
-      { available: false, marks: new Map(), latest: new Map() },
+      {
+        tagsByBook: new Map(),
+        libraryTagsByBook,
+        series: null,
+        cover: { available: false, marks: new Map(), latest: new Map() },
+        readStatusByBook: new Map(),
+      },
     );
     expect(expected).toEqual(["The Salt Road", "Paper Tide"]);
     expect(ask).toHaveBeenCalledWith("Paper", expected);
@@ -341,5 +354,85 @@ describe("LibraryPage Ask and the series", () => {
     second.rerender(<LibraryPage />);
     expect(screen.queryByRole("heading", { name: /Books for/ })).not.toBeInTheDocument();
     expect(ask).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("LibraryPage read status filter", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const member = (userId: string, displayName: string): HouseholdMember => ({
+    householdId: "h1",
+    userId,
+    displayName,
+    createdAt: "",
+  });
+  const readByMe = new Map([["Glass Orchard", new Map([["u-a", { state: "read" as const, finishedOn: null }]])]]);
+  function setupReading(ask = vi.fn().mockResolvedValue(okResponse)) {
+    setup({ ask });
+    h.members = [member("u-a", "Member A"), member("u-b", "Member B")];
+    h.reading = { ...UNAVAILABLE_READING, available: true, userId: "u-a", byBook: readByMe };
+    return ask;
+  }
+  const statusSelect = () => screen.getByLabelText("Read status");
+
+  it("offers D10's options in order", () => {
+    setupReading();
+    render(<LibraryPage />);
+    const labels = within(statusSelect()).getAllByRole("option").map((o) => o.textContent);
+    expect(labels).toEqual([
+      "Any read status",
+      "Unread by me",
+      "Read by me",
+      "Did not finish (me)",
+      "Unread by Member B",
+      "Read by Member B",
+      "Did not finish (Member B)",
+    ]);
+  });
+
+  it("Unread by me narrows the wall and the count", () => {
+    setupReading();
+    render(<LibraryPage />);
+    fireEvent.change(statusSelect(), { target: { value: "u-a:unread" } });
+    expect(titles()).toEqual(["The Salt Road", "Paper Tide"]);
+    expect(screen.getByText("2 books")).toBeInTheDocument();
+  });
+
+  it("Ask sends only the ids that pass the read status filter", async () => {
+    const ask = setupReading();
+    render(<LibraryPage />);
+    fireEvent.change(statusSelect(), { target: { value: "u-a:unread" } });
+    fireEvent.change(search(), { target: { value: "a quiet book" } });
+    fireEvent.click(askButton());
+    await waitFor(() => expect(ask).toHaveBeenCalled());
+    expect(ask).toHaveBeenCalledWith("a quiet book", ["The Salt Road", "Paper Tide"]);
+  });
+
+  it("choosing a read status clears shown Ask results", async () => {
+    setupReading();
+    render(<LibraryPage />);
+    fireEvent.change(search(), { target: { value: "a quiet book" } });
+    fireEvent.click(askButton());
+    await screen.findByRole("heading", { name: 'Books for "a quiet book"' });
+    fireEvent.change(statusSelect(), { target: { value: "u-a:read" } });
+    expect(screen.queryByRole("heading", { name: 'Books for "a quiet book"' })).not.toBeInTheDocument();
+    expect(askButton()).toBeEnabled();
+  });
+
+  it("renders no select and filters nothing while reading is unavailable", () => {
+    setup();
+    render(<LibraryPage />);
+    expect(screen.queryByLabelText("Read status")).not.toBeInTheDocument();
+    expect(titles()).toEqual(["The Salt Road", "Glass Orchard", "Paper Tide"]);
+  });
+
+  it("treats a filter naming a user who left the household as no filter", () => {
+    setupReading();
+    render(<LibraryPage />);
+    fireEvent.change(statusSelect(), { target: { value: "u-b:unread" } });
+    h.members = [member("u-a", "Member A")];
+    cleanup();
+    render(<LibraryPage />);
+    expect(statusSelect()).toHaveValue("any");
+    expect(titles()).toEqual(["The Salt Road", "Glass Orchard", "Paper Tide"]);
   });
 });

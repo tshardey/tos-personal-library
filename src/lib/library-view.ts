@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import type { CoverFilter } from "@/lib/covers/eligibility";
 import type { OwnerFilter } from "@/lib/filter-books";
+import type { ReadState } from "@/lib/reading/types";
 import type { AskResponse } from "@/lib/tagging/types";
 
 export interface AskView {
@@ -22,6 +23,8 @@ export interface LibraryView {
   addedDay: string | null;
   publishedFrom: number | null;
   publishedTo: number | null;
+  /** Show books this member has this status for. */
+  readStatus: { userId: string; state: ReadState } | null;
   /** D11: Ask results live here; any other view change clears them. */
   ask: AskView | null;
 }
@@ -39,6 +42,7 @@ export const DEFAULT_VIEW: LibraryView = {
   addedDay: null,
   publishedFrom: null,
   publishedTo: null,
+  readStatus: null,
   ask: null,
 };
 

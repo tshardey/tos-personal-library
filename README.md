@@ -219,6 +219,30 @@ Books also have a series name and volume, set from the book page; "Show the rest
 
 If the database changes for tags and series haven't been applied yet, the book list still loads; the tags section reads "Tome of Secrets tags unavailable." and saving a series fails with an error.
 
+## Reading status
+
+Each household member has their own read status per book: **Read** (with a finish date), **Did not finish**, or unread. Everyone in the household can see everyone's status; only you can change yours.
+
+**Where statuses come from:**
+
+- **This app.** On a book page, `Your reading` has `Unread`, `Read` and `Did not finish`. Choosing Read fills today as the `Finished` date; change it or `Clear date`. Below it, one line per other member says whether they've read it. In mass edit, `Mark as… (for you)` sets Read, Did not finish or Unread on every selected book. For Read, a blank `Finish date` keeps existing dates and gives today to books without one; a date sets that date on every selected book.
+- **StoryGraph** (see below). An upload only fills in or upgrades StoryGraph's own statuses (Did not finish to Read, never back). It never changes a status you set in this app or one that came from Tome of Secrets.
+- **Tome of Secrets.** Completing a ToS book that is linked to a library book marks it read for you, with the completion day. ToS also sends your completed shelf books each time you open the character sheet, so completions from before this feature land on the first open. A completion fills in a missing finish date on a book already marked read, and replaces Did not finish or Unread only when it is newer than that choice. Changes from ToS show in the library the next time you return to its tab.
+
+**Unread sticks.** Marking a book `Unread` here is remembered as your choice. A later StoryGraph upload, the book being added again or gaining an ISBN, or a ToS completion dated before you cleared it won't mark it read again. Only a ToS completion after that, or marking it read yourself, does. Deleting a book and adding it again starts it fresh, so a StoryGraph history row can mark the new copy read.
+
+**Uploading your StoryGraph export.** Open the account menu, then `Reading history`. In StoryGraph, export your library, then choose the CSV file under `Upload StoryGraph export`. The file is read on your device: only each book's title, authors, ISBN, read status and last date read are sent. Reviews, ratings, moods and everything else stay on the device. Rows that are to-read or currently reading are skipped. The results list how many matched books you own (and how many were newly marked), the possible matches to review, the rows kept for later and the rows skipped. Uploading a newer export later is safe: nothing is duplicated and no status is removed.
+
+**StoryGraph books you don't own stay private.** Rows that don't match a book on the shelf are kept for later, visible only to you, and are never shown to the rest of the household. When one of those books is added (by hand, scan, photo or a libib import), it links itself and is marked for you.
+
+**Possible matches.** When a StoryGraph row might be a book you own but isn't certain (the title matches and the author doesn't, an ISBN points at a book with a different title, or two of your books fit), it is listed under `Possible matches` beside the library book. `Link` marks that book with the row's status; `Not this book` drops the suggestion so it isn't offered again.
+
+**Filtering and Ask.** The library's `Read status` filter shows `Unread by me`, `Read by me`, `Did not finish (me)` and the same for each other member. Ask follows it, so `Unread by me` plus a prompt asks only about books you haven't read.
+
+**Stats.** `Reading history` shows, for each member, how many of the books they own (theirs or shared, not unhauled) they have read, how many this year, since a date you choose, and how many they didn't finish. The account menu shows `You've read {read} of {owned}`.
+
+**Before the database is updated** the app hides every reading control, the filter, the `Reading history` link and the summary line, and everything else works as before.
+
 ## Deploy (GitHub Pages)
 
 Pushes to `main` run `.github/workflows/deploy.yml`. Add these repository secrets (Settings > Secrets and variables > Actions):

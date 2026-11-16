@@ -1,5 +1,10 @@
+import { useHousehold } from "@/contexts/HouseholdContext";
+import { useReading } from "@/contexts/ReadingContext";
 import { useTagging } from "@/contexts/TaggingContext";
-import { useEffect, useId, useRef, useState } from "react";
+import { readCatalogCache } from "@/lib/catalog-cache";
+import { localDay } from "@/lib/date-added";
+import { readingStats } from "@/lib/reading/stats";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 interface Props {
   email: string | undefined;
@@ -13,6 +18,17 @@ export default function AccountMenu({ email, onSignOut }: Props) {
   const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const { available: taggingAvailable } = useTagging();
+  const { household } = useHousehold();
+  const { available: readingAvailable, byBook, userId } = useReading();
+
+  // Computed only while the menu is open, from the cached catalogue (no fetch).
+  const summary = useMemo(() => {
+    if (!open || !readingAvailable || userId === null) return null;
+    const cache = readCatalogCache(household?.id ?? null);
+    if (cache === null) return null;
+    const s = readingStats(cache.books, byBook, userId, { today: localDay(new Date().toISOString()), since: null });
+    return s.owned === 0 ? null : s;
+  }, [open, readingAvailable, byBook, userId, household?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -51,6 +67,11 @@ export default function AccountMenu({ email, onSignOut }: Props) {
       {open && (
         <div id={panelId} className="absolute right-0 z-20 mt-1 w-64 rounded border bg-white p-3 shadow">
           <p className="mb-2 break-words text-sm text-stone-600">{email}</p>
+          {summary && (
+            <p className="mb-2 text-sm text-stone-600">
+              {`You've read ${summary.read} of ${summary.owned} (${summary.pct}%)`}
+            </p>
+          )}
           <a
             href="#/editions"
             onClick={() => setOpen(false)}
@@ -65,6 +86,15 @@ export default function AccountMenu({ email, onSignOut }: Props) {
             className="mb-2 flex min-h-10 w-full items-center justify-center rounded border px-3 py-2"
           >
             Tag suggestions
+          </a>
+          )}
+          {readingAvailable && (
+          <a
+            href="#/reading"
+            onClick={() => setOpen(false)}
+            className="mb-2 flex min-h-10 w-full items-center justify-center rounded border px-3 py-2"
+          >
+            Reading history
           </a>
           )}
           <button type="button" onClick={onSignOut} className="min-h-10 w-full rounded border px-3 py-2">

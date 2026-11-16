@@ -46,6 +46,16 @@ describe("useLibraryView", () => {
     expect(result.current[0]).toEqual(DEFAULT_VIEW);
   });
 
+  it("clears Ask when the read status filter changes", () => {
+    const { result } = renderHook(() => useLibraryView("h1"));
+    act(() => result.current[1]({ ask: { prompt: "p", status: "asking", response: null } }));
+    act(() => result.current[1]({ readStatus: { userId: "a", state: "unread" } }));
+    expect(result.current[0].ask).toBeNull();
+    expect(result.current[0].readStatus).toEqual({ userId: "a", state: "unread" });
+  });
+
+  it("defaults readStatus to null", () => expect(DEFAULT_VIEW.readStatus).toBeNull());
+
   it("resetLibraryView resets it", () => {
     const { result } = renderHook(() => useLibraryView("h1"));
     act(() => result.current[1]({ query: "Folio", unhauled: true }));
