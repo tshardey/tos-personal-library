@@ -82,16 +82,25 @@ export function useRoute(): Route {
   return parseHash(hash);
 }
 
-export type Tab = "library" | "scan" | "inbox" | "import";
+export type Tab = "library" | "add" | "scan" | "covers" | "more";
 
-/** The nav tab a route belongs to: book detail, Add and the cover review count as Library. */
+/** The nav tab a route belongs to (D7): the Add pages under Add, the More pages under More, a book under Library. */
 export function tabFor(route: Route): Tab {
   switch (route.name) {
-    case "scan":
+    case "add":
     case "inbox":
     case "import":
-      return route.name;
-    default:
+      return "add";
+    case "scan":
+      return "scan";
+    case "covers":
+      return "covers";
+    case "tags":
+    case "reading":
+    case "editions":
+      return "more";
+    case "library":
+    case "book":
       return "library";
   }
 }

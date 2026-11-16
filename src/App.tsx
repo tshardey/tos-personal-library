@@ -6,7 +6,6 @@ import { TaggingProvider } from "@/contexts/TaggingContext";
 import { ReadingProvider } from "@/contexts/ReadingContext";
 import SignIn from "@/components/auth/SignIn";
 import HouseholdSetup from "@/components/household/HouseholdSetup";
-import InviteCode from "@/components/household/InviteCode";
 import LibraryPage from "@/components/library/LibraryPage";
 import BookDetail from "@/components/book/BookDetail";
 import AddBook from "@/components/book/AddBook";
@@ -16,12 +15,10 @@ import ChunkErrorBoundary from "@/components/common/ChunkErrorBoundary";
 import EditionLabelsPage from "@/components/edition/EditionLabelsPage";
 import CoverReviewPage from "@/components/covers/CoverReviewPage";
 import CoverStopBanner from "@/components/covers/CoverStopBanner";
-import CoversBadge from "@/components/covers/CoversBadge";
 import TagStopBanner from "@/components/tags/TagStopBanner";
 import TagSuggestionsPage from "@/components/tags/TagSuggestionsPage";
 import ReadingHistoryPage from "@/components/reading/ReadingHistoryPage";
-import AccountMenu from "@/components/nav/AccountMenu";
-import TabBar from "@/components/nav/TabBar";
+import AppShell from "@/components/nav/AppShell";
 import { useRoute } from "@/lib/router";
 
 // Its own chunk: the scanner, and through it the barcode decoder, load only on #/scan (D1).
@@ -53,24 +50,9 @@ function SignedIn() {
     <CoverFinderProvider>
       <TaggingProvider>
         <ReadingProvider>
-        <div>
-          <header className="flex items-center justify-between gap-2 px-3 py-2 sm:px-4">
-            <h1 className="text-lg font-semibold sm:text-xl">
-              <a href="#/">Our Library</a>
-            </h1>
-            <div className="flex items-center gap-2">
-              <CoversBadge />
-              <AccountMenu email={user?.email} onSignOut={() => void signOut()} />
-            </div>
-          </header>
-          <TabBar route={route} />
+        <AppShell route={route} email={user?.email} onSignOut={() => void signOut()}>
           <CoverStopBanner />
           <TagStopBanner />
-          {route.name === "library" && (
-            <div className="border-b p-3 sm:p-4">
-              <InviteCode />
-            </div>
-          )}
           {route.name === "book" ? (
             <BookDetail key={route.id} id={route.id} />
           ) : route.name === "add" ? (
@@ -96,7 +78,7 @@ function SignedIn() {
           ) : (
             <LibraryPage series={route.name === "library" ? route.series : undefined} />
           )}
-        </div>
+        </AppShell>
         </ReadingProvider>
       </TaggingProvider>
     </CoverFinderProvider>
