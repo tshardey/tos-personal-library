@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMyHousehold } from "@/lib/household-repo";
+import { saveLastEmail } from "@/lib/last-email";
 import type { Household, HouseholdMember } from "@/lib/types";
 
 interface HouseholdContextValue {
@@ -16,6 +17,7 @@ const HouseholdContext = createContext<HouseholdContextValue | null>(null);
 export function HouseholdProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const userEmail = user?.email ?? null;
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,13 +37,15 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       const result = await getMyHousehold();
       setHousehold(result?.household ?? null);
       setMembers(result?.members ?? []);
+      // The sign-in box suggests this address after a sign-out, so a return lands in this library.
+      if (result?.household && userEmail) saveLastEmail(userEmail);
     } catch (err) {
       console.error("Failed to load household", err);
       setError("Couldn't load your household.");
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, userEmail]);
 
   useEffect(() => {
     void refresh();
