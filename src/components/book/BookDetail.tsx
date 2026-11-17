@@ -324,7 +324,7 @@ export default function BookDetail({ id }: { id: string }) {
           </Button>
           {coverFinderAvailable && <FindCoverPanel book={book} />}
           <MarkReadButton reading={reading} onShowReading={showReading} />
-          <Menu label="More actions" button={<DotsIcon />}>
+          <Menu label="More actions" button={<DotsIcon className="size-5" />}>
             {(close) => (
               <div className="flex flex-col gap-1">
                 <Button

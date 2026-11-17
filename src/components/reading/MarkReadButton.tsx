@@ -19,7 +19,7 @@ export default function MarkReadButton({ reading, onShowReading }: { reading: Yo
       disabled={reading.busy}
       onClick={onShowReading}
     >
-      {state === "read" && <CheckIcon />}
+      {state === "read" && <CheckIcon className="size-4" />}
       {label}
     </Button>
   );

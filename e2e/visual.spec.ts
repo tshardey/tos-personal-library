@@ -164,6 +164,19 @@ function bookStates(): (typeof STATES)[number][] {
       },
     },
     {
+      name: "book-read",
+      async open(page, { bookId }) {
+        await bookPage(page, bookId, "Overview");
+        await page.getByRole("button", { name: "Mark read", exact: true }).click();
+        await expect(page.getByRole("button", { name: "Your reading: Read" })).toBeVisible();
+      },
+      // Back to unread, so the next width and the later states start from the same book.
+      async after(page) {
+        await page.getByRole("group", { name: "Your reading" }).getByRole("button", { name: "Unread" }).click();
+        await expect(page.getByRole("button", { name: "Mark read", exact: true })).toBeVisible();
+      },
+    },
+    {
       name: "book-menu",
       async open(page, { bookId }) {
         await bookPage(page, bookId, "Overview");
