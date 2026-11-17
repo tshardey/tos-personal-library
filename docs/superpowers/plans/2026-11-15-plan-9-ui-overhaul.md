@@ -1034,3 +1034,13 @@ Hard-refresh first (Pages caches JS for about 10 minutes).
   - Pressed legacy chips in `LibraryFilters` show a grey `field` ring around the accent fill; this goes away when PR 2 moves them onto `Chip`.
   - `Tabs` puts `aria-controls` on panels that aren't rendered.
   - `Sheet` focus return doesn't check `isConnected`.
+
+**2026-11-16, PR 3 (Tasks 14–16).** Where the build departed from the text above, and why:
+
+1. **Task 15, `Find cover` opens in a `Sheet`.** D9 puts the `Find cover` button in the left column. The open request form (reason chips, note, budget copy, buttons) was cramped there: about 134px wide on the phone. The form now opens in a `Sheet` titled `Find cover`. Every field and behaviour is unchanged, including `Angled` pre-ticked for a book with a deluxe copy. The status after a request (`New covers are ready. Review covers`) stays beside the button. Approved by the coordinator for Tierra.
+2. **Task 15, actions while editing.** While `Edit book` is open, the tabs are hidden. So `Mark read` (in the read and dnf states) and the menu's `Add copy` are disabled until Save or Cancel. They don't leave edit mode, so unsaved edits are kept. `MarkReadButton` takes an optional `disabled` prop.
+3. **Task 15, phone order.** In one column, the left column (the cover and actions) comes before `Back to library`, as D9's column split implies. The mockup's phone note ("cover on top") agrees, and the bottom tab bar's `Library` is always there.
+4. **Task 15, tap targets.** D11's 44px rule now also covers the Overview's `Your reading` buttons and `Clear date`, SeriesPicker's `Close`, LibraryTagPicker's `Done`, the Find cover reason chips, and `Try again` / `Remove mark`. The left-column actions sit in a `role="group"` named `Book actions`.
+5. **Task 16, icons need a size.** The shared `Svg` has no default size, so an icon rendered without `className` collapses to nothing. `More actions` uses `DotsIcon className="size-5"` and the read check uses `CheckIcon className="size-4"`. Later PRs should always size icons.
+6. **Task 16, extra visual states:** `book-read`, `book-find-cover` and `book-find-cover-results`. The last one answers the `cover_searches` read with a synthetic row through `page.route`, with no network or API spend.
+7. **Behaviour note:** SeriesPicker on `Sheet` treats a scrim click like Escape, so a valid changed volume draft is saved. Before, an outside click did nothing.
