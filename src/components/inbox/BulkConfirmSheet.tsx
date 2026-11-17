@@ -85,7 +85,7 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
               />
               <span>
                 <span className="font-medium">{e.title}</span>
-                {e.authors.length > 0 && <span className="text-muted">{` · ${e.authors.join(", ")}`}</span>}
+                {e.authors.length > 0 && <span className="text-muted">{` Â· ${e.authors.join(", ")}`}</span>}
                 <span className="block text-[13px] text-muted sm:text-sm">{`Edition: ${e.editionNote || "none"}`}</span>
               </span>
             </li>
