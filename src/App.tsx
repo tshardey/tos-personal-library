@@ -38,7 +38,7 @@ function SignedIn() {
         <button
           type="button"
           onClick={() => void refresh()}
-          className="rounded bg-accent px-3 py-2 text-on-accent"
+          className="min-h-11 sm:min-h-9 rounded bg-accent px-3 py-2 text-on-accent"
         >
           Retry
         </button>

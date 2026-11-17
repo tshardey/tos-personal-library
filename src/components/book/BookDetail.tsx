@@ -146,7 +146,7 @@ export default function BookDetail({ id }: { id: string }) {
         <button
           type="button"
           onClick={() => void reload()}
-          className="rounded bg-accent px-3 py-2 text-on-accent"
+          className="min-h-11 sm:min-h-9 rounded bg-accent px-3 py-2 text-on-accent"
         >
           Retry
         </button>
@@ -395,7 +395,7 @@ export default function BookDetail({ id }: { id: string }) {
             <button
               type="button"
               onClick={() => navigate({ name: "library", series: book.seriesName ?? undefined })}
-              className="text-sm underline"
+              className="inline-flex min-h-11 items-center sm:min-h-9 text-sm underline"
             >
               Show the rest of this series
             </button>

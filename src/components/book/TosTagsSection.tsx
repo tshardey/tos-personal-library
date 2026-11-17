@@ -85,7 +85,7 @@ export default function TosTagsSection({ bookId, householdId, tagIds, tosTags, s
         </p>
       )}
       {!unavailable && !editing && tosTags.length > 0 && (
-        <button type="button" onClick={() => setEditing(true)} className="mt-2 text-sm underline">
+        <button type="button" onClick={() => setEditing(true)} className="mt-2 inline-flex min-h-11 items-center sm:min-h-9 text-sm underline">
           Edit tags
         </button>
       )}
@@ -114,7 +114,7 @@ export default function TosTagsSection({ bookId, householdId, tagIds, tosTags, s
               ))}
             </ul>
           )}
-          <button type="button" onClick={() => setEditing(false)} className="rounded border px-3 py-2">
+          <button type="button" onClick={() => setEditing(false)} className="min-h-11 sm:min-h-9 rounded border px-3 py-2">
             Done
           </button>
         </div>

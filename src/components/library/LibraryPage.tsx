@@ -234,7 +234,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         <button
           type="button"
           onClick={() => void reload()}
-          className="rounded bg-accent px-3 py-2 text-on-accent"
+          className="min-h-11 sm:min-h-9 rounded bg-accent px-3 py-2 text-on-accent"
         >
           Retry
         </button>
@@ -248,7 +248,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         <button
           type="button"
           onClick={() => navigate({ name: "add" })}
-          className="rounded bg-accent px-3 py-2 text-on-accent"
+          className="min-h-11 sm:min-h-9 rounded bg-accent px-3 py-2 text-on-accent"
         >
           Add a book
         </button>
@@ -397,18 +397,18 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
             <p className="text-sm font-medium">{`${selectedBooks.length} selected`}</p>
             <div className="flex gap-2">
               {selectedBooks.length > 0 && (
-                <button type="button" onClick={() => setSelectedIds(new Set())} className="min-h-10 rounded border px-3">
+                <button type="button" onClick={() => setSelectedIds(new Set())} className="min-h-11 sm:min-h-9 rounded border px-3">
                   Clear
                 </button>
               )}
-              <button type="button" onClick={stopSelecting} className="min-h-10 rounded border px-3">
+              <button type="button" onClick={stopSelecting} className="min-h-11 sm:min-h-9 rounded border px-3">
                 Done
               </button>
               <button
                 type="button"
                 disabled={selectedBooks.length === 0}
                 onClick={() => setEditing(true)}
-                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
+                className="min-h-11 sm:min-h-9 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
               >
                 Edit
               </button>
