@@ -53,7 +53,8 @@ export function Sheet({
       initialFocus?.current ?? dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE);
     (target ?? dialogRef.current)?.focus();
     return () => {
-      opener?.focus?.();
+      // The opener may have gone (a row removed by the action the sheet took).
+      if (opener?.isConnected) opener.focus();
     };
     // Focus is captured and restored once per mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,7 +93,7 @@ export function Sheet({
       <div
         data-testid="sheet-scrim"
         aria-hidden="true"
-        className="absolute inset-0 bg-black/60 motion-safe:transition-opacity"
+        className="absolute inset-0 bg-black/60"
         onClick={dismissOnScrim ? onClose : undefined}
       />
       <div
@@ -102,7 +103,7 @@ export function Sheet({
         aria-label={label}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className={`relative flex w-full max-h-[85dvh] flex-col rounded-t-xl border border-line-strong bg-raised pb-[env(safe-area-inset-bottom)] text-fg sm:max-w-lg sm:rounded-xl motion-safe:transition ${className}`.trim()}
+        className={`relative flex w-full max-h-[85dvh] flex-col rounded-t-xl border border-line-strong bg-raised pb-[env(safe-area-inset-bottom)] text-fg sm:max-w-lg sm:rounded-xl ${className}`.trim()}
       >
         {title && (
           <h2 className="px-4 pt-4 text-lg font-semibold text-fg-strong">{title}</h2>

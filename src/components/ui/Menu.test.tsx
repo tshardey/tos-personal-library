@@ -59,4 +59,19 @@ describe("Menu", () => {
     renderMenu(true);
     expect(screen.getByRole("button", { name: "Browse" })).toHaveAttribute("aria-current", "page");
   });
+
+  it("closes when focus Tabs out of it, but not when focus moves inside it", () => {
+    renderMenu();
+    const btn = screen.getByRole("button", { name: "Browse" });
+    fireEvent.click(btn);
+    const link = screen.getByRole("link", { name: "Series" });
+    fireEvent.blur(btn, { relatedTarget: link });
+    expect(btn).toHaveAttribute("aria-expanded", "true");
+    // A click on non-focusable panel text blurs with no relatedTarget; the menu stays open.
+    fireEvent.blur(link, { relatedTarget: null });
+    expect(btn).toHaveAttribute("aria-expanded", "true");
+    fireEvent.blur(link, { relatedTarget: screen.getByRole("button", { name: "Outside" }) });
+    expect(btn).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Series" })).toBeNull();
+  });
 });

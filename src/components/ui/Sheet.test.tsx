@@ -171,4 +171,29 @@ describe("Sheet", () => {
     rerender(<Host outer={false} inner={false} />);
     expect(document.body.style.overflow).toBe("");
   });
+
+  it("doesn't try to refocus an opener that has left the page", () => {
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    opener.focus();
+    const focus = vi.spyOn(opener, "focus");
+    const { unmount } = render(
+      <Sheet label="S" onClose={() => {}}>
+        <button>Inside</button>
+      </Sheet>,
+    );
+    opener.remove();
+    unmount();
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it("has no transition classes that never animate", () => {
+    render(
+      <Sheet label="S" onClose={() => {}}>
+        <button>Inside</button>
+      </Sheet>,
+    );
+    expect(screen.getByRole("dialog").className).not.toMatch(/transition/);
+    expect(screen.getByTestId("sheet-scrim").className).not.toMatch(/transition/);
+  });
 });

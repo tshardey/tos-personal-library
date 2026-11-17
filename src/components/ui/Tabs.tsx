@@ -49,7 +49,7 @@ export function Tabs<T extends string>({
               role="tab"
               id={tabId(t.id)}
               aria-selected={selected}
-              aria-controls={panelId(t.id)}
+              aria-controls={selected ? panelId(t.id) : undefined}
               tabIndex={selected ? 0 : -1}
               onClick={() => onChange(t.id)}
               onKeyDown={(e) => onKeyDown(e, i)}
