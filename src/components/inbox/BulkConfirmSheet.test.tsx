@@ -44,4 +44,21 @@ describe("BulkConfirmSheet", () => {
     expect(screen.getByRole("dialog").className).toContain("flex-col");
     expect(screen.getByRole("dialog").className).toContain("safe-area-inset-bottom");
   });
+
+  it("stays open on Escape or a scrim click while busy", () => {
+    const onCancel = vi.fn();
+    render(
+      <BulkConfirmSheet
+        entries={[entry("i1", "Salt Road")]}
+        labels={[]}
+        busy={true}
+        onConfirm={vi.fn()}
+        onSetEdition={vi.fn()}
+        onCancel={onCancel}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.click(screen.getByTestId("sheet-scrim"));
+    expect(onCancel).not.toHaveBeenCalled();
+  });
 });

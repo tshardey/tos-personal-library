@@ -39,7 +39,7 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
   return (
     <Sheet
       label={heading}
-      onClose={onCancel}
+      onClose={busy ? () => {} : onCancel}
       className="flex flex-col"
       footer={
         <>
