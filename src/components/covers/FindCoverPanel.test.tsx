@@ -35,7 +35,7 @@ beforeEach(() => {
   setState();
 });
 
-const open = () => fireEvent.click(screen.getByRole("button", { name: "Find a better cover" }));
+const open = () => fireEvent.click(screen.getByRole("button", { name: "Find cover" }));
 
 describe("FindCoverPanel", () => {
   it("adds to batch with reasons and note", async () => {
@@ -140,7 +140,7 @@ describe("FindCoverPanel", () => {
     render(<FindCoverPanel book={book} />);
     open();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.getByRole("button", { name: "Find a better cover" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find cover" })).toBeInTheDocument();
     for (const f of Object.values(fns)) expect(f).not.toHaveBeenCalled();
   });
 

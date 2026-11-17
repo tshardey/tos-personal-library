@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { budgetUsedUp } from "@/lib/covers/cost";
 import { COVER_REASONS, MAX_NOTE, REASON_LABELS, type CoverReason } from "@/lib/covers/types";
@@ -6,8 +7,6 @@ import type { BookWithCopies } from "@/lib/types";
 
 const ACTIVE = new Set(["queued", "gathered", "processing"]);
 const SAVE_ERROR = "Couldn't save this. Try again.";
-
-const btn = "rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted";
 
 /** A deluxe copy usually gets an angled photo of the physical book as its cover, so "angled" starts ticked. */
 const defaultReasons = (book: BookWithCopies): CoverReason[] => (book.copies.some((c) => c.deluxe) ? ["angled"] : []);
@@ -125,9 +124,9 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
         </p>
       )}
       {!open && !looking && !ready && (
-        <button type="button" onClick={openPanel} className="underline">
-          Find a better cover
-        </button>
+        <Button variant="secondary" onClick={openPanel} className="w-full">
+          Find cover
+        </Button>
       )}
       {open && (
         <div className="space-y-3 rounded border border-field p-3">
@@ -160,15 +159,15 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
           {usedUp && budgetCopy}
           {alert}
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={busy || usedUp} onClick={() => void doFindNow()} className={btn}>
+            <Button variant="primary" disabled={busy || usedUp} onClick={() => void doFindNow()}>
               Find now
-            </button>
-            <button type="button" disabled={busy} onClick={() => void addToBatch()} className={btn}>
+            </Button>
+            <Button variant="primary" disabled={busy} onClick={() => void addToBatch()}>
               {current ? "Update mark" : "Add to batch"}
-            </button>
-            <button type="button" disabled={busy} onClick={() => setOpen(false)} className="underline">
+            </Button>
+            <Button variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Sheet } from "@/components/ui";
 import { canonicalSeries, MAX_SERIES } from "@/lib/series";
 
 interface Props {
@@ -17,9 +18,6 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
   const filterRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (open) filterRef.current?.focus();
-  }, [open]);
   useEffect(() => {
     setVol(volume === null ? "" : String(volume));
   }, [volume]);
@@ -70,19 +68,8 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
         {value === null ? "Series: none" : `Series: ${value}${volume !== null ? ` · Vol. ${volume}` : ""}`}
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Series"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.stopPropagation();
-                dismiss();
-              }
-            }}
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-raised p-4 sm:rounded"
-          >
+        <Sheet label="Series" onClose={dismiss} initialFocus={filterRef}>
+          <div>
             {volumeInvalid && <p role="alert" className="mb-2 text-sm text-danger">Volume must be between 0 and 9999.5.</p>}
             <label className="mb-2 block text-sm">
               Volume
@@ -140,7 +127,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
               Close
             </button>
           </div>
-        </div>
+        </Sheet>
       )}
     </>
   );
