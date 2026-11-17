@@ -136,6 +136,19 @@ describe("FindCoverPanel", () => {
     expect(await screen.findByText("Looking for covers…")).toBeInTheDocument();
   });
 
+  it("opens the form in a Find cover sheet that Escape closes", () => {
+    render(<FindCoverPanel book={book} />);
+    // fireEvent.click doesn't move focus; focus the opener as a real click would.
+    screen.getByRole("button", { name: "Find cover" }).focus();
+    open();
+    const sheet = screen.getByRole("dialog", { name: "Find cover" });
+    expect(sheet).toContainElement(screen.getByLabelText("What's wrong? (optional)"));
+    expect(sheet).toContainElement(screen.getByRole("button", { name: "Find now" }));
+    fireEvent.keyDown(sheet, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Find cover" })).toHaveFocus();
+  });
+
   it("calls nothing when opened and closed", () => {
     render(<FindCoverPanel book={book} />);
     open();
