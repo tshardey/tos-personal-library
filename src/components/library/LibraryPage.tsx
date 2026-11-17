@@ -52,13 +52,20 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
     const rs = storedView.readStatus;
     return rs ? readOptions?.find((o) => o.readStatus?.userId === rs.userId && o.readStatus.state === rs.state) ?? null : null;
   }, [storedView.readStatus, readOptions]);
+  // Likewise a stored owner who has left the household (once members have loaded) reads as All.
+  const ownerGone =
+    storedView.owner !== "all" &&
+    storedView.owner !== "shared" &&
+    members.length > 0 &&
+    !members.some((m) => m.userId === storedView.owner);
   const view = useMemo(() => {
     const libraryTags = tagging.available ? storedView.libraryTags : [];
     const readStatus = readOption ? storedView.readStatus : null;
-    return libraryTags === storedView.libraryTags && readStatus === storedView.readStatus
+    const owner = ownerGone ? "all" : storedView.owner;
+    return libraryTags === storedView.libraryTags && readStatus === storedView.readStatus && owner === storedView.owner
       ? storedView
-      : { ...storedView, libraryTags, readStatus };
-  }, [storedView, tagging.available, readOption]);
+      : { ...storedView, libraryTags, readStatus, owner };
+  }, [storedView, tagging.available, readOption, ownerGone]);
   const readStatusByBook = reading.byBook;
   const { query, owner, edition, tags: tagFilter, coverFilter, unhauled, deluxe, signed, addedDay, publishedFrom, publishedTo } =
     view;
@@ -234,7 +241,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         <button
           type="button"
           onClick={() => void reload()}
-          className="rounded bg-accent px-3 py-2 text-on-accent"
+          className="min-h-11 sm:min-h-9 rounded bg-accent px-3 py-2 text-on-accent"
         >
           Retry
         </button>
@@ -248,7 +255,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         <button
           type="button"
           onClick={() => navigate({ name: "add" })}
-          className="rounded bg-accent px-3 py-2 text-on-accent"
+          className="min-h-11 sm:min-h-9 rounded bg-accent px-3 py-2 text-on-accent"
         >
           Add a book
         </button>
@@ -397,18 +404,18 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
             <p className="text-sm font-medium">{`${selectedBooks.length} selected`}</p>
             <div className="flex gap-2">
               {selectedBooks.length > 0 && (
-                <button type="button" onClick={() => setSelectedIds(new Set())} className="min-h-10 rounded border px-3">
+                <button type="button" onClick={() => setSelectedIds(new Set())} className="min-h-11 sm:min-h-9 rounded border px-3">
                   Clear
                 </button>
               )}
-              <button type="button" onClick={stopSelecting} className="min-h-10 rounded border px-3">
+              <button type="button" onClick={stopSelecting} className="min-h-11 sm:min-h-9 rounded border px-3">
                 Done
               </button>
               <button
                 type="button"
                 disabled={selectedBooks.length === 0}
                 onClick={() => setEditing(true)}
-                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
+                className="min-h-11 sm:min-h-9 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
               >
                 Edit
               </button>

@@ -54,6 +54,22 @@ describe("Sheet", () => {
     expect(last).toHaveFocus();
   });
 
+  it("skips controls disabled by a disabled fieldset when wrapping Tab", () => {
+    render(
+      <Sheet label="S" onClose={() => {}} footer={<button>Last</button>}>
+        <fieldset disabled>
+          <button>Locked</button>
+        </fieldset>
+        <button>First</button>
+      </Sheet>,
+    );
+    const dialog = screen.getByRole("dialog");
+    const first = screen.getByRole("button", { name: "First" });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
+  });
+
   it("Escape closes and focus returns to the opener on unmount", () => {
     const onClose = vi.fn();
     function Host() {
@@ -170,5 +186,30 @@ describe("Sheet", () => {
     expect(document.body.style.overflow).toBe("hidden");
     rerender(<Host outer={false} inner={false} />);
     expect(document.body.style.overflow).toBe("");
+  });
+
+  it("doesn't try to refocus an opener that has left the page", () => {
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    opener.focus();
+    const focus = vi.spyOn(opener, "focus");
+    const { unmount } = render(
+      <Sheet label="S" onClose={() => {}}>
+        <button>Inside</button>
+      </Sheet>,
+    );
+    opener.remove();
+    unmount();
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it("has no transition classes that never animate", () => {
+    render(
+      <Sheet label="S" onClose={() => {}}>
+        <button>Inside</button>
+      </Sheet>,
+    );
+    expect(screen.getByRole("dialog").className).not.toMatch(/transition/);
+    expect(screen.getByTestId("sheet-scrim").className).not.toMatch(/transition/);
   });
 });

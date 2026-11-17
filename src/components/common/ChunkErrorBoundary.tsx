@@ -29,7 +29,7 @@ export default class ChunkErrorBoundary extends Component<Props, { failed: boole
         <p role="alert" className="mb-3">
           This page couldn't load. Check your connection and reload.
         </p>
-        <button type="button" onClick={reload} className="rounded bg-accent px-3 py-2 text-on-accent">
+        <button type="button" onClick={reload} className="min-h-11 sm:min-h-9 rounded bg-accent px-3 py-2 text-on-accent">
           Reload
         </button>
       </div>

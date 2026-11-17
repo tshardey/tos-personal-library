@@ -55,7 +55,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
   const exists = names.some((n) => n.toLowerCase() === needle);
   const showAdd = canonical !== null && !exists;
 
-  const option = "block w-full rounded px-2 py-2 text-left hover:bg-control";
+  const option = "block min-h-11 sm:min-h-9 w-full rounded px-2 py-2 text-left hover:bg-control";
   return (
     <>
       <button
@@ -63,7 +63,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="block w-full rounded border p-2 text-left text-sm disabled:opacity-50"
+        className="block min-h-11 sm:min-h-9 w-full rounded border p-2 text-left text-sm disabled:opacity-50"
       >
         {value === null ? "Series: none" : `Series: ${value}${volume !== null ? ` · Vol. ${volume}` : ""}`}
       </button>

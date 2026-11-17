@@ -5,6 +5,11 @@ import { createPortal } from "react-dom";
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** FOCUSABLE minus controls disabled by a `<fieldset disabled>` around them, which `[disabled]` can't see. */
+function focusables(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => !el.matches(":disabled"));
+}
+
 /**
  * The page behind doesn't scroll while any sheet is open. Open sheets are counted: the first saves
  * the body's overflow and the last to close restores it. A per-sheet saved value would break for
@@ -50,10 +55,11 @@ export function Sheet({
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     const target =
-      initialFocus?.current ?? dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+      initialFocus?.current ?? (dialogRef.current ? focusables(dialogRef.current)[0] : undefined);
     (target ?? dialogRef.current)?.focus();
     return () => {
-      opener?.focus?.();
+      // The opener may have gone (a row removed by the action the sheet took).
+      if (opener?.isConnected) opener.focus();
     };
     // Focus is captured and restored once per mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,9 +74,7 @@ export function Sheet({
       return;
     }
     if (e.key !== "Tab") return;
-    const items = Array.from(
-      e.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE),
-    );
+    const items = focusables(e.currentTarget);
     if (items.length === 0) {
       e.preventDefault();
       return;
@@ -92,7 +96,7 @@ export function Sheet({
       <div
         data-testid="sheet-scrim"
         aria-hidden="true"
-        className="absolute inset-0 bg-black/60 motion-safe:transition-opacity"
+        className="absolute inset-0 bg-black/60"
         onClick={dismissOnScrim ? onClose : undefined}
       />
       <div
@@ -102,7 +106,7 @@ export function Sheet({
         aria-label={label}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className={`relative flex w-full max-h-[85dvh] flex-col rounded-t-xl border border-line-strong bg-raised pb-[env(safe-area-inset-bottom)] text-fg sm:max-w-lg sm:rounded-xl motion-safe:transition ${className}`.trim()}
+        className={`relative flex w-full max-h-[85dvh] flex-col rounded-t-xl border border-line-strong bg-raised pb-[env(safe-area-inset-bottom)] text-fg sm:max-w-lg sm:rounded-xl ${className}`.trim()}
       >
         {title && (
           <h2 className="px-4 pt-4 text-lg font-semibold text-fg-strong">{title}</h2>

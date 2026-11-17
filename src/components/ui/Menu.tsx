@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { KeyboardEvent, ReactNode } from "react";
+import type { FocusEvent, KeyboardEvent, ReactNode } from "react";
 
 export function Menu({
   label,
@@ -36,8 +36,15 @@ export function Menu({
     }
   }
 
+  // Tabbing out closes the menu. A blur with no relatedTarget (a click on panel text, or focus
+  // leaving the window) is left to the outside-pointerdown handler.
+  function onBlur(e: FocusEvent<HTMLDivElement>) {
+    const next = e.relatedTarget as Node | null;
+    if (open && next && !e.currentTarget.contains(next)) setOpen(false);
+  }
+
   return (
-    <div ref={rootRef} className="relative" onKeyDown={onKeyDown}>
+    <div ref={rootRef} className="relative" onKeyDown={onKeyDown} onBlur={onBlur}>
       <button
         ref={buttonRef}
         type="button"

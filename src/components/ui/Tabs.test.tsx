@@ -74,6 +74,9 @@ describe("Tabs", () => {
     expect(panel).toHaveAttribute("tabindex", "0");
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     expect(screen.getByRole("tab", { name: "Beta" }).getAttribute("aria-controls")).toBe(panel.id);
+    // Only the selected tab points at a panel; the others' panels aren't rendered.
+    expect(screen.getByRole("tab", { name: "Alpha" })).not.toHaveAttribute("aria-controls");
+    expect(screen.getByRole("tab", { name: "Gamma" })).not.toHaveAttribute("aria-controls");
   });
 
   it("scrolls sideways instead of squeezing the tabs on a narrow screen", () => {

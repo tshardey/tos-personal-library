@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
+import type { CoverSize } from "@/lib/cover-size";
 import CoverSizeControl from "./CoverSizeControl";
 import FilterChipsRow from "./FilterChipsRow";
 import LibraryToolbar from "./LibraryToolbar";
@@ -156,6 +157,19 @@ describe("CoverSizeControl", () => {
     rerender(<CoverSizeControl size="5" onSize={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Larger covers" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Smaller covers" })).toBeEnabled();
+  });
+
+  it("moves focus to the other button when a step reaches the end and disables the focused one", () => {
+    function Host() {
+      const [size, setSize] = useState<CoverSize>("2");
+      return <CoverSizeControl size={size} onSize={setSize} />;
+    }
+    render(<Host />);
+    const smaller = screen.getByRole("button", { name: "Smaller covers" });
+    smaller.focus();
+    fireEvent.click(smaller);
+    expect(smaller).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Larger covers" })).toHaveFocus();
   });
 });
 

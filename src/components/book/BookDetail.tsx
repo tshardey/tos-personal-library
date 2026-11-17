@@ -146,7 +146,7 @@ export default function BookDetail({ id }: { id: string }) {
         <button
           type="button"
           onClick={() => void reload()}
-          className="rounded bg-accent px-3 py-2 text-on-accent"
+          className="min-h-11 sm:min-h-9 rounded bg-accent px-3 py-2 text-on-accent"
         >
           Retry
         </button>
@@ -233,7 +233,11 @@ export default function BookDetail({ id }: { id: string }) {
     if (which === "overview") {
       return (
         <div className="space-y-4 pt-4">
-          {b.synopsis && <p className="text-base">{b.synopsis}</p>}
+          {b.synopsis ? (
+            <p className="text-base">{b.synopsis}</p>
+          ) : (
+            !reading.available && <p className="text-sm text-muted">No synopsis yet.</p>
+          )}
           <YourReadingControl reading={reading} />
         </div>
       );
@@ -391,7 +395,7 @@ export default function BookDetail({ id }: { id: string }) {
             <button
               type="button"
               onClick={() => navigate({ name: "library", series: book.seriesName ?? undefined })}
-              className="text-sm underline"
+              className="inline-flex min-h-11 items-center sm:min-h-9 text-sm underline"
             >
               Show the rest of this series
             </button>

@@ -59,10 +59,20 @@ test.describe("phone (390px)", () => {
     await nav.getByRole("button", { name: "More" }).click();
     const more = page.getByRole("dialog", { name: "More" });
     await expect(more.getByRole("button", { name: "Sign out" })).toBeVisible();
+    // Photos and Import live only under Add (2026-11-17).
+    await expect(more.getByRole("link", { name: "Photos" })).toHaveCount(0);
+    await expect(more.getByRole("link", { name: "Import" })).toHaveCount(0);
     await more.getByRole("link", { name: "Edition labels" }).click();
     await expect(more).toBeHidden();
     await expect(page.getByRole("heading", { name: "Edition labels" })).toBeVisible();
     await expect(nav.getByRole("button", { name: "More" })).toHaveAttribute("aria-current", "page");
+
+    // Add is the only way to Photos and Import, so it is the highlighted tab there.
+    for (const hash of ["#/inbox", "#/import"]) {
+      await page.goto(hash);
+      await expect(nav.getByRole("button", { name: "Add" })).toHaveAttribute("aria-current", "page");
+      await expect(nav.getByRole("button", { name: "More" })).not.toHaveAttribute("aria-current", "page");
+    }
   });
 
   test("tap targets: the bar and both sheets are 44px or more", async ({ page }) => {

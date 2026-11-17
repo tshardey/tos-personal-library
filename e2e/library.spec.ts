@@ -152,6 +152,16 @@ test.describe("phone (390px)", () => {
     expect(last.y + last.height).toBeLessThanOrEqual(barAfter.y + 0.5);
   });
 
+  test("tap targets: the Selection bar and the Edit selected books sheet are 44px or more", async ({ page }) => {
+    await open(page);
+    await page.getByRole("button", { name: "Select", exact: true }).click();
+    await cards(page).first().getByRole("checkbox").check();
+    await expect(selection(page).getByText("1 selected")).toBeVisible();
+    await expectTapTargets(page, selection(page));
+    await selection(page).getByRole("button", { name: "Edit" }).click();
+    await expectTapTargets(page, page.getByRole("dialog", { name: "Edit selected books" }));
+  });
+
   test("bars: the cover batch footer (No cover) sits above the tab bar and the last card clears it", async ({ page }) => {
     await open(page);
     await filtersButton(page).click();

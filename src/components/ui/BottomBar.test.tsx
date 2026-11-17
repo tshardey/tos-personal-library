@@ -9,6 +9,9 @@ describe("BottomBar", () => {
     expect(cls).toContain("bottom-[var(--nav-bottom)]");
     expect(cls).toContain("safe-area-inset-bottom");
     expect(cls).toContain("z-20");
+    // The raised Scan circle reaches 16px above the tab bar; the phone padding keeps content clear of it.
+    expect(cls).toContain("pb-[max(1.25rem,env(safe-area-inset-bottom))]");
+    expect(cls).toContain("sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]");
   });
 
   it("is a named region when given a label", () => {

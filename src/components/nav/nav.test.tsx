@@ -54,8 +54,6 @@ function expectMoreItems(panel: HTMLElement) {
     q.getByRole("link", { name: "Reading history" }),
     q.getByRole("link", { name: "Tag suggestions" }),
     q.getByRole("link", { name: "Edition labels" }),
-    q.getByRole("link", { name: "Import" }),
-    q.getByRole("link", { name: "Photos" }),
     q.getByText("a@b.co"),
     q.getByText("abc123"),
     q.getByRole("button", { name: "Sign out" }),
@@ -63,9 +61,10 @@ function expectMoreItems(panel: HTMLElement) {
   expect(items[0]).toHaveAttribute("href", "#/reading");
   expect(items[1]).toHaveAttribute("href", "#/tags");
   expect(items[2]).toHaveAttribute("href", "#/editions");
-  expect(items[3]).toHaveAttribute("href", "#/import");
-  expect(items[4]).toHaveAttribute("href", "#/inbox");
   expectInOrder(items);
+  // Photos and Import live only under Add (2026-11-17).
+  expect(q.queryByRole("link", { name: "Photos" })).toBeNull();
+  expect(q.queryByRole("link", { name: "Import" })).toBeNull();
 }
 
 beforeEach(() => {

@@ -51,7 +51,8 @@ Success looks like: everything Tierra uses often is visible or one tap away, the
 ### 3.2 Phone navigation: bottom tab bar
 - Bottom tab bar with icons and labels: **Library, Add, Scan (large centre button), Covers, More**.
 - **Covers** shows a count badge when covers wait for review (replaces today's amber "Covers to review (N)" pill).
-- **More** holds: Reading history, Tag suggestions, Edition labels, Import, Photos, and the account (email, invite code if relevant, Sign out).
+- **More** holds: Reading history, Tag suggestions, Edition labels, and the account (email, invite code if relevant, Sign out).
+  - *2026-11-17 (Tierra):* "Photos and Import are under Add and More. I don't think they need to be under More." They were removed from More (phone sheet and computer menu); Add is the only nav path to them, so `#/inbox` and `#/import` highlight **Add**.
 - The top of the phone screen keeps only the app title and the pinned toolbar (on screens that have one).
 - On the computer, the same destinations sit in a row across the top; More becomes a dropdown menu.
 
@@ -98,7 +99,7 @@ From a read of the code on 2026-11-15:
 3. **Shared UI parts** in `src/components/ui/`: Button (primary/secondary/ghost/danger), Sheet/Dialog (bottom sheet on phone, centred or anchored on computer, with focus trap and Escape), Chip, Select, Tabs, IconButton, Badge. Existing screens move onto them.
 4. **Sort options:** Title (default), Author, Recently added, Published (newest first). Series view keeps volume order. Sort is remembered per device.
 5. **Cover size:** about 4–5 steps from "small" (many per row; text hidden) to "large". Remembered per device (localStorage, wrapped so it can't break the page). Default ≈ today's size.
-6. **The "Add" tab** opens a small chooser: **Type it in** (today's `#/add`), **Photos** (`#/inbox`), **Import** (`#/import`). Scan stays its own tab. Photos and Import also stay in More.
+6. **The "Add" tab** opens a small chooser: **Type it in** (today's `#/add`), **Photos** (`#/inbox`), **Import** (`#/import`). Scan stays its own tab. *(2026-11-17: Photos and Import are no longer also in More; Add is their only nav entry, and it is highlighted on those pages.)*
 7. **The read count** ("You've read X of Y") moves to the top of Reading history and also shows in More.
 8. **The book page remembers the last tab** used (per device), so tagging several books in a row stays on Tags.
 9. **Pinned toolbar** stays pinned while scrolling on both phone and computer; on the phone it sits under the title, and the bottom tab bar is fixed.

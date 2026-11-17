@@ -39,7 +39,7 @@ export default function LibraryTagPicker({
           ref={triggerRef}
           type="button"
           onClick={() => setOpen(true)}
-          className="min-h-10 rounded border px-3 text-sm"
+          className="min-h-11 sm:min-h-9 rounded border px-3 text-sm"
         >
           {label}
         </button>
@@ -49,7 +49,7 @@ export default function LibraryTagPicker({
           </span>
         ))}
         {selected.length > 0 && (
-          <button type="button" onClick={() => onChange([])} className="text-sm underline">
+          <button type="button" onClick={() => onChange([])} className="inline-flex min-h-11 items-center sm:min-h-9 text-sm underline">
             No change
           </button>
         )}
@@ -70,7 +70,7 @@ export default function LibraryTagPicker({
             <fieldset key={g.category} className="mb-3">
               <legend className="text-sm font-medium">{g.label}</legend>
               {g.tags.map((t) => (
-                <label key={t.id} className="flex min-h-10 items-center gap-2 text-sm">
+                <label key={t.id} className="flex min-h-11 sm:min-h-9 items-center gap-2 text-sm">
                   <input
                     type="checkbox"
                     checked={selected.includes(t.id)}
