@@ -28,4 +28,23 @@ describe("MassEditSheet with the edition picker open", () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(trigger).toHaveFocus();
   });
+
+  it("stays open when the scrim is tapped", () => {
+    const books = [bookFixture("Atlas", [copyFixture({ id: "a1", bookId: "Atlas" })])];
+    const onClose = vi.fn();
+    render(
+      <MassEditSheet
+        selected={books}
+        catalog={books}
+        labels={[]}
+        members={[]}
+        refresh={vi.fn().mockResolvedValue(true)}
+        onClose={onClose}
+        onDone={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("sheet-scrim"));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Edit selected books" })).toBeInTheDocument();
+  });
 });

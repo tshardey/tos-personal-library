@@ -52,51 +52,51 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
       </button>
       {open && (
         <Sheet label={label} onClose={close} initialFocus={filterRef}>
-            <input
-              ref={filterRef}
-              type="text"
-              value={typed}
-              maxLength={MAX_LABEL}
-              onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                const exact = labels.find((l) => l.toLowerCase() === needle);
-                if (exact) pick(exact);
-                else if (shown.length === 1) pick(shown[0]);
-                else if (showAdd) pick(canonical);
-              }}
-              aria-label="Filter editions"
-              placeholder="Filter or add an edition"
-              className="mb-2 block w-full rounded border p-2"
-            />
-            <ul className="space-y-1">
-              <li>
-                <button type="button" onClick={() => pick(null)} className={option}>
-                  None
+          <input
+            ref={filterRef}
+            type="text"
+            value={typed}
+            maxLength={MAX_LABEL}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              const exact = labels.find((l) => l.toLowerCase() === needle);
+              if (exact) pick(exact);
+              else if (shown.length === 1) pick(shown[0]);
+              else if (showAdd) pick(canonical);
+            }}
+            aria-label="Filter editions"
+            placeholder="Filter or add an edition"
+            className="mb-2 block w-full rounded border p-2"
+          />
+          <ul className="space-y-1">
+            <li>
+              <button type="button" onClick={() => pick(null)} className={option}>
+                None
+              </button>
+            </li>
+            {shown.map((l) => (
+              <li key={l}>
+                <button type="button" onClick={() => pick(l)} className={option}>
+                  {l}
                 </button>
               </li>
-              {shown.map((l) => (
-                <li key={l}>
-                  <button type="button" onClick={() => pick(l)} className={option}>
-                    {l}
-                  </button>
-                </li>
-              ))}
-              {showAdd && (
-                <li>
-                  <button type="button" onClick={() => pick(canonical)} className={`${option} font-medium`}>
-                    {`Add "${trimmed}"`}
-                  </button>
-                </li>
-              )}
-            </ul>
-            {tooLong && (
-              <p className="mt-2 text-sm text-danger">{`Labels are at most ${MAX_LABEL} characters.`}</p>
+            ))}
+            {showAdd && (
+              <li>
+                <button type="button" onClick={() => pick(canonical)} className={`${option} font-medium`}>
+                  {`Add "${trimmed}"`}
+                </button>
+              </li>
             )}
-            <button type="button" onClick={close} className="mt-3 rounded border px-3 py-2">
-              Close
-            </button>
+          </ul>
+          {tooLong && (
+            <p className="mt-2 text-sm text-danger">{`Labels are at most ${MAX_LABEL} characters.`}</p>
+          )}
+          <button type="button" onClick={close} className="mt-3 min-h-11 rounded border px-3 py-2 sm:min-h-10">
+            Close
+          </button>
         </Sheet>
       )}
     </>

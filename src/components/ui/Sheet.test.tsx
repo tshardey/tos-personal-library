@@ -100,6 +100,19 @@ describe("Sheet", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores scrim clicks with dismissOnScrim=false but still closes on Escape", () => {
+    const onClose = vi.fn();
+    render(
+      <Sheet label="S" onClose={onClose} dismissOnScrim={false}>
+        <button>Inside</button>
+      </Sheet>,
+    );
+    fireEvent.click(screen.getByTestId("sheet-scrim"));
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("Escape in a nested sheet closes only the inner one", () => {
     const outer = vi.fn();
     const inner = vi.fn();
