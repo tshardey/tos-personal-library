@@ -1034,3 +1034,34 @@ Hard-refresh first (Pages caches JS for about 10 minutes).
   - Pressed legacy chips in `LibraryFilters` show a grey `field` ring around the accent fill; this goes away when PR 2 moves them onto `Chip`.
   - `Tabs` puts `aria-controls` on panels that aren't rendered.
   - `Sheet` focus return doesn't check `isConnected`.
+
+**2026-11-16, PR 2 (Tasks 8–13).** Where the build departed from the text above, and why:
+
+1. **Task 10, order of work:**
+   - The search row (`Search books`, `Ask ✨` and its note) moved out of `LibraryFilters` into the toolbar in Task 10, not Task 11. Otherwise the page would have had two search boxes.
+   - The `openFilters()` test helpers landed in Task 10, where the panel first starts closed.
+   - `BookCard` got its `showText` prop (an `sr-only` title at step 1) in Task 10, because Task 10's own test needs it.
+2. **Task 10, one count:** the single `p[aria-live=polite]` lives in the chips row. It shows the book count, or `N matches` while Ask results are up. Two `LibraryPage.ask.test.tsx` tag assertions are scoped to the panel with `within`, because the chips row repeats the tag text.
+3. **Task 11, read status:**
+   - The `LibraryPage.ask.test.tsx` read-status cases were rewritten for the `Read status` buttons plus `For`, since the select they used is gone. Each still asserts the same fact.
+   - `For` lists `Me` first, then the other members in household order.
+4. **Task 11, small parts:**
+   - The Sort select is shared between the toolbar and the phone View group (`SortSelect.tsx`).
+   - `Button` types a `ref` prop, so focus can return to `Filters`.
+   - The phone `Filters` button keeps its visible text and has `aria-haspopup="dialog"`.
+5. **Task 12, `Sheet`:**
+   - It gains an optional `dismissOnScrim` (default `true`). `MassEditSheet` passes `false`, so a stray tap outside doesn't throw away a half-filled edit, as with the old inert backdrop.
+   - `MassEditSheet` keeps focus on the dialog itself on open, as before.
+6. **Task 13 and the whole-PR review:**
+   - `--nav-bottom` is `57px` (the 56px bar plus its 1px top border), so the bottom bars sit fully above the tab bar.
+   - `Badge` gains `overlay` and `overlay-success` tones. They make the corner badges readable on cards that have no cover.
+   - A pressed `Chip` is at least 44px wide on the phone.
+   - The no-cover placeholder clamps its text at step 1.
+   - The tag filters' inline `Clear`, `EditionPicker` rows and `MassEditSheet` fields all meet the 44px phone target.
+   - Panel group titles are `h2` in the computer panel and `h3` in the phone sheet.
+   - `BookCard.test.tsx` uses synthetic names.
+7. **Follow-ups for Task 20:**
+   - `src/lib/filter-books.test.ts` still has a real-looking title and author (it predates Plan 9).
+   - At step 1 in select mode, the checkbox and a `✓ Read` badge share a 64px cover.
+   - The ToS and library tag pickers are near-twins (a shared `TagFilterSheet` would help).
+   - `Sheet` could accept `initialFocus: "dialog"`.
