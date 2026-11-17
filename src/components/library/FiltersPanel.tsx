@@ -100,13 +100,14 @@ function YearInput({
 }
 
 /** One titled group of the panel; tests and screen readers find it by its heading. */
-function Group({ title, children }: { title: string; children: ReactNode }) {
+function Group({ title, level, children }: { title: string; level: "h2" | "h3"; children: ReactNode }) {
   const id = useId();
+  const Heading = level;
   return (
     <div role="group" aria-labelledby={id} className="min-w-0 space-y-2">
-      <h3 id={id} className="text-xs font-semibold uppercase tracking-wide text-muted">
+      <Heading id={id} className="text-xs font-semibold uppercase tracking-wide text-muted">
         {title}
-      </h3>
+      </Heading>
       {children}
     </div>
   );
@@ -228,9 +229,9 @@ function TosTagFilter({
           </span>
         ))}
         {selected.length > 0 && (
-          <button type="button" onClick={() => onChange([])} className="text-sm underline">
+          <Button variant="ghost" size="sm" onClick={() => onChange([])}>
             Clear
-          </button>
+          </Button>
         )}
       </div>
       {open && (
@@ -304,6 +305,8 @@ export default function FiltersPanel({
   readStatusFilter,
 }: Props) {
   const publishedId = useId();
+  // Panel mode has no heading above the groups; in a Sheet the title is the h2.
+  const level = mode === "panel" ? "h2" : "h3";
   const owners: { value: OwnerFilter; label: string }[] = [
     { value: "all", label: "All" },
     { value: "shared", label: "Shared" },
@@ -319,11 +322,11 @@ export default function FiltersPanel({
   const groups = (
     <>
       {readStatusFilter && (
-        <Group title="Reading">
+        <Group level={level} title="Reading">
           <ReadingControls filter={readStatusFilter} members={members} me={me} />
         </Group>
       )}
-      <Group title="Owner & Copy">
+      <Group level={level} title="Owner & Copy">
         <div className="flex flex-wrap gap-2">
           {owners.map((c) => (
             <Chip key={c.value} label={c.label} pressed={owner === c.value} onClick={() => onOwner(c.value)} />
@@ -342,7 +345,7 @@ export default function FiltersPanel({
         </div>
       </Group>
       {showTagsAndSeries && (
-        <Group title="Tags & Series">
+        <Group level={level} title="Tags & Series">
           {tagsUnavailable && <p className="text-sm text-muted">Tome of Secrets tags unavailable.</p>}
           {showTos && <TosTagFilter tosTags={tosTags} selected={tagFilter} onChange={onTagFilter} />}
           {libraryTagFilter && (
@@ -370,7 +373,7 @@ export default function FiltersPanel({
           )}
         </Group>
       )}
-      <Group title="Edition, Covers & Dates">
+      <Group level={level} title="Edition, Covers & Dates">
         {labels.length > 0 && (
           <Select
             label="Edition"
@@ -446,7 +449,7 @@ export default function FiltersPanel({
       >
         <div id={id} className="space-y-5">
           {view && (
-            <Group title="View">
+            <Group level={level} title="View">
               <div className="flex flex-wrap items-center gap-3">{view}</div>
             </Group>
           )}

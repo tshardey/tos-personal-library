@@ -44,9 +44,9 @@ export default function LibraryTagFilter({
           </span>
         ))}
         {selected.length > 0 && (
-          <button type="button" onClick={() => onChange([])} className="text-sm underline">
+          <Button variant="ghost" size="sm" onClick={() => onChange([])}>
             Clear
-          </button>
+          </Button>
         )}
       </div>
       {open && (
