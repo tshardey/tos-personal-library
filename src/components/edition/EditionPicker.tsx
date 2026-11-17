@@ -38,7 +38,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
   const exists = labels.some((l) => l.toLowerCase() === needle);
   const showAdd = canonical !== null && !exists;
 
-  const option = "block w-full rounded px-2 py-2 text-left hover:bg-control";
+  const option = "block min-h-11 w-full rounded px-2 py-2 text-left hover:bg-control sm:min-h-9";
   return (
     <>
       <button
@@ -68,7 +68,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
             }}
             aria-label="Filter editions"
             placeholder="Filter or add an edition"
-            className="mb-2 block w-full rounded border p-2"
+            className="mb-2 block min-h-11 w-full rounded border p-2 sm:min-h-9"
           />
           <ul className="space-y-1">
             <li>

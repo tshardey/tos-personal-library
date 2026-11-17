@@ -206,7 +206,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const failures = result
     ? result.failedCopies.length + result.failedBooks.length + result.failedTags.length + result.failedReads.length
     : 0;
-  const choice = "mt-1 block w-full rounded border p-2";
+  const choice = "mt-1 block min-h-11 w-full rounded border p-2 sm:min-h-9";
   const field = "block text-sm";
 
   // Focus starts on the dialog itself (as before), so Escape and Tab begin there rather than on the first field.
@@ -252,7 +252,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
           </p>
         </div>
       )}
-        </div>
+    </div>
   );
 
   return (
@@ -513,7 +513,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                     <p className="text-sm text-muted">No copies.</p>
                   ) : (
                     b.copies.map((c) => (
-                      <label key={c.id} className={`flex min-h-10 items-center gap-2 text-sm ${isUnhauled(c) ? "text-muted" : ""}`}>
+                      <label key={c.id} className={`flex min-h-11 items-center gap-2 text-sm sm:min-h-9 ${isUnhauled(c) ? "text-muted" : ""}`}>
                         <input type="checkbox" checked={ticked.has(c.id)} onChange={() => toggle(c.id)} className="h-5 w-5 accent-accent" />
                         <span>{copyText(c, members)}</span>
                       </label>
