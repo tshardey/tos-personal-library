@@ -8,6 +8,7 @@ import { holdWakeLock } from "@/lib/photo/wake-lock";
 import BulkConfirmSheet, { type BulkEntry } from "./BulkConfirmSheet";
 import IntakeCard from "./IntakeCard";
 import UploadPanel from "./UploadPanel";
+import { Button } from "../ui";
 
 const DAY_MS = 24 * 3600_000;
 const OPEN = new Set(["pending", "processing", "ready", "failed"]);
@@ -90,20 +91,22 @@ export default function InboxPage() {
 
   if (!household || !user) return null;
 
-  if (status === "loading") return <p className="p-6">Loading…</p>;
+  if (status === "loading") {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+        <p>Loading…</p>
+      </div>
+    );
+  }
   if (status === "error") {
     return (
-      <div className="p-6">
-        <p role="alert" className="mb-3 text-danger">
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+        <p role="alert" className="mb-3 rounded-md bg-danger-surface p-3 text-danger">
           Couldn't reach the photo inbox.
         </p>
-        <button
-          type="button"
-          onClick={() => void intake.reload().catch(() => {})}
-          className="rounded bg-accent px-3 py-2 text-on-accent"
-        >
+        <Button variant="primary" onClick={() => void intake.reload().catch(() => {})}>
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
@@ -150,7 +153,7 @@ export default function InboxPage() {
   const section = (id: string, title: string, list: IntakeItem[]) =>
     list.length > 0 && (
       <section aria-labelledby={id} className="mb-4">
-        <h3 id={id} className="mb-2 font-semibold">
+        <h3 id={id} className="mb-2 font-semibold text-fg-strong">
           {title}
         </h3>
         <ul className="space-y-2 sm:space-y-3">{list.map(card)}</ul>
@@ -158,8 +161,8 @@ export default function InboxPage() {
     );
 
   return (
-    <div className="mx-auto max-w-2xl p-3 sm:p-4">
-      <h2 className="mb-3 text-lg font-semibold">Photo inbox</h2>
+    <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+      <h2 className="mb-3 text-xl font-semibold text-fg-strong">Photo inbox</h2>
       <UploadPanel
         householdId={household.id}
         members={members}
@@ -170,7 +173,7 @@ export default function InboxPage() {
       />
 
       {savedScans > 0 && (
-        <p role="status" className="mb-3 rounded border p-2 text-sm">
+        <p role="status" className="mb-3 rounded-md border border-line bg-raised p-2 text-sm">
           {savedScans === 1
             ? "1 scan is saved on this phone and will upload when you're online."
             : `${savedScans} scans are saved on this phone and will upload when you're online.`}
@@ -179,13 +182,9 @@ export default function InboxPage() {
       {stale && (
         <div role="alert" className="mb-3 flex items-center gap-2 rounded border border-danger bg-danger-surface p-2 text-sm">
           <span className="text-danger">Couldn't reach the photo inbox.</span>
-          <button
-            type="button"
-            onClick={() => void intake.reload().catch(() => {})}
-            className="rounded border px-2 py-1"
-          >
+          <Button size="sm" onClick={() => void intake.reload().catch(() => {})}>
             Retry
-          </button>
+          </Button>
         </div>
       )}
       {intake.stop && (
@@ -194,26 +193,26 @@ export default function InboxPage() {
         </p>
       )}
       {intake.lookupPaused && (
-        <div className="mb-3 flex items-center gap-2 rounded border p-2 text-sm">
+        <div className="mb-3 flex items-center gap-2 rounded-md border border-line bg-raised p-2 text-sm">
           <span>Online lookup paused. It will retry.</span>
-          <button type="button" onClick={intake.resumeLookups} className="rounded border px-2 py-1">
+          <Button size="sm" onClick={intake.resumeLookups}>
             Retry
-          </button>
+          </Button>
         </div>
       )}
 
       {eligible.length >= 2 && (
-        <button
-          type="button"
+        <Button
+          variant="primary"
           disabled={stale}
           onClick={() => {
             setBulkResult(null);
             setSheetOpen(true);
           }}
-          className="mb-3 rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
+          className="mb-3"
         >
           {`Add ${eligible.length} new books`}
-        </button>
+        </Button>
       )}
       {bulkResult && (
         <p role="status" className="mb-3 text-sm">

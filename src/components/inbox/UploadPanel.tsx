@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import EditionPicker from "@/components/edition/EditionPicker";
 import { browserUploadDeps, runUploadBatch, type UploadEntry } from "@/lib/photo/upload-queue";
 import type { HouseholdMember } from "@/lib/types";
+import { Button, Select, buttonClass } from "../ui";
 
 const OWNER_KEY = "tpl_intake_owner";
 const SHARED = "shared";
@@ -175,21 +176,21 @@ export default function UploadPanel({
   const uploaded = rows.filter((r) => r.entry.state === "done" || r.entry.state === "duplicate").length;
 
   return (
-    <section aria-labelledby="inbox-upload" className="mb-4 rounded border p-3">
-      <h3 id="inbox-upload" className="mb-2 font-semibold">
+    <section aria-labelledby="inbox-upload" className="mb-4 rounded-md border border-line bg-raised p-3">
+      <h3 id="inbox-upload" className="mb-2 font-semibold text-fg-strong">
         Add photos
       </h3>
       <label htmlFor="inbox-owner" className="mb-1 block text-sm">
         Owner
       </label>
-      <select
+      <Select
         id="inbox-owner"
         value={owner}
         onChange={(e) => {
           setOwner(e.target.value);
           saveOwner(e.target.value);
         }}
-        className="mb-3 block w-full rounded border px-2 py-2"
+        className="mb-3 block w-full"
       >
         {members.map((m) => (
           <option key={m.userId} value={m.userId}>
@@ -197,7 +198,7 @@ export default function UploadPanel({
           </option>
         ))}
         <option value={SHARED}>Shared</option>
-      </select>
+      </Select>
       <div className="mb-3">
         <EditionPicker value={edition} labels={labels} label="Edition for this batch" onChange={setEdition} />
       </div>
@@ -206,7 +207,7 @@ export default function UploadPanel({
         <div className="mb-3">
           <p className="mb-2 text-sm">Cover taken.</p>
           <div className="flex flex-wrap gap-2">
-            <label className="cursor-pointer rounded border border-field px-3 py-2">
+            <label className={`${buttonClass("secondary")} cursor-pointer`}>
               Add title page
               <input
                 type="file"
@@ -222,21 +223,20 @@ export default function UploadPanel({
                 }}
               />
             </label>
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={() => {
                 enqueue([cover]);
                 setCover(null);
               }}
-              className="rounded bg-accent px-3 py-2 text-on-accent"
             >
               Done
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         <div className="mb-3 flex flex-wrap gap-2">
-          <label className="cursor-pointer rounded bg-accent px-3 py-2 text-on-accent">
+          <label className={`${buttonClass("primary")} cursor-pointer`}>
             Choose photos
             <input
               type="file"
@@ -250,7 +250,7 @@ export default function UploadPanel({
               }}
             />
           </label>
-          <label className="cursor-pointer rounded border border-field px-3 py-2">
+          <label className={`${buttonClass("secondary")} cursor-pointer`}>
             Take a photo
             <input
               type="file"
@@ -264,7 +264,7 @@ export default function UploadPanel({
               }}
             />
           </label>
-          <a href="#/scan" className="rounded border border-field px-3 py-2">
+          <a href="#/scan" className={buttonClass("secondary")}>
             Scan barcodes
           </a>
         </div>
@@ -293,9 +293,9 @@ export default function UploadPanel({
         </ul>
       )}
       {anyFailed && !uploading && (
-        <button type="button" onClick={retryFailed} className="mt-2 rounded border px-3 py-1">
+        <Button size="sm" onClick={retryFailed} className="mt-2">
           Retry failed uploads
-        </button>
+        </Button>
       )}
     </section>
   );

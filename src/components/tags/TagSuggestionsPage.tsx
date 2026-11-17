@@ -1,4 +1,5 @@
 import { useId, useMemo, useRef, useState } from "react";
+import { Button, Select } from "@/components/ui";
 import { useTagging } from "@/contexts/TaggingContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { formatUsd } from "@/lib/covers/cost";
@@ -10,19 +11,19 @@ import RetagConfirm from "./RetagConfirm";
 import TagRunPanel from "./TagRunPanel";
 
 const categoryLabel = (c: LibraryTagCategory) => LIBRARY_TAG_CATEGORIES.find((x) => x.id === c)?.label ?? c;
-const input = "mt-1 block w-full rounded border p-2";
+const input = "mt-1 block w-full min-h-11 sm:min-h-9 rounded-md border border-field bg-control px-3 text-sm text-fg";
 
 function CategorySelect({ value, onChange }: { value: LibraryTagCategory; onChange(c: LibraryTagCategory): void }) {
   return (
     <label className="block text-sm">
       Category
-      <select value={value} onChange={(e) => onChange(e.target.value as LibraryTagCategory)} className={input}>
+      <Select value={value} onChange={(e) => onChange(e.target.value as LibraryTagCategory)} className="mt-1 block w-full">
         {LIBRARY_TAG_CATEGORIES.map((c) => (
           <option key={c.id} value={c.id}>
             {c.label}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
 }
@@ -63,13 +64,13 @@ function SuggestionItem({
 
   const books = s.books.filter((b) => titles.has(b.bookId));
   return (
-    <li aria-label={s.label} className="rounded border p-3">
-      <p className="font-medium">{s.label}</p>
+    <li aria-label={s.label} className="rounded-xl border border-line bg-raised p-3">
+      <p className="font-medium text-fg-strong">{s.label}</p>
       <p className="text-sm text-muted">{categoryLabel(s.category)}</p>
       <ul className="mt-1 space-y-1 text-sm">
         {books.map((b) => (
           <li key={b.bookId}>
-            <a href={`#/book/${b.bookId}`} className="underline">
+            <a href={`#/book/${b.bookId}`} className="inline-flex min-h-11 items-center underline sm:min-h-9">
               {titles.get(b.bookId)}
             </a>
             {b.why && <span className="text-muted">{` — ${b.why}`}</span>}
@@ -84,37 +85,26 @@ function SuggestionItem({
           </label>
           <CategorySelect value={category} onChange={setCategory} />
           <div className="flex gap-2">
-            <button
-              type="button"
+            <Button
+              variant="primary"
               disabled={pending || label.trim() === ""}
               onClick={() => void act(() => approve(s.id, label.trim(), category), "Couldn't approve the tag.")}
-              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
             >
               Confirm
-            </button>
-            <button type="button" disabled={pending} onClick={() => setEditing(false)} className="min-h-10 rounded border px-3">
+            </Button>
+            <Button disabled={pending} onClick={() => setEditing(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => setEditing(true)}
-            className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
-          >
+          <Button variant="primary" disabled={pending} onClick={() => setEditing(true)}>
             Approve
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => void act(() => dismiss(s.id), "Couldn't dismiss the suggestion.")}
-            className="min-h-10 rounded border px-3 disabled:opacity-50"
-          >
+          </Button>
+          <Button disabled={pending} onClick={() => void act(() => dismiss(s.id), "Couldn't dismiss the suggestion.")}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
       {error && (
@@ -160,8 +150,8 @@ function AddTagForm({ createTag }: { createTag(label: string, category: LibraryT
   }
 
   return (
-    <section aria-labelledby={headingId} className="rounded border p-3">
-      <h3 id={headingId} className="font-medium">
+    <section aria-labelledby={headingId} className="rounded-xl border border-line bg-raised p-3">
+      <h3 id={headingId} className="font-medium text-fg-strong">
         Add a tag
       </h3>
       <form
@@ -185,13 +175,9 @@ function AddTagForm({ createTag }: { createTag(label: string, category: LibraryT
           />
         </label>
         <CategorySelect value={category} onChange={setCategory} />
-        <button
-          type="submit"
-          disabled={pending || tagIdFromLabel(label) === ""}
-          className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
-        >
+        <Button type="submit" variant="primary" disabled={pending || tagIdFromLabel(label) === ""}>
           Add tag
-        </button>
+        </Button>
         {message && (
           <p role={message.error ? "alert" : "status"} className={`text-sm ${message.error ? "text-danger" : "text-muted"}`}>
             {message.text}
@@ -216,8 +202,8 @@ export default function TagSuggestionsPage() {
   const titles = useMemo(() => new Map(books.map((b) => [b.id, b.title])), [books]);
 
   return (
-    <section className="mx-auto max-w-3xl space-y-4 p-3 sm:p-4">
-      <h2 className="text-lg font-semibold">Tag suggestions</h2>
+    <section className="mx-auto max-w-3xl space-y-4 px-4 py-4 sm:px-6">
+      <h2 className="text-xl font-semibold text-fg-strong">Tag suggestions</h2>
       {!loading && !available && <p>Tagging isn't available yet.</p>}
       {available && (
         <>
@@ -250,8 +236,8 @@ export default function TagSuggestionsPage() {
                 progress={null}
                 onRun={tagging.checkNewTags}
               />
-              <section aria-labelledby={retagHeadingId} className="space-y-2 rounded border p-3">
-                <h3 id={retagHeadingId} className="font-medium">
+              <section aria-labelledby={retagHeadingId} className="space-y-2 rounded-xl border border-line bg-raised p-3">
+                <h3 id={retagHeadingId} className="font-medium text-fg-strong">
                   Retag all books
                 </h3>
                 <RetagConfirm
@@ -268,7 +254,7 @@ export default function TagSuggestionsPage() {
             </>
           )}
           <section aria-label="Suggestions">
-            <h3 className="mb-2 font-medium">Suggestions</h3>
+            <h3 className="mb-2 font-medium text-fg-strong">Suggestions</h3>
             {suggestions.length === 0 ? (
               <p className="text-sm text-muted">No suggestions right now.</p>
             ) : (

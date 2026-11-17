@@ -1065,3 +1065,25 @@ Hard-refresh first (Pages caches JS for about 10 minutes).
    - At step 1 in select mode, the checkbox and a `✓ Read` badge share a 64px cover.
    - The ToS and library tag pickers are near-twins (a shared `TagFilterSheet` would help).
    - `Sheet` could accept `initialFocus: "dialog"`.
+
+**2026-11-16, PR 4 (Tasks 17–19).** Where the build departed from the text above, and why:
+
+1. **Task 17, `BulkConfirmSheet.test.tsx`:** besides `overflow-y-auto` and `flex-col`, the test also asserted `safe-area-inset-bottom` two levels above `Cancel`. On `Sheet`, the dialog itself carries that padding, so this one class assertion now checks the dialog. A new test was added too: while a bulk add is saving, Escape and a scrim click don't close the sheet. `Sheet` adds those close paths, and `Cancel` is disabled while busy, so `onClose` does nothing during a save.
+2. **Task 17, kept hand-made:** the scan view's "Another copy?" prompt stays a `role="alertdialog"` (restyled only), because `Sheet` would let Escape or a scrim tap dismiss a prompt that must be answered.
+3. **Task 17, a stray byte:** `BulkConfirmSheet.tsx` had an invalid UTF-8 byte (`0xB7`) as the title–author separator, shown as "�". It is now a real "·".
+4. **Task 18, banner icon:** D12 had no warning icon, so `AlertIcon` is appended to `icons.tsx` (D12 style). Nothing else in `src/components/ui/` changed.
+5. **Task 18, household setup:** it renders outside `AppShell`, so it got the same `Our Library` `h1` above its card that Sign in has.
+6. **Task 19, `EditionPicker` (a PR 2 file):** `screens-a11y.spec.ts` found its trigger button at 38px on the pre-scan page. The one-line fix (`min-h-11 sm:min-h-9`) lives in `EditionPicker.tsx`; whoever merges second resolves a one-line conflict with PR 2's `Sheet` move.
+7. **Task 19, `visual.spec.ts`:** new states are appended. An optional `E2E_STATES` filter (comma-separated names; unset means every state) lets PR 4 skip `library` and `book`. `household-setup` is its own test, like `sign-in`.
+8. **Task 19, Lighthouse:** another worker's DevTools browser held the shared profile, so the audit ran with the Lighthouse CLI against a headless Chrome on a scratch profile, signed in by seeding a local synthetic session.
+9. **Task 19, `#/reading`:** for a fresh user it shows only the StoryGraph file chooser. `expectTapTargets` doesn't count file inputs, so the page has nothing to measure. The spec waits for the page to load, then logs it as not measured. `PossibleMatches` isn't covered.
+
+**2026-11-16, PR 3 (Tasks 14–16).** Where the build departed from the text above, and why:
+
+1. **Task 15, `Find cover` opens in a `Sheet`.** D9 puts the `Find cover` button in the left column. The open request form (reason chips, note, budget copy, buttons) was cramped there: about 134px wide on the phone. The form now opens in a `Sheet` titled `Find cover`. Every field and behaviour is unchanged, including `Angled` pre-ticked for a book with a deluxe copy. The status after a request (`New covers are ready. Review covers`) stays beside the button. Approved by the coordinator for Tierra.
+2. **Task 15, actions while editing.** While `Edit book` is open, the tabs are hidden. So `Mark read` (in the read and dnf states) and the menu's `Add copy` are disabled until Save or Cancel. They don't leave edit mode, so unsaved edits are kept. `MarkReadButton` takes an optional `disabled` prop.
+3. **Task 15, phone order.** In one column, the left column (the cover and actions) comes before `Back to library`, as D9's column split implies. The mockup's phone note ("cover on top") agrees, and the bottom tab bar's `Library` is always there.
+4. **Task 15, tap targets.** D11's 44px rule now also covers the Overview's `Your reading` buttons and `Clear date`, SeriesPicker's `Close`, LibraryTagPicker's `Done`, the Find cover reason chips, and `Try again` / `Remove mark`. The left-column actions sit in a `role="group"` named `Book actions`.
+5. **Task 16, icons need a size.** The shared `Svg` has no default size, so an icon rendered without `className` collapses to nothing. `More actions` uses `DotsIcon className="size-5"` and the read check uses `CheckIcon className="size-4"`. Later PRs should always size icons.
+6. **Task 16, extra visual states:** `book-read`, `book-find-cover` and `book-find-cover-results`. The last one answers the `cover_searches` read with a synthetic row through `page.route`, with no network or API spend.
+7. **Behaviour note:** SeriesPicker on `Sheet` treats a scrim click like Escape, so a valid changed volume draft is saved. Before, an outside click did nothing.
