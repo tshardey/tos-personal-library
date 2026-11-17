@@ -471,4 +471,19 @@ describe("LibraryPage read status filter", () => {
     expect(within(statusGroup()).getByRole("button", { name: "Any" })).toHaveAttribute("aria-pressed", "true");
     expect(titles()).toEqual(["The Salt Road", "Glass Orchard", "Paper Tide"]);
   });
+
+  it("treats an owner filter naming a user who left the household as All, with no chip or count", () => {
+    setupReading();
+    render(<LibraryPage />);
+    openFilters();
+    fireEvent.click(screen.getByRole("button", { name: "Member B", pressed: false }));
+    expect(screen.getByRole("button", { name: /^Filters, 1 active/ })).toBeInTheDocument();
+    h.members = [member("u-a", "Member A")];
+    cleanup();
+    render(<LibraryPage />);
+    expect(screen.getByRole("button", { name: /^Filters/ })).toHaveAccessibleName("Filters");
+    openFilters();
+    expect(screen.getByRole("button", { name: "All", pressed: true })).toBeInTheDocument();
+    expect(titles()).toEqual(["The Salt Road", "Glass Orchard", "Paper Tide"]);
+  });
 });

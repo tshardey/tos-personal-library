@@ -52,13 +52,20 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
     const rs = storedView.readStatus;
     return rs ? readOptions?.find((o) => o.readStatus?.userId === rs.userId && o.readStatus.state === rs.state) ?? null : null;
   }, [storedView.readStatus, readOptions]);
+  // Likewise a stored owner who has left the household (once members have loaded) reads as All.
+  const ownerGone =
+    storedView.owner !== "all" &&
+    storedView.owner !== "shared" &&
+    members.length > 0 &&
+    !members.some((m) => m.userId === storedView.owner);
   const view = useMemo(() => {
     const libraryTags = tagging.available ? storedView.libraryTags : [];
     const readStatus = readOption ? storedView.readStatus : null;
-    return libraryTags === storedView.libraryTags && readStatus === storedView.readStatus
+    const owner = ownerGone ? "all" : storedView.owner;
+    return libraryTags === storedView.libraryTags && readStatus === storedView.readStatus && owner === storedView.owner
       ? storedView
-      : { ...storedView, libraryTags, readStatus };
-  }, [storedView, tagging.available, readOption]);
+      : { ...storedView, libraryTags, readStatus, owner };
+  }, [storedView, tagging.available, readOption, ownerGone]);
   const readStatusByBook = reading.byBook;
   const { query, owner, edition, tags: tagFilter, coverFilter, unhauled, deluxe, signed, addedDay, publishedFrom, publishedTo } =
     view;
