@@ -5,6 +5,11 @@ import { createPortal } from "react-dom";
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** FOCUSABLE minus controls disabled by a `<fieldset disabled>` around them, which `[disabled]` can't see. */
+function focusables(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => !el.matches(":disabled"));
+}
+
 /**
  * The page behind doesn't scroll while any sheet is open. Open sheets are counted: the first saves
  * the body's overflow and the last to close restores it. A per-sheet saved value would break for
@@ -50,7 +55,7 @@ export function Sheet({
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     const target =
-      initialFocus?.current ?? dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+      initialFocus?.current ?? (dialogRef.current ? focusables(dialogRef.current)[0] : undefined);
     (target ?? dialogRef.current)?.focus();
     return () => {
       // The opener may have gone (a row removed by the action the sheet took).
@@ -69,9 +74,7 @@ export function Sheet({
       return;
     }
     if (e.key !== "Tab") return;
-    const items = Array.from(
-      e.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE),
-    );
+    const items = focusables(e.currentTarget);
     if (items.length === 0) {
       e.preventDefault();
       return;
