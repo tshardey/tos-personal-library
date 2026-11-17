@@ -90,6 +90,7 @@ export default function LibraryToolbar({
           ref={filtersRef}
           size="sm"
           aria-label={filtersCount > 0 ? `Filters, ${filtersCount} active` : "Filters"}
+          aria-haspopup={desktop ? undefined : "dialog"}
           aria-expanded={filtersOpen}
           aria-controls={filtersOpen ? filtersId : undefined}
           onClick={(e) => {

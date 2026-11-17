@@ -89,8 +89,11 @@ describe("FiltersPanel on the computer", () => {
     render(<LibraryPage />);
     expect(filtersButton()).toHaveAttribute("aria-expanded", "false");
     expect(filtersButton()).not.toHaveAttribute("aria-controls");
+    expect(filtersButton()).not.toHaveAttribute("aria-haspopup");
     openFilters();
     const region = screen.getByRole("region", { name: "Filters" });
+    within(region).getAllByRole("heading", { level: 2 });
+    expect(within(region).queryAllByRole("heading", { level: 3 })).toHaveLength(0);
     expect(filtersButton()).toHaveAttribute("aria-expanded", "true");
     expect(filtersButton()).toHaveAttribute("aria-controls", region.id);
     await screen.findByRole("button", { name: "ToS tags" });
@@ -140,7 +143,9 @@ describe("FiltersPanel on the phone", () => {
     setup();
     render(<LibraryPage />);
     openFilters();
+    expect(filtersButton()).toHaveAttribute("aria-haspopup", "dialog");
     const sheet = screen.getByRole("dialog", { name: "Filters" });
+    expect(within(sheet).getByRole("heading", { level: 3, name: "Reading" })).toBeInTheDocument();
     expect(headings(sheet)[0]).toBe("Filters");
     expect(headings(sheet)[1]).toBe("View");
     const view = within(sheet).getByRole("group", { name: "View" });
