@@ -134,7 +134,7 @@ const STATES: { name: string; open(page: Page, ctx: Ctx): Promise<void>; after?(
   },
 ];
 
-/** Plan 9 PR 3: the book page's four tabs, the edit form and the open More actions menu. */
+/** Plan 9 PR 3: the book page's four tabs, the edit form, the open More actions menu and the Find cover sheet. */
 function bookStates(): (typeof STATES)[number][] {
   const bookPage = async (page: Page, bookId: string, tab: string) => {
     await page.goto(`#/book/${bookId}`);
@@ -185,7 +185,60 @@ function bookStates(): (typeof STATES)[number][] {
       },
       after: closeOverlays,
     },
+    {
+      name: "book-find-cover",
+      async open(page, { bookId }) {
+        await bookPage(page, bookId, "Overview");
+        await page.getByRole("button", { name: "Find cover" }).click();
+        await expect(page.getByRole("dialog", { name: "Find cover" })).toBeVisible();
+      },
+      after: closeOverlays,
+    },
+    {
+      // A finished search, answered by a synthetic cover_searches row: no real search and no API spend.
+      name: "book-find-cover-results",
+      async open(page, { bookId }) {
+        await page.route(COVER_SEARCHES, (route) => {
+          const first = (new URL(route.request().url()).searchParams.get("offset") ?? "0") === "0";
+          return route.fulfill({ status: 200, contentType: "application/json", json: first ? [readySearch(bookId)] : [] });
+        });
+        await bookPage(page, bookId, "Overview");
+        await page.reload();
+        await expect(page.getByText("New covers are ready.")).toBeVisible();
+      },
+      async after(page) {
+        await page.unroute(COVER_SEARCHES);
+        await page.reload();
+        await expect(page.getByRole("button", { name: "Find cover" })).toBeVisible();
+      },
+    },
   ];
+}
+
+const COVER_SEARCHES = /\/rest\/v1\/cover_searches\?/;
+
+/** An invented ready search with one candidate cover; ids are synthetic. */
+function readySearch(bookId: string) {
+  return {
+    id: "00000000-0000-4000-8000-0000000000c1",
+    household_id: "00000000-0000-4000-8000-0000000000a1",
+    book_id: bookId,
+    requested_by: null,
+    batch_id: "00000000-0000-4000-8000-0000000000b1",
+    reasons: ["placeholder"],
+    note: null,
+    cover_at_request: null,
+    status: "ready",
+    attempts: 1,
+    claimed_at: null,
+    retry_at: null,
+    candidates: [],
+    results: [],
+    error_code: null,
+    seen_at: null,
+    created_at: "2026-11-15T09:00:00Z",
+    book: { title: "The Salt Road", authors: ["Petra Wynnecombe"], isbn13: [], isbn10: [], cover_url: null },
+  };
 }
 
 let owner: TestUser;

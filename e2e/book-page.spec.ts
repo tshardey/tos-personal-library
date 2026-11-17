@@ -93,6 +93,9 @@ test("More actions: Enter opens, Escape closes with focus back, Add copy opens t
   await page.keyboard.press("Enter");
   await expect(more).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("button", { name: "Delete book" })).toBeVisible();
+  // Move focus into the menu first, so Escape has to send it back to the button.
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Add copy" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(more).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("button", { name: "Delete book" })).toHaveCount(0);
@@ -124,12 +127,21 @@ test("layout: two columns at 1280px, the cover above the tablist at 390px", asyn
   expect(c2.y + c2.height).toBeLessThanOrEqual(t2.y);
 });
 
-test("tap targets at 390px: the left-column actions and the tablist are 44px or more", async ({ page }) => {
+test("tap targets at 390px: the left-column actions, the tablist and Your reading are 44px or more", async ({ page }) => {
   const { user, ids } = await seedBook();
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page, user, ids[0]);
   await expectTapTargets(page, page.getByRole("tablist", { name: "Book sections" }));
-  const actions = page.locator("div.flex.flex-col.gap-2").filter({ has: page.getByRole("button", { name: "Edit book" }) });
+  const reading = page.getByRole("group", { name: "Your reading" });
+  await expectTapTargets(page, reading);
+  // Read shows the finished date and its Clear date button.
+  await reading.getByRole("button", { name: "Read", exact: true }).click();
+  const clear = page.getByRole("button", { name: "Clear date" });
+  await expect(clear).toBeVisible();
+  await expectTapTargets(page, reading);
+  const box = (await clear.boundingBox())!;
+  expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(43.5);
+  const actions = page.getByRole("group", { name: "Book actions" });
   await expectTapTargets(page, actions);
   await page.getByRole("button", { name: "More actions" }).click();
   await expectTapTargets(page, actions);
