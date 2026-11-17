@@ -87,7 +87,7 @@ export default function HistoryUpload({ householdId, onDone }: Props) {
   return (
     <section aria-label="Upload StoryGraph export" className="space-y-2 rounded border p-3">
       <h3 className="font-medium">Upload StoryGraph export</h3>
-      <p className="text-sm text-stone-700">
+      <p className="text-sm text-muted">
         Export your library from StoryGraph, then choose the CSV file here. Only each book's title, authors, ISBN, read
         status and last date read are sent. Reviews, ratings and everything else stay on this device.
       </p>
@@ -102,7 +102,7 @@ export default function HistoryUpload({ householdId, onDone }: Props) {
         />
       </label>
       {parseError && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {parseError}
         </p>
       )}
@@ -114,7 +114,7 @@ export default function HistoryUpload({ householdId, onDone }: Props) {
               type="button"
               disabled={progress !== null}
               onClick={() => void upload()}
-              className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
             >
               Upload
             </button>
@@ -123,7 +123,7 @@ export default function HistoryUpload({ householdId, onDone }: Props) {
       )}
       {progress && <p role="status" className="text-sm">{`Uploading ${progress.done} of ${progress.total}…`}</p>}
       {stopped && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {`Upload stopped after ${stopped.done} of ${stopped.total}. Try again; nothing is duplicated.`}
         </p>
       )}

@@ -6,6 +6,7 @@ import { localDay } from "@/lib/date-added";
 import { countUnmatchedHistory } from "@/lib/reading/reading-repo";
 import HistoryUpload from "./HistoryUpload";
 import PossibleMatches from "./PossibleMatches";
+import ReadSummary from "./ReadSummary";
 import ReadingStatsPanel from "./ReadingStatsPanel";
 
 /** D10: `#/reading` — stats, StoryGraph upload, Possible matches, footnote. */
@@ -41,6 +42,7 @@ export default function ReadingHistoryPage() {
             <p>Loading…</p>
           ) : (
             <>
+              <ReadSummary books={books} className="text-sm text-muted" />
               <ReadingStatsPanel books={books} byBook={byBook} members={members} me={userId} today={today} />
               <HistoryUpload
                 householdId={householdId}
@@ -54,7 +56,7 @@ export default function ReadingHistoryPage() {
             </>
           )}
           {unmatched !== null && (
-            <p className="text-sm text-stone-600">{`${unmatched} books from your history aren't on the shelf yet. They link by themselves when added.`}</p>
+            <p className="text-sm text-muted">{`${unmatched} books from your history aren't on the shelf yet. They link by themselves when added.`}</p>
           )}
         </>
       )}

@@ -17,9 +17,9 @@ const NAMED: Record<string, { title: string; author: string }> = {
   "9780000000026": { title: "Moth Lanterns at Low Tide", author: "Petra Wynnecombe" },
   "9780000000033": { title: "The Glass Orchard Ledger", author: "Callum Ashgrove" },
 };
-const FIRST = ["Amber", "Brindle", "Cinder", "Dusk", "Ember", "Fallow", "Gilded", "Hollow", "Ivory", "Juniper"];
-const SECOND = ["Atlas", "Bastion", "Codex", "Delta", "Estuary", "Folio", "Garden", "Harbor", "Inlet", "Journal"];
-const SURNAMES = ["Abernathy", "Brackwell", "Corrindale", "Dunmore", "Eastervale", "Fenwick", "Galloway", "Hartigan", "Ivesdon", "Jarrow"];
+export const FIRST = ["Amber", "Brindle", "Cinder", "Dusk", "Ember", "Fallow", "Gilded", "Hollow", "Ivory", "Juniper"];
+export const SECOND = ["Atlas", "Bastion", "Codex", "Delta", "Estuary", "Folio", "Garden", "Harbor", "Inlet", "Journal"];
+export const SURNAMES = ["Abernathy", "Brackwell", "Corrindale", "Dunmore", "Eastervale", "Fenwick", "Galloway", "Hartigan", "Ivesdon", "Jarrow"];
 
 function bookFor(isbn: string): { title: string; author: string } {
   const named = NAMED[isbn];

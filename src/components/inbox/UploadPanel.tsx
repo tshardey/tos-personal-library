@@ -206,7 +206,7 @@ export default function UploadPanel({
         <div className="mb-3">
           <p className="mb-2 text-sm">Cover taken.</p>
           <div className="flex flex-wrap gap-2">
-            <label className="cursor-pointer rounded border px-3 py-2">
+            <label className="cursor-pointer rounded border border-field px-3 py-2">
               Add title page
               <input
                 type="file"
@@ -228,7 +228,7 @@ export default function UploadPanel({
                 enqueue([cover]);
                 setCover(null);
               }}
-              className="rounded bg-stone-800 px-3 py-2 text-white"
+              className="rounded bg-accent px-3 py-2 text-on-accent"
             >
               Done
             </button>
@@ -236,7 +236,7 @@ export default function UploadPanel({
         </div>
       ) : (
         <div className="mb-3 flex flex-wrap gap-2">
-          <label className="cursor-pointer rounded bg-stone-800 px-3 py-2 text-white">
+          <label className="cursor-pointer rounded bg-accent px-3 py-2 text-on-accent">
             Choose photos
             <input
               type="file"
@@ -250,7 +250,7 @@ export default function UploadPanel({
               }}
             />
           </label>
-          <label className="cursor-pointer rounded border px-3 py-2">
+          <label className="cursor-pointer rounded border border-field px-3 py-2">
             Take a photo
             <input
               type="file"
@@ -264,7 +264,7 @@ export default function UploadPanel({
               }}
             />
           </label>
-          <a href="#/scan" className="rounded border px-3 py-2">
+          <a href="#/scan" className="rounded border border-field px-3 py-2">
             Scan barcodes
           </a>
         </div>
@@ -285,7 +285,7 @@ export default function UploadPanel({
           {pendingRows.map((r) => (
             <li key={r.key} className="flex justify-between gap-2">
               <span className="truncate">{r.entry.fileName}</span>
-              <span className={r.entry.state === "failed" || r.entry.state === "unreadable" ? "text-red-700" : ""}>
+              <span className={r.entry.state === "failed" || r.entry.state === "unreadable" ? "text-danger" : ""}>
                 {rowText(r.entry)}
               </span>
             </li>

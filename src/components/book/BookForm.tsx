@@ -102,12 +102,12 @@ export default function BookForm({
         <input value={publishDate} onChange={(e) => setPublishDate(e.target.value)} className={input} />
       </label>
       {error && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           {error}
         </p>
       )}
       <div className="flex gap-2">
-        <button type="submit" disabled={busy} className="rounded bg-stone-800 px-3 py-2 text-white">
+        <button type="submit" disabled={busy} className="rounded bg-accent px-3 py-2 text-on-accent">
           {submitLabel}
         </button>
         {onCancel && (

@@ -65,12 +65,12 @@ export default function ImportPreview(p: Props) {
     <div className="p-4">
       <h2 className="mb-3 text-lg font-semibold">Import from libib</h2>
       {p.notice && (
-        <p role="alert" className="mb-3 rounded border border-amber-300 bg-amber-50 p-2">
+        <p role="alert" className="mb-3 rounded border border-notice-line bg-notice p-2">
           {p.notice}
         </p>
       )}
       {file.spreadsheetDamage && (
-        <p role="alert" className="mb-3 text-red-700">
+        <p role="alert" className="mb-3 text-danger">
           Some ISBNs look damaged, which usually means the file was opened in Excel. Export it from libib
           again and upload that file directly.
         </p>
@@ -102,7 +102,7 @@ export default function ImportPreview(p: Props) {
                 <option value="skip">Skip this collection</option>
               </select>
               {p.mapping[collection] === undefined && (
-                <p className="text-sm text-red-700">{`Choose an owner for ${collectionLabel(collection)}.`}</p>
+                <p className="text-sm text-danger">{`Choose an owner for ${collectionLabel(collection)}.`}</p>
               )}
             </div>
           );
@@ -133,7 +133,7 @@ export default function ImportPreview(p: Props) {
               <li key={b.libibId}>
                 {b.input.title}
                 {b.input.authors.length > 0 && (
-                  <span className="text-stone-600">{` — ${b.input.authors.join(", ")}`}</span>
+                  <span className="text-muted">{` — ${b.input.authors.join(", ")}`}</span>
                 )}
               </li>
             ))}
@@ -160,7 +160,7 @@ export default function ImportPreview(p: Props) {
                   />
                   <span>
                     {r.book.title}
-                    <span className="text-stone-600"> — Import again</span>
+                    <span className="text-muted"> — Import again</span>
                   </span>
                 </label>
               </li>
@@ -203,7 +203,7 @@ export default function ImportPreview(p: Props) {
             type="button"
             onClick={p.onConfirm}
             disabled={awaitingOwner}
-            className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+            className="rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
           >
             {state === "ledger_only" ? "Finish the earlier import" : "Import"}
           </button>

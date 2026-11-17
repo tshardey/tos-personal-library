@@ -339,6 +339,19 @@ test.describe("barcode scanner walkthrough", () => {
     await start(page);
     await expect.poll(async () => (await cameraTracks(page)).map((t) => t.readyState)).toEqual(["live"]);
 
+    // The camera view covers the bottom tab bar (D8): the bar's spot belongs to the scan view.
+    const atBar = await page.evaluate(() => {
+      const el = document.elementFromPoint(195, 820);
+      const done = [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Done");
+      const view = done?.closest(".fixed.inset-0");
+      return { inNav: !!el?.closest('nav[aria-label="Main"]'), inView: !!view && !!el && view.contains(el) };
+    });
+    expect(atBar).toEqual({ inNav: false, inView: true });
+    if (process.env.E2E_SCREENSHOTS === "1") {
+      const dir = process.env.E2E_SCREENSHOT_DIR ?? ".superpowers/screenshots/plan9/current";
+      await page.screenshot({ path: `${dir}/scan-camera-390.png`, fullPage: false });
+    }
+
     const setVisibility = (state: "hidden" | "visible") =>
       page.evaluate((s) => {
         Object.defineProperty(document, "visibilityState", { configurable: true, get: () => s });

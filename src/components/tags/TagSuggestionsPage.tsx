@@ -65,14 +65,14 @@ function SuggestionItem({
   return (
     <li aria-label={s.label} className="rounded border p-3">
       <p className="font-medium">{s.label}</p>
-      <p className="text-sm text-stone-600">{categoryLabel(s.category)}</p>
+      <p className="text-sm text-muted">{categoryLabel(s.category)}</p>
       <ul className="mt-1 space-y-1 text-sm">
         {books.map((b) => (
           <li key={b.bookId}>
             <a href={`#/book/${b.bookId}`} className="underline">
               {titles.get(b.bookId)}
             </a>
-            {b.why && <span className="text-stone-700">{` — ${b.why}`}</span>}
+            {b.why && <span className="text-muted">{` — ${b.why}`}</span>}
           </li>
         ))}
       </ul>
@@ -88,7 +88,7 @@ function SuggestionItem({
               type="button"
               disabled={pending || label.trim() === ""}
               onClick={() => void act(() => approve(s.id, label.trim(), category), "Couldn't approve the tag.")}
-              className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
             >
               Confirm
             </button>
@@ -103,7 +103,7 @@ function SuggestionItem({
             type="button"
             disabled={pending}
             onClick={() => setEditing(true)}
-            className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+            className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
           >
             Approve
           </button>
@@ -118,7 +118,7 @@ function SuggestionItem({
         </div>
       )}
       {error && (
-        <p role="alert" className="mt-1 text-sm text-red-700">
+        <p role="alert" className="mt-1 text-sm text-danger">
           {error}
         </p>
       )}
@@ -188,12 +188,12 @@ function AddTagForm({ createTag }: { createTag(label: string, category: LibraryT
         <button
           type="submit"
           disabled={pending || tagIdFromLabel(label) === ""}
-          className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+          className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
         >
           Add tag
         </button>
         {message && (
-          <p role={message.error ? "alert" : "status"} className={`text-sm ${message.error ? "text-red-700" : "text-stone-700"}`}>
+          <p role={message.error ? "alert" : "status"} className={`text-sm ${message.error ? "text-danger" : "text-muted"}`}>
             {message.text}
           </p>
         )}
@@ -222,7 +222,7 @@ export default function TagSuggestionsPage() {
       {available && (
         <>
           {budgets.tagging !== null && budgets.ask !== null && (
-            <p className="text-sm text-stone-700">
+            <p className="text-sm text-muted">
               {`This month: ${formatUsd(budgets.tagging.spentMicro)} of ${formatUsd(budgets.tagging.budgetMicro)} used for tagging, ${formatUsd(budgets.ask.spentMicro)} of ${formatUsd(budgets.ask.budgetMicro)} for Ask.`}
             </p>
           )}
@@ -261,7 +261,7 @@ export default function TagSuggestionsPage() {
                   onRetag={tagging.retagMany}
                 />
               </section>
-              <p className="text-sm text-stone-600">
+              <p className="text-sm text-muted">
                 Check for new tags is cheap but only rereads each book's summary, so it can't add cover tags. To pick up
                 new cover tags, use Retag all books.
               </p>
@@ -270,7 +270,7 @@ export default function TagSuggestionsPage() {
           <section aria-label="Suggestions">
             <h3 className="mb-2 font-medium">Suggestions</h3>
             {suggestions.length === 0 ? (
-              <p className="text-sm text-stone-700">No suggestions right now.</p>
+              <p className="text-sm text-muted">No suggestions right now.</p>
             ) : (
               <ul className="space-y-2">
                 {suggestions.map((s) => (

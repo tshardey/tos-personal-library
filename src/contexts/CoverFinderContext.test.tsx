@@ -31,7 +31,7 @@ vi.mock("@/contexts/HouseholdContext", () => ({
   }),
 }));
 
-import CoversBadge from "@/components/covers/CoversBadge";
+import CoversTab from "@/components/nav/CoversTab";
 import CoverStopBanner from "@/components/covers/CoverStopBanner";
 import { mkSearch } from "@/lib/covers/fixtures.test-util";
 import type { drainCovers } from "@/lib/covers/drain";
@@ -79,7 +79,7 @@ function Probe() {
 function mount(deps: Partial<CoverFinderDeps> = {}, children: ReactNode = <Probe />) {
   return render(
     <CoverFinderProvider deps={deps}>
-      <CoversBadge />
+      <CoversTab variant="bar" current={false} />
       <CoverStopBanner />
       {children}
     </CoverFinderProvider>,
@@ -307,7 +307,7 @@ describe("CoverFinderProvider", () => {
     mount({ drain: mkDrain() });
     await flush();
     expect(screen.getByTestId("review")).toHaveTextContent("3");
-    expect(screen.getByRole("link", { name: "Covers to review (3)" })).toHaveAttribute("href", "#/covers");
+    expect(screen.getByRole("link", { name: "Covers, 3 to review" })).toHaveAttribute("href", "#/covers");
   });
 
   it("runReview sums outcomes, marks seen once, then reloads", async () => {

@@ -44,8 +44,8 @@ export default function ReviewList({ items, catalog, onChoose }: Props) {
         {items.map((item) => (
           <li key={item.libibId} className="rounded border p-3">
             <p className="font-medium">{item.title}</p>
-            {item.authors.length > 0 && <p className="text-sm text-stone-600">{item.authors.join(", ")}</p>}
-            <p className="mb-2 text-sm text-stone-600">{REASON_TEXT[item.reason]}</p>
+            {item.authors.length > 0 && <p className="text-sm text-muted">{item.authors.join(", ")}</p>}
+            <p className="mb-2 text-sm text-muted">{REASON_TEXT[item.reason]}</p>
             <fieldset>
               <legend className="sr-only">{`Choice for ${item.title}`}</legend>
               {item.options.map((option) => {

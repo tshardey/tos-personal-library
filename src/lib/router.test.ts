@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHash, routeToHash, tabFor } from "./router";
+import { parseHash, routeToHash, tabFor, type Route, type Tab } from "./router";
 
 describe("parseHash", () => {
   it("decodes book ids", () => {
@@ -47,34 +47,52 @@ describe("series route", () => {
 });
 
 describe("covers route", () => {
-  it("parses #/covers, round-trips it, and belongs to the Library tab", () => {
+  it("parses #/covers, round-trips it, and belongs to the Covers tab", () => {
     expect(parseHash("#/covers")).toEqual({ name: "covers" });
     expect(routeToHash({ name: "covers" })).toBe("#/covers");
     expect(parseHash(routeToHash({ name: "covers" }))).toEqual({ name: "covers" });
-    expect(tabFor({ name: "covers" })).toBe("library");
+    expect(tabFor({ name: "covers" })).toBe("covers");
   });
 });
 
 describe("tags route", () => {
-  it("parses #/tags, round-trips it, and belongs to the Library tab", () => {
+  it("parses #/tags, round-trips it, and belongs to the More tab", () => {
     expect(parseHash("#/tags")).toEqual({ name: "tags" });
     expect(routeToHash({ name: "tags" })).toBe("#/tags");
-    expect(tabFor({ name: "tags" })).toBe("library");
+    expect(tabFor({ name: "tags" })).toBe("more");
   });
 });
 
 describe("reading route", () => {
-  it("parses #/reading, round-trips it, and belongs to the Library tab", () => {
+  it("parses #/reading, round-trips it, and belongs to the More tab", () => {
     expect(parseHash("#/reading")).toEqual({ name: "reading" });
     expect(routeToHash({ name: "reading" })).toBe("#/reading");
-    expect(tabFor({ name: "reading" })).toBe("library");
+    expect(tabFor({ name: "reading" })).toBe("more");
   });
 });
 
 describe("editions route", () => {
-  it("parses #/editions, round-trips it, and belongs to the Library tab", () => {
+  it("parses #/editions, round-trips it, and belongs to the More tab", () => {
     expect(parseHash("#/editions")).toEqual({ name: "editions" });
     expect(routeToHash({ name: "editions" })).toBe("#/editions");
-    expect(tabFor({ name: "editions" })).toBe("library");
+    expect(tabFor({ name: "editions" })).toBe("more");
+  });
+});
+
+describe("tabFor", () => {
+  it.each([
+    [{ name: "library" }, "library"],
+    [{ name: "library", series: "Salt Road" }, "library"],
+    [{ name: "book", id: "b1" }, "library"],
+    [{ name: "add" }, "add"],
+    [{ name: "inbox" }, "add"],
+    [{ name: "import" }, "add"],
+    [{ name: "scan" }, "scan"],
+    [{ name: "covers" }, "covers"],
+    [{ name: "tags" }, "more"],
+    [{ name: "reading" }, "more"],
+    [{ name: "editions" }, "more"],
+  ] as [Route, Tab][])("maps %o to %s", (route, tab) => {
+    expect(tabFor(route)).toBe(tab);
   });
 });

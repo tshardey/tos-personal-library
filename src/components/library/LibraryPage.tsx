@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CoverBatchFooter from "@/components/covers/CoverBatchFooter";
 import NothingFoundList from "@/components/covers/NothingFoundList";
+import { BottomBar } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
@@ -188,13 +189,13 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   if (error) {
     return (
       <div className="p-6">
-        <p role="alert" className="mb-3 text-red-700">
+        <p role="alert" className="mb-3 text-danger">
           {error}
         </p>
         <button
           type="button"
           onClick={() => void reload()}
-          className="rounded bg-stone-800 px-3 py-2 text-white"
+          className="rounded bg-accent px-3 py-2 text-on-accent"
         >
           Retry
         </button>
@@ -208,7 +209,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
         <button
           type="button"
           onClick={() => navigate({ name: "add" })}
-          className="rounded bg-stone-800 px-3 py-2 text-white"
+          className="rounded bg-accent px-3 py-2 text-on-accent"
         >
           Add a book
         </button>
@@ -283,7 +284,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       {askView !== null ? (
         <>
           {askView.status === "done" && askCount > 0 && (
-            <p aria-live="polite" className="px-4 pt-3 text-sm text-stone-600">
+            <p aria-live="polite" className="px-4 pt-3 text-sm text-muted">
               {`${askCount} ${askCount === 1 ? "match" : "matches"}`}
             </p>
           )}
@@ -292,7 +293,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       ) : (
         <>
       <div className={visible.length === 0 ? "p-6 text-center" : "flex items-center justify-between gap-2 px-4 pt-3"}>
-        <p aria-live="polite" className={visible.length === 0 ? undefined : "text-sm text-stone-600"}>
+        <p aria-live="polite" className={visible.length === 0 ? undefined : "text-sm text-muted"}>
           {visible.length === 0 ? "No matching books" : `${visible.length} ${visible.length === 1 ? "book" : "books"}`}
         </p>
         {visible.length > 0 && !showNothingFound && (
@@ -329,11 +330,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       )}
       {showFooter && <CoverBatchFooter books={visible} />}
       {showSelecting && (
-        <div
-          role="region"
-          aria-label="Selection"
-          className="fixed inset-x-0 bottom-0 z-10 border-t bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        >
+        <BottomBar label="Selection">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-2">
             <p className="text-sm font-medium">{`${selectedBooks.length} selected`}</p>
             <div className="flex gap-2">
@@ -349,13 +346,13 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
                 type="button"
                 disabled={selectedBooks.length === 0}
                 onClick={() => setEditing(true)}
-                className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
               >
                 Edit
               </button>
             </div>
           </div>
-        </div>
+        </BottomBar>
       )}
       {editing && showSelecting && selectedBooks.length > 0 && (
         <MassEditSheet

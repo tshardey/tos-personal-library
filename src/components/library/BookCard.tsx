@@ -28,8 +28,8 @@ export default function BookCard({
   const body = (
     <>
       <div
-        className={`aspect-[2/3] overflow-hidden rounded bg-stone-200 shadow-sm ${
-          selection?.selected ? "ring-4 ring-stone-800" : ""
+        className={`aspect-[2/3] overflow-hidden rounded bg-control shadow-sm ${
+          selection?.selected ? "ring-4 ring-accent" : ""
         }`}
       >
         {book.coverUrl && !failed ? (
@@ -54,17 +54,17 @@ export default function BookCard({
             className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center"
           >
             <span className="line-clamp-4 text-sm font-semibold">{book.title}</span>
-            {author && <span className="line-clamp-2 text-xs text-stone-600">{author}</span>}
+            {author && <span className="line-clamp-2 text-xs text-muted">{author}</span>}
           </div>
         )}
       </div>
       <div className="mt-1">
         <p className="line-clamp-2 text-sm font-medium leading-tight">{book.title}</p>
-        {author && <p className="line-clamp-1 text-xs text-stone-600">{author}</p>}
+        {author && <p className="line-clamp-1 text-xs text-muted">{author}</p>}
         {badgeLabels.length > 0 && (
-          <p className="mt-0.5 flex flex-wrap gap-1 text-[11px] text-stone-600">
+          <p className="mt-0.5 flex flex-wrap gap-1 text-[11px] text-muted">
             {badgeLabels.map((l) => (
-              <span key={l} className="rounded bg-stone-100 px-1.5">
+              <span key={l} className="rounded bg-control px-1.5">
                 {l}
               </span>
             ))}
@@ -81,7 +81,7 @@ export default function BookCard({
           checked={selection.selected}
           onChange={selection.onToggle}
           aria-label={`Select ${book.title}`}
-          className="absolute left-1.5 top-1.5 z-[1] h-6 w-6 accent-stone-800"
+          className="absolute left-1.5 top-1.5 z-[1] h-6 w-6 accent-accent"
         />
         {body}
       </label>

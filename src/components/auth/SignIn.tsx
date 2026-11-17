@@ -49,7 +49,7 @@ export default function SignIn() {
     <main className="mx-auto max-w-sm p-6">
       <h1 className="mb-4 text-2xl font-semibold">Our Library</h1>
       {!configured && (
-        <p role="alert" className="mb-4 text-red-700">
+        <p role="alert" className="mb-4 text-danger">
           Supabase isn't configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.
         </p>
       )}
@@ -67,7 +67,7 @@ export default function SignIn() {
         <button
           type="submit"
           disabled={!configured || status === "sending" || coolingDown}
-          className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+          className="rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
         >
           Sign in
         </button>
@@ -79,7 +79,7 @@ export default function SignIn() {
         </p>
       )}
       {status === "error" && (
-        <p role="alert" className="mt-3 text-red-700">
+        <p role="alert" className="mt-3 text-danger">
           {error}
         </p>
       )}

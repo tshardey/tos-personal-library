@@ -7,6 +7,7 @@ import { groupTags, isSharedTag, type TosTag } from "@/lib/tos-tags";
 import type { LibraryTag } from "@/lib/tagging/types";
 import LibraryTagFilter from "@/components/tags/LibraryTagFilter";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface Props {
   query: string;
@@ -137,7 +138,7 @@ export default function LibraryFilters({
     ...members.map((m) => ({ value: m.userId, label: m.displayName })),
   ];
   return (
-    <div className="sticky top-0 z-10 space-y-2 border-b bg-white p-3">
+    <div className="sticky top-[var(--toolbar-top)] z-10 space-y-2 border-b bg-raised p-3">
       <div className="flex gap-2">
         <input
           type="search"
@@ -152,13 +153,13 @@ export default function LibraryFilters({
             type="button"
             disabled={ask.disabled}
             onClick={ask.onAsk}
-            className="shrink-0 rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+            className="shrink-0 rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
           >
             Ask ✨
           </button>
         )}
       </div>
-      {ask?.note && <p className="text-sm text-stone-700">{ask.note}</p>}
+      {ask?.note && <p className="text-sm text-muted">{ask.note}</p>}
       {labels.length > 0 && (
         <select
           aria-label="Edition"
@@ -237,14 +238,14 @@ export default function LibraryFilters({
         <YearInput label="Published from" placeholder="From" value={publishedFrom} onValue={(n) => onChange({ publishedFrom: n })} />
         <YearInput label="Published to" placeholder="To" value={publishedTo} onValue={(n) => onChange({ publishedTo: n })} />
       </div>
-      {tagsUnavailable && <p className="text-sm text-stone-700">Tome of Secrets tags unavailable.</p>}
+      {tagsUnavailable && <p className="text-sm text-muted">Tome of Secrets tags unavailable.</p>}
       {!tagsUnavailable && (shared.length > 0 || tagFilter.length > 0) && (
         <div className="flex flex-wrap items-center gap-2">
           <button ref={triggerRef} type="button" onClick={() => setTagsOpen(true)} className="rounded border px-3 py-1 text-sm">
             ToS tags
           </button>
           {tagFilter.map((id) => (
-            <span key={id} className="rounded-full bg-stone-200 px-3 py-1 text-sm">
+            <span key={id} className="rounded-full bg-control px-3 py-1 text-sm">
               {labelOf(id)}
             </span>
           ))}
@@ -262,8 +263,9 @@ export default function LibraryFilters({
           onChange={libraryTagFilter.onChange}
         />
       )}
-      {tagsOpen && !tagsUnavailable && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+      {/* Portalled: the sticky z-10 filter bar would otherwise keep this sheet under the z-30 tab bar. */}
+      {tagsOpen && !tagsUnavailable && createPortal(
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div
             role="dialog"
             aria-modal="true"
@@ -274,7 +276,7 @@ export default function LibraryFilters({
                 closeTags();
               }
             }}
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-white p-4 sm:rounded"
+            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-raised p-4 sm:rounded"
           >
             {groups.map((g) => (
               <fieldset key={g.category} className="mb-3">
@@ -300,7 +302,8 @@ export default function LibraryFilters({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       <div className="flex gap-2 overflow-x-auto">
         {chips.map((c) => (
@@ -310,7 +313,7 @@ export default function LibraryFilters({
             aria-pressed={owner === c.value}
             onClick={() => onOwner(c.value)}
             className={`shrink-0 rounded-full border px-3 py-1 text-sm ${
-              owner === c.value ? "bg-stone-800 text-white" : "bg-white"
+              owner === c.value ? "bg-accent text-on-accent" : "bg-raised"
             }`}
           >
             {c.label}
@@ -330,7 +333,7 @@ export default function LibraryFilters({
             type="button"
             aria-pressed={on}
             onClick={() => onChange({ [key]: !on })}
-            className={`shrink-0 rounded-full border px-3 py-1 text-sm ${on ? "bg-stone-800 text-white" : "bg-white"}`}
+            className={`shrink-0 rounded-full border px-3 py-1 text-sm ${on ? "bg-accent text-on-accent" : "bg-raised"}`}
           >
             {label}
           </button>

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { BottomBar } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { booksCovered, budgetUsedUp, estimateMicro, formatUsd } from "@/lib/covers/cost";
 import { batchSelection } from "@/lib/covers/eligibility";
@@ -43,19 +44,19 @@ export default function CoverBatchFooter({ books }: { books: BookWithCopies[] })
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+    <BottomBar>
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
         <p className="text-sm font-medium">{`${booksWord(n)} · ${estimateText(estimateMicro(n))}`}</p>
         <button
           type="button"
           disabled={disabled}
           onClick={() => void go()}
-          className="rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+          className="rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
         >
           Find covers
         </button>
       </div>
-      <div className="mx-auto max-w-3xl space-y-0.5 text-sm text-stone-700">
+      <div className="mx-auto max-w-3xl space-y-0.5 text-sm text-muted">
         {alreadyOpen > 0 && <p>{alreadyOpen} already being searched.</p>}
         {nothingFound > 0 && (
           <p>{`${nothingFound} tried before with nothing found ${nothingFound === 1 ? "is" : "are"} left out.`}</p>
@@ -70,6 +71,6 @@ export default function CoverBatchFooter({ books }: { books: BookWithCopies[] })
         )}
         {failed && <p role="alert">Couldn't start the search. Try again.</p>}
       </div>
-    </div>
+    </BottomBar>
   );
 }

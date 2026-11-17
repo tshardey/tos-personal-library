@@ -44,26 +44,26 @@ export default function ScanList({ rows, onPhoto, onAnother }: Props) {
                 alt=""
                 loading="lazy"
                 decoding="async"
-                className="h-16 w-11 shrink-0 rounded bg-stone-100 object-cover"
+                className="h-16 w-11 shrink-0 rounded bg-control object-cover"
               />
             ) : (
-              <div aria-hidden="true" className="h-16 w-11 shrink-0 rounded bg-stone-100" />
+              <div aria-hidden="true" className="h-16 w-11 shrink-0 rounded bg-control" />
             )}
             <div className="min-w-0 flex-1 text-[13px] sm:text-sm">
-              <p className={`break-words ${r.error ? "text-red-700" : ""}`}>{r.status}</p>
-              {r.isbn && <p className="text-xs text-stone-500">{r.isbn}</p>}
+              <p className={`break-words ${r.error ? "text-danger" : ""}`}>{r.status}</p>
+              {r.isbn && <p className="text-xs text-muted">{r.isbn}</p>}
               {r.owned && (
                 <>
                   <p>
-                    <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                    <span className="inline-block rounded bg-notice px-2 py-0.5 text-xs font-semibold text-fg">
                       {OWNED_BADGE}
                     </span>
                   </p>
-                  <p className="text-xs text-amber-900">{r.owned.explain}</p>
+                  <p className="text-xs text-fg">{r.owned.explain}</p>
                 </>
               )}
               {r.ownedLines.map((line) => (
-                <p key={line} className="text-xs text-amber-800">
+                <p key={line} className="text-xs text-fg">
                   {line}
                 </p>
               ))}
@@ -93,7 +93,7 @@ export default function ScanList({ rows, onPhoto, onAnother }: Props) {
           </li>
         ))}
       </ul>
-      {rows.length === 0 && <p className="text-sm text-stone-600">No books scanned yet.</p>}
+      {rows.length === 0 && <p className="text-sm text-muted">No books scanned yet.</p>}
       {!all && rows.length > SHOWN && (
         <button type="button" onClick={() => setAll(true)} className="mt-2 rounded border px-3 py-2 text-sm">
           {`Show all ${rows.length}`}

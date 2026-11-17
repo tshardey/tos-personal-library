@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const reading = vi.hoisted(() => ({
@@ -22,7 +22,7 @@ import { UNAVAILABLE_READING, type ReadingState } from "@/contexts/ReadingContex
 import { clearCatalogCache, writeCatalogCache } from "@/lib/catalog-cache";
 import { bookFixture, copyFixture } from "@/lib/flag-fixtures.test-util";
 import { toStatusMap } from "@/lib/reading/status";
-import AccountMenu from "./AccountMenu";
+import AppShell from "./AppShell";
 
 const books = ["The Salt Road", "Glass Orchard", "The Tin Lantern"].map((t) =>
   bookFixture(t, [copyFixture({ ownerUserId: "user-a" })]),
@@ -46,9 +46,15 @@ function available(over: Partial<ReadingState> = {}) {
     ...over,
   };
 }
+/** Opens More and returns queries scoped to its sheet. */
 function open() {
-  render(<AccountMenu email="a@b.co" onSignOut={() => {}} />);
-  fireEvent.click(screen.getByRole("button", { name: "Account" }));
+  render(
+    <AppShell route={{ name: "library" }} email="a@b.co" onSignOut={() => {}}>
+      <p>Page body</p>
+    </AppShell>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "More" }));
+  return within(screen.getByRole("dialog", { name: "More" }));
 }
 
 beforeEach(() => {
@@ -57,32 +63,39 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe("AccountMenu reading", () => {
+describe("More reading", () => {
   it("shows the Reading history link and the summary when available", () => {
     writeCatalogCache({ householdId: "h1", books, tags: new Map() });
     available();
-    open();
-    expect(screen.getByRole("link", { name: "Reading history" })).toHaveAttribute("href", "#/reading");
-    expect(screen.getByText("You've read 2 of 3 (67%)")).toBeInTheDocument();
+    const more = open();
+    expect(more.getByRole("link", { name: "Reading history" })).toHaveAttribute("href", "#/reading");
+    expect(more.getByText("You've read 2 of 3 (67%)")).toBeInTheDocument();
+    // The summary tops the list.
+    const order = more
+      .getByText("You've read 2 of 3 (67%)")
+      .compareDocumentPosition(more.getByRole("link", { name: "Reading history" }));
+    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("omits the summary without a cached catalogue", () => {
     available();
-    open();
-    expect(screen.getByRole("link", { name: "Reading history" })).toBeInTheDocument();
+    const more = open();
+    expect(more.getByRole("link", { name: "Reading history" })).toBeInTheDocument();
     expect(screen.queryByText(/You've read/)).not.toBeInTheDocument();
   });
 
   it("omits the summary when the member owns nothing", () => {
     writeCatalogCache({ householdId: "h1", books: [], tags: new Map() });
     available();
-    open();
+    const more = open();
+    expect(more.getByRole("link", { name: "Edition labels" })).toBeInTheDocument();
     expect(screen.queryByText(/You've read/)).not.toBeInTheDocument();
   });
 
   it("shows neither when unavailable", () => {
     writeCatalogCache({ householdId: "h1", books, tags: new Map() });
-    open();
+    const more = open();
+    expect(more.getByRole("link", { name: "Edition labels" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Reading history" })).not.toBeInTheDocument();
     expect(screen.queryByText(/You've read/)).not.toBeInTheDocument();
   });

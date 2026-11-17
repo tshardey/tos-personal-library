@@ -329,6 +329,15 @@ describe("ScanPage", () => {
     expect(repo.createIntakeItem).not.toHaveBeenCalled();
   });
 
+  it("covers the tab bar with the camera view only while scanning (D8)", async () => {
+    h.books = [book()];
+    await renderPage();
+    expect(document.querySelector(".z-40")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start scanning" }));
+    await advance(0);
+    expect(screen.getByRole("button", { name: "Done" }).closest(".fixed")).toHaveClass("z-40");
+  });
+
   it("gives one scan and one beep for a barcode held in view (Review Focus 1)", async () => {
     await startScanning();
     await feed(A, 50);

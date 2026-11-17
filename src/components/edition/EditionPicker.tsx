@@ -40,7 +40,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
   const exists = labels.some((l) => l.toLowerCase() === needle);
   const showAdd = canonical !== null && !exists;
 
-  const option = "block w-full rounded px-2 py-2 text-left hover:bg-stone-100";
+  const option = "block w-full rounded px-2 py-2 text-left hover:bg-control";
   return (
     <>
       <button
@@ -53,7 +53,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
         {`${label}: ${valueText ?? value ?? "none"}`}
       </button>
       {open && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div
             role="dialog"
             aria-modal="true"
@@ -64,7 +64,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
                 close();
               }
             }}
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-white p-4 sm:rounded"
+            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-raised p-4 sm:rounded"
           >
             <input
               ref={filterRef}
@@ -106,7 +106,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
               )}
             </ul>
             {tooLong && (
-              <p className="mt-2 text-sm text-red-700">{`Labels are at most ${MAX_LABEL} characters.`}</p>
+              <p className="mt-2 text-sm text-danger">{`Labels are at most ${MAX_LABEL} characters.`}</p>
             )}
             <button type="button" onClick={close} className="mt-3 rounded border px-3 py-2">
               Close

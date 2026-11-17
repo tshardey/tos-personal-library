@@ -240,7 +240,7 @@ export default function ImportPage() {
         <h2 className="mb-3 text-lg font-semibold">Import from libib</h2>
         <p className="mb-3">In libib, use Export, then upload the .csv it gives you.</p>
         {stage.error && (
-          <p role="alert" className="mb-3 text-red-700">
+          <p role="alert" className="mb-3 text-danger">
             {stage.error}
           </p>
         )}
@@ -315,18 +315,18 @@ export default function ImportPage() {
   if (stage.name === "failed") {
     return (
       <div className="p-4">
-        <p role="alert" className="mb-3 text-red-700">
+        <p role="alert" className="mb-3 text-danger">
           {FAILED}
         </p>
         {stage.error && (
-          <p role="alert" className="mb-3 text-red-700">
+          <p role="alert" className="mb-3 text-danger">
             {stage.error}
           </p>
         )}
         <button
           type="button"
           onClick={() => file && void load(file, true)}
-          className="rounded bg-stone-800 px-3 py-2 text-white"
+          className="rounded bg-accent px-3 py-2 text-on-accent"
         >
           Run it again
         </button>

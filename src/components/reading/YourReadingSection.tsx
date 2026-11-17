@@ -122,7 +122,7 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
             disabled={busy}
             onClick={() => choose(state)}
             className={`rounded border px-3 py-2 text-sm ${
-              shown.state === state ? "border-stone-800 bg-stone-800 text-white" : "border-stone-400"
+              shown.state === state ? "border-accent bg-accent text-on-accent" : "border-field"
             }`}
           >
             {label}
@@ -137,7 +137,7 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
               type="date"
               value={draft ?? shown.finishedOn ?? ""}
               onChange={(e) => changeDate(e.target.value)}
-              className="rounded border border-stone-400 px-2 py-1"
+              className="rounded border border-field px-2 py-1"
             />
           </label>
           <button
@@ -151,11 +151,11 @@ export default function YourReadingSection({ bookId }: { bookId: string }) {
         </div>
       )}
       {error && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           Couldn't save your reading.
         </p>
       )}
-      <ul className="text-sm text-stone-700">
+      <ul className="text-sm text-muted">
         {members
           .filter((m) => m.userId !== userId)
           .map((m) => (

@@ -54,6 +54,15 @@ describe("CoverReviewPage", () => {
     expect(screen.getByText(/“too blurry”/)).toBeInTheDocument();
   });
 
+  it("says the finder isn't available yet, with no rows", () => {
+    h.state = finderState({ available: false, searches: [], runReview });
+    h.catalog = { books: [], reload: reloadCatalog };
+    render(<CoverReviewPage />);
+    expect(screen.getByText("The cover finder isn't available yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("listitem")).toBeNull();
+    expect(screen.queryByText("No covers to review.")).toBeNull();
+  });
+
   it("omits the month line without a budget", () => {
     setup();
     expect(screen.queryByText(/This month:/)).not.toBeInTheDocument();

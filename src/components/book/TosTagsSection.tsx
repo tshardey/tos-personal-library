@@ -62,12 +62,12 @@ export default function TosTagsSection({ bookId, householdId, tagIds, tosTags, s
     <section>
       <h3 className="mb-2 font-semibold">Tome of Secrets</h3>
       {unavailable ? (
-        <p className="text-sm text-stone-700">Tome of Secrets tags unavailable.</p>
+        <p className="text-sm text-muted">Tome of Secrets tags unavailable.</p>
       ) : (
         <>
-          {stale && <p className="mb-1 text-sm text-stone-600">Tag names couldn't be loaded; showing ids.</p>}
+          {stale && <p className="mb-1 text-sm text-muted">Tag names couldn't be loaded; showing ids.</p>}
           {groups.length === 0 ? (
-            <p className="text-sm text-stone-700">No Tome of Secrets tags yet.</p>
+            <p className="text-sm text-muted">No Tome of Secrets tags yet.</p>
           ) : (
             <div className="space-y-1 text-sm">
               {groups.map((g) => (
@@ -80,7 +80,7 @@ export default function TosTagsSection({ bookId, householdId, tagIds, tosTags, s
         </>
       )}
       {error && (
-        <p role="alert" className="mt-1 text-red-700">
+        <p role="alert" className="mt-1 text-danger">
           {error}
         </p>
       )}
@@ -108,7 +108,7 @@ export default function TosTagsSection({ bookId, householdId, tagIds, tosTags, s
             </fieldset>
           ))}
           {locked.length > 0 && (
-            <ul className="space-y-1 text-sm text-stone-600">
+            <ul className="space-y-1 text-sm text-muted">
               {locked.map((id) => (
                 <li key={id}>{`${byId.get(id)?.label ?? id} (set in Tome of Secrets)`}</li>
               ))}

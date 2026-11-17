@@ -217,7 +217,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const field = "block text-sm";
 
   return (
-    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div
         ref={dialogRef}
         tabIndex={-1}
@@ -229,17 +229,17 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
           if (confirming) setConfirming(false);
           else onClose();
         }}
-        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t bg-white sm:rounded"
+        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t bg-raised sm:rounded"
       >
         <div className="overflow-y-auto p-4">
           <h2 className="text-lg font-semibold">{`Edit ${selected.length} ${selected.length === 1 ? "book" : "books"}`}</h2>
-          <p className="mb-3 text-sm text-stone-600">Each field starts as no change. Only what you change is saved.</p>
+          <p className="mb-3 text-sm text-muted">Each field starts as no change. Only what you change is saved.</p>
 
           {result && (
             <div
               role={failures > 0 || refreshFailed ? "alert" : "status"}
               className={`mb-3 space-y-2 rounded border p-2 text-sm ${
-                failures > 0 || refreshFailed ? "border-red-300 bg-red-50" : ""
+                failures > 0 || refreshFailed ? "border-danger bg-danger-surface" : ""
               }`}
             >
               <p>
@@ -280,7 +280,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                   type="button"
                   disabled={busy}
                   onClick={() => void run(retryTargets(result))}
-                  className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                  className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                 >
                   {busy ? "Trying again…" : "Try again"}
                 </button>
@@ -298,7 +298,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                 onChange={(l) => { setLabel(l); setConfirming(false); }}
               />
               {label !== undefined && (
-                <p className="mt-1 text-xs text-stone-600">
+                <p className="mt-1 text-xs text-muted">
                   {label === null ? "Clears the label. " : ""}
                   <button type="button" onClick={() => { setLabel(undefined); setConfirming(false); }} className="underline">
                     No change
@@ -407,12 +407,12 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                 </datalist>
               </label>
             )}
-            {seriesMode !== "" && <p className="text-xs text-stone-600">Applies to every selected book. Volumes stay as they are.</p>}
+            {seriesMode !== "" && <p className="text-xs text-muted">Applies to every selected book. Volumes stay as they are.</p>}
 
             {tagsOn && (
               <div>
                 <h3 className="text-sm font-medium">Library tags</h3>
-                <p className="text-xs text-stone-600">Applies to every selected book.</p>
+                <p className="text-xs text-muted">Applies to every selected book.</p>
                 <div className="mt-2 space-y-2">
                   <LibraryTagPicker
                     label="Add tags"
@@ -458,7 +458,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                         className={choice}
                       />
                     </label>
-                    <p className="mt-1 text-xs text-stone-600">Blank keeps existing dates; books without one get today.</p>
+                    <p className="mt-1 text-xs text-muted">Blank keeps existing dates; books without one get today.</p>
                   </>
                 )}
               </div>
@@ -466,7 +466,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
 
             <div>
               <h3 className="text-sm font-medium">Copies</h3>
-              <p className="text-xs text-stone-600">
+              <p className="text-xs text-muted">
                 Copy changes apply to ticked copies. Copies already unhauled start unticked.
               </p>
               <div className="mt-2 space-y-2">
@@ -474,11 +474,11 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                   <fieldset key={b.id} className="rounded border p-2">
                     <legend className="px-1 text-sm font-medium">{b.title}</legend>
                     {b.copies.length === 0 ? (
-                      <p className="text-sm text-stone-600">No copies.</p>
+                      <p className="text-sm text-muted">No copies.</p>
                     ) : (
                       b.copies.map((c) => (
-                        <label key={c.id} className={`flex min-h-10 items-center gap-2 text-sm ${isUnhauled(c) ? "text-stone-500" : ""}`}>
-                          <input type="checkbox" checked={ticked.has(c.id)} onChange={() => toggle(c.id)} className="h-5 w-5 accent-stone-800" />
+                        <label key={c.id} className={`flex min-h-10 items-center gap-2 text-sm ${isUnhauled(c) ? "text-muted" : ""}`}>
+                          <input type="checkbox" checked={ticked.has(c.id)} onChange={() => toggle(c.id)} className="h-5 w-5 accent-accent" />
                           <span>{copyText(c, members)}</span>
                         </label>
                       ))
@@ -516,7 +516,7 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                   type="button"
                   disabled={busy}
                   onClick={() => void run(targets)}
-                  className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                  className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                 >
                   {busy ? "Saving…" : "Confirm"}
                 </button>
@@ -531,14 +531,14 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
                 type="button"
                 disabled={nothing || blank !== null}
                 onClick={() => setConfirming(true)}
-                className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
               >
                 Save
               </button>
               <button type="button" onClick={onClose} className="min-h-10 rounded border px-3">
                 Cancel
               </button>
-              <p className="text-sm text-stone-600">
+              <p className="text-sm text-muted">
                 {blank ?? (nothing ? "Nothing to change yet." : describeCounts(copyCount, bookCount, tagCount, readCount))}
               </p>
             </div>

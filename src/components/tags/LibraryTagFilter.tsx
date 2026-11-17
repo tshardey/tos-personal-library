@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { groupLibraryTags } from "@/lib/tagging/group";
 import type { LibraryTag } from "@/lib/tagging/types";
 
@@ -39,7 +40,7 @@ export default function LibraryTagFilter({
           Library tags
         </button>
         {selected.map((id) => (
-          <span key={id} className="rounded-full bg-stone-200 px-3 py-1 text-sm">
+          <span key={id} className="rounded-full bg-control px-3 py-1 text-sm">
             {labelOf(id)}
           </span>
         ))}
@@ -49,8 +50,9 @@ export default function LibraryTagFilter({
           </button>
         )}
       </div>
-      {open && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+      {/* Portalled: it renders inside the sticky z-10 filter bar, which would keep it under the z-30 tab bar. */}
+      {open && createPortal(
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div
             role="dialog"
             aria-modal="true"
@@ -61,7 +63,7 @@ export default function LibraryTagFilter({
                 close();
               }
             }}
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-white p-4 sm:rounded"
+            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-raised p-4 sm:rounded"
           >
             {groups.map((g) => (
               <fieldset key={g.category} className="mb-3">
@@ -83,7 +85,8 @@ export default function LibraryTagFilter({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

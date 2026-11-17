@@ -57,7 +57,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
   const exists = names.some((n) => n.toLowerCase() === needle);
   const showAdd = canonical !== null && !exists;
 
-  const option = "block w-full rounded px-2 py-2 text-left hover:bg-stone-100";
+  const option = "block w-full rounded px-2 py-2 text-left hover:bg-control";
   return (
     <>
       <button
@@ -70,7 +70,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
         {value === null ? "Series: none" : `Series: ${value}${volume !== null ? ` · Vol. ${volume}` : ""}`}
       </button>
       {open && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div
             role="dialog"
             aria-modal="true"
@@ -81,9 +81,9 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
                 dismiss();
               }
             }}
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-white p-4 sm:rounded"
+            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-raised p-4 sm:rounded"
           >
-            {volumeInvalid && <p role="alert" className="mb-2 text-sm text-red-700">Volume must be between 0 and 9999.5.</p>}
+            {volumeInvalid && <p role="alert" className="mb-2 text-sm text-danger">Volume must be between 0 and 9999.5.</p>}
             <label className="mb-2 block text-sm">
               Volume
               <input
@@ -135,7 +135,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
                 </li>
               )}
             </ul>
-            {tooLong && <p className="mt-2 text-sm text-red-700">{`Series names are at most ${MAX_SERIES} characters.`}</p>}
+            {tooLong && <p className="mt-2 text-sm text-danger">{`Series names are at most ${MAX_SERIES} characters.`}</p>}
             <button type="button" onClick={dismiss} className="mt-3 rounded border px-3 py-2">
               Close
             </button>

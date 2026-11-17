@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
@@ -131,23 +131,23 @@ describe("App", () => {
     expect(readingRepo.listReadStatuses).not.toHaveBeenCalled();
   });
 
-  it("renders the Reading history page on #/reading, and the menu links to it", async () => {
+  it("renders the Reading history page on #/reading, and More links to it", async () => {
     signedIn();
     window.location.hash = "#/reading";
     await renderApp();
     expect(screen.getByRole("heading", { name: "Reading history" })).toBeInTheDocument();
     expect(readingRepo.listReadStatuses).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("link", { name: "Reading history" })).toHaveAttribute("href", "#/reading");
   });
 
-  it("renders the tag suggestions page on #/tags under the Library tab, and the menu links to it", async () => {
+  it("renders the tag suggestions page on #/tags, and More links to it", async () => {
     signedIn();
     window.location.hash = "#/tags";
     await renderApp();
     expect(screen.getByRole("heading", { name: "Tag suggestions" })).toBeInTheDocument();
     expect(taggingRepo.listTagJobs).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("link", { name: "Tag suggestions" })).toHaveAttribute("href", "#/tags");
   });
 
@@ -158,13 +158,13 @@ describe("App", () => {
     taggingRepo.listTagJobs.mockRejectedValueOnce({ code: "PGRST205" } as never);
     await renderApp();
     expect(screen.getByText("Tagging isn't available yet.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.queryByRole("link", { name: "Tag suggestions" })).not.toBeInTheDocument();
     expect(taggingRepo.runTagJob).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 
-  it("renders the covers review page on #/covers under the Library tab", async () => {
+  it("renders the covers review page on #/covers", async () => {
     signedIn();
     window.location.hash = "#/covers";
     await renderApp();
@@ -178,23 +178,25 @@ describe("App", () => {
     await renderApp();
     expect(screen.getByRole("heading", { name: "Our Library" })).toBeInTheDocument();
     expect(screen.queryByText("a@b.co")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByText("a@b.co")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
     expect(screen.getByText("abc123")).toBeInTheDocument();
   });
 
   describe("navigation", () => {
-    const current = () => screen.getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page");
+    // Elements, not only links: on the phone Add and More are buttons that carry aria-current too.
+    const current = () => Array.from(document.querySelectorAll('[aria-current="page"]'));
 
     it.each([
       ["#/", "Library"],
       ["#/scan", "Scan"],
-      ["#/inbox", "Photos"],
-      ["#/import", "Import"],
-      ["#/add", "Library"],
+      ["#/inbox", "Add"],
+      ["#/import", "Add"],
+      ["#/add", "Add"],
       ["#/book/b1", "Library"],
-      ["#/covers", "Library"],
+      ["#/covers", "Covers"],
+      ["#/tags", "More"],
     ])("marks the tab for %s as current", async (hash, name) => {
       signedIn();
       window.location.hash = hash;
@@ -210,41 +212,41 @@ describe("App", () => {
         window.location.hash = "#/import";
         window.dispatchEvent(new HashChangeEvent("hashchange"));
       });
-      expect(current().map((a) => a.textContent)).toEqual(["Import"]);
+      expect(current().map((a) => a.textContent)).toEqual(["Add"]);
     });
 
-    it("links the title to the library and shows the invite code only there", async () => {
+    it("links the title to the library, and the invite code is in More", async () => {
       signedIn();
-      window.location.hash = "#/inbox";
-      await renderApp();
-      expect(screen.getByRole("link", { name: "Our Library" })).toHaveAttribute("href", "#/");
-      expect(screen.queryByText("abc123")).not.toBeInTheDocument();
-      cleanup();
       window.location.hash = "#/";
       await renderApp();
-      expect(screen.getByText("abc123")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Our Library" })).toHaveAttribute("href", "#/");
+      expect(screen.getByRole("main")).not.toHaveTextContent("abc123");
+      expect(screen.queryByText("abc123")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "More" }));
+      expect(within(screen.getByRole("dialog", { name: "More" })).getByText("abc123")).toBeInTheDocument();
     });
   });
 
-  describe("account menu", () => {
-    it("opens, closes on Escape and on an outside click, and signs out", async () => {
+  describe("More", () => {
+    it("opens, closes on Escape with focus back on the button, and signs out", async () => {
       signedIn();
       await renderApp();
-      const button = screen.getByRole("button", { name: "Account" });
-      expect(button).toHaveAttribute("aria-expanded", "false");
+      const button = screen.getByRole("button", { name: "More" });
+      button.focus(); // a click focuses the button in the browser; fireEvent.click does not
       fireEvent.click(button);
-      expect(button).toHaveAttribute("aria-expanded", "true");
-      fireEvent.keyDown(document, { key: "Escape" });
+      const dialog = screen.getByRole("dialog", { name: "More" });
+      expect(within(dialog).getByRole("button", { name: /sign out/i })).toBeInTheDocument();
+      fireEvent.keyDown(dialog, { key: "Escape" });
+      expect(screen.queryByRole("dialog", { name: "More" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /sign out/i })).not.toBeInTheDocument();
       expect(button).toHaveFocus();
 
+      // A tap outside the sheet (on its scrim) closes it too.
       fireEvent.click(button);
-      fireEvent.pointerDown(document.body);
-      expect(screen.queryByRole("button", { name: /sign out/i })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("sheet-scrim"));
+      expect(screen.queryByRole("dialog", { name: "More" })).not.toBeInTheDocument();
 
       fireEvent.click(button);
-      fireEvent.pointerDown(screen.getByText("a@b.co"));
-      expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
       expect(signOut).toHaveBeenCalledTimes(1);
     });

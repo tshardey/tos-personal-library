@@ -36,12 +36,12 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
   }
 
   return (
-    <div className="fixed inset-0 z-10 flex items-end justify-center bg-black/40 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="bulk-heading"
-        className="flex max-h-[80dvh] w-full max-w-lg flex-col rounded-t bg-white sm:rounded"
+        className="flex max-h-[80dvh] w-full max-w-lg flex-col rounded-t bg-raised sm:rounded"
       >
         <div className="shrink-0 p-3 pb-2 sm:p-4 sm:pb-2">
           <h3 id="bulk-heading" className="mb-1 text-base font-semibold sm:mb-2 sm:text-lg">
@@ -62,8 +62,8 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
               />
               <span>
                 <span className="font-medium">{e.title}</span>
-                {e.authors.length > 0 && <span className="text-stone-600">{` · ${e.authors.join(", ")}`}</span>}
-                <span className="block text-[13px] text-stone-600 sm:text-sm">{`Edition: ${e.editionNote || "none"}`}</span>
+                {e.authors.length > 0 && <span className="text-muted">{` · ${e.authors.join(", ")}`}</span>}
+                <span className="block text-[13px] text-muted sm:text-sm">{`Edition: ${e.editionNote || "none"}`}</span>
               </span>
             </li>
           ))}
@@ -93,7 +93,7 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
               type="button"
               disabled={busy || checked.length === 0}
               onClick={() => onConfirm(checked)}
-              className="min-h-10 rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+              className="min-h-10 rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
             >
               {checked.length === 1 ? "Add 1 book" : `Add ${checked.length} books`}
             </button>

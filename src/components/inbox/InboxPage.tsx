@@ -94,13 +94,13 @@ export default function InboxPage() {
   if (status === "error") {
     return (
       <div className="p-6">
-        <p role="alert" className="mb-3 text-red-700">
+        <p role="alert" className="mb-3 text-danger">
           Couldn't reach the photo inbox.
         </p>
         <button
           type="button"
           onClick={() => void intake.reload().catch(() => {})}
-          className="rounded bg-stone-800 px-3 py-2 text-white"
+          className="rounded bg-accent px-3 py-2 text-on-accent"
         >
           Retry
         </button>
@@ -177,8 +177,8 @@ export default function InboxPage() {
         </p>
       )}
       {stale && (
-        <div role="alert" className="mb-3 flex items-center gap-2 rounded border border-red-300 bg-red-50 p-2 text-sm">
-          <span className="text-red-700">Couldn't reach the photo inbox.</span>
+        <div role="alert" className="mb-3 flex items-center gap-2 rounded border border-danger bg-danger-surface p-2 text-sm">
+          <span className="text-danger">Couldn't reach the photo inbox.</span>
           <button
             type="button"
             onClick={() => void intake.reload().catch(() => {})}
@@ -189,7 +189,7 @@ export default function InboxPage() {
         </div>
       )}
       {intake.stop && (
-        <p role="status" className="mb-3 rounded border border-amber-400 bg-amber-50 p-2 text-sm">
+        <p role="status" className="mb-3 rounded border border-notice-line bg-notice p-2 text-sm">
           {STOP_TEXT[intake.stop]}
         </p>
       )}
@@ -210,7 +210,7 @@ export default function InboxPage() {
             setBulkResult(null);
             setSheetOpen(true);
           }}
-          className="mb-3 rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50"
+          className="mb-3 rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
         >
           {`Add ${eligible.length} new books`}
         </button>
@@ -233,7 +233,7 @@ export default function InboxPage() {
         />
       )}
 
-      {items.length === 0 && <p className="mb-3 text-sm text-stone-600">No photos yet.</p>}
+      {items.length === 0 && <p className="mb-3 text-sm text-muted">No photos yet.</p>}
       {section("inbox-review", "To review", groups.review)}
       {section("inbox-reading", "Reading", groups.reading)}
       {section("inbox-done", "Done today", groups.done)}

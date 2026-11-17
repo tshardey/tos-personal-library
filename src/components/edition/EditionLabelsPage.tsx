@@ -91,10 +91,10 @@ export default function EditionLabelsPage() {
   if (error && books.length === 0) {
     return (
       <div className="p-6">
-        <p role="alert" className="mb-3 text-red-700">
+        <p role="alert" className="mb-3 text-danger">
           {error}
         </p>
-        <button type="button" onClick={() => void reload()} className="rounded bg-stone-800 px-3 py-2 text-white">
+        <button type="button" onClick={() => void reload()} className="rounded bg-accent px-3 py-2 text-on-accent">
           Retry
         </button>
       </div>
@@ -104,14 +104,14 @@ export default function EditionLabelsPage() {
   return (
     <div className="p-3 sm:p-4">
       <h2 className="text-lg font-semibold">Edition labels</h2>
-      <p className="text-sm text-stone-600">Rename a label, merge it into another, or clear it from its copies.</p>
+      <p className="text-sm text-muted">Rename a label, merge it into another, or clear it from its copies.</p>
       {status && (
-        <p role={status.error ? "alert" : "status"} className={`mt-2 text-sm ${status.error ? "text-red-700" : ""}`}>
+        <p role={status.error ? "alert" : "status"} className={`mt-2 text-sm ${status.error ? "text-danger" : ""}`}>
           {status.text}
         </p>
       )}
       {error && (
-        <p role="alert" className="mt-2 text-sm text-red-700">
+        <p role="alert" className="mt-2 text-sm text-danger">
           {"Couldn't reload the labels. "}
           <button type="button" onClick={() => void reload()} className="underline">
             Retry
@@ -131,7 +131,7 @@ export default function EditionLabelsPage() {
             <li key={l.label} className="py-2" aria-label={l.label}>
               <div className="flex items-center justify-between gap-2">
                 <span className="min-w-0 break-words">
-                  {l.label} <span className="text-sm text-stone-600">{`· ${plural(l.count)}`}</span>
+                  {l.label} <span className="text-sm text-muted">{`· ${plural(l.count)}`}</span>
                 </span>
                 {editing !== l.label && (
                   <button
@@ -169,18 +169,18 @@ export default function EditionLabelsPage() {
                       className="mt-1 block w-full rounded border p-2"
                     />
                   </label>
-                  <p className="text-sm text-stone-700">
+                  <p className="text-sm text-muted">
                     {plan.kind === "invalid" ? plan.reason : describePlan(plan)}
                   </p>
                   {confirming && plan.kind !== "invalid" ? (
-                    <div role="group" aria-label="Confirm" className="space-y-2 rounded border border-amber-400 bg-amber-50 p-2">
+                    <div role="group" aria-label="Confirm" className="space-y-2 rounded border border-notice-line bg-notice p-2">
                       <p className="text-sm font-medium">{confirmText(plan)}</p>
                       <div className="flex gap-2">
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => void run(plan)}
-                          className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                          className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                         >
                           {busy ? "Changing…" : `Change ${plural(plan.copies.length)}`}
                         </button>
@@ -194,7 +194,7 @@ export default function EditionLabelsPage() {
                       <button
                         type="submit"
                         disabled={plan.kind === "invalid"}
-                        className="min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                        className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                       >
                         {plan.kind === "merge" ? "Merge" : plan.kind === "clear" ? "Clear label" : "Rename"}
                       </button>

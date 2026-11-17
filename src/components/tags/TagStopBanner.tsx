@@ -17,14 +17,14 @@ export default function TagStopBanner() {
   return (
     <div
       role="status"
-      className="flex flex-wrap items-center justify-between gap-2 border-b bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:px-4"
+      className="flex flex-wrap items-center justify-between gap-2 border-b bg-notice px-3 py-2 text-sm text-fg sm:px-4"
     >
       <p>{COPY[stop]}</p>
       {stop !== "budget" && (
         <button
           type="button"
           onClick={clearStop}
-          className="min-h-10 rounded border border-amber-300 bg-white px-3 text-amber-900"
+          className="min-h-10 rounded border border-notice-line bg-raised px-3 text-fg"
         >
           Try again
         </button>

@@ -109,6 +109,19 @@ describe("Reading history: stats", () => {
     await waitFor(() => expect(h.count).toHaveBeenCalled());
   });
 
+  it("starts with the read summary", () => {
+    setup({ byBook: statuses([["b1", "u1", "read", today], ["b2", "u1", "read", "2020-01-01"]]) });
+    const summary = screen.getByText("You've read 2 of 3 (67%)");
+    const heading = screen.getByRole("heading", { name: "Reading history" });
+    expect(heading.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(summary.compareDocumentPosition(screen.getAllByRole("listitem", { name: /Member/ })[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("omits the read summary when nothing is owned", () => {
+    setup({ books: [] });
+    expect(screen.queryByText(/You've read/)).toBeNull();
+  });
+
   it("shows the Since line once a date is chosen", () => {
     setup({ byBook: statuses([["b1", "u1", "read", "2026-06-01"], ["b2", "u1", "read", "2026-01-01"]]) });
     fireEvent.change(screen.getByLabelText("Since"), { target: { value: "2026-03-01" } });

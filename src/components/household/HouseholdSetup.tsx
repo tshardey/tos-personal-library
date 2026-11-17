@@ -4,7 +4,7 @@ import { useHousehold } from "@/contexts/HouseholdContext";
 import { createHousehold, joinHousehold } from "@/lib/household-repo";
 
 const INPUT = "rounded border px-2 py-1";
-const BUTTON = "rounded bg-stone-800 px-3 py-2 text-white disabled:opacity-50";
+const BUTTON = "rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted";
 
 function joinMessage(err: unknown): string {
   if (err instanceof Error && err.message === "invalid_invite_code") {
@@ -62,7 +62,7 @@ export default function HouseholdSetup() {
 
   return (
     <main className="mx-auto flex max-w-sm flex-col gap-8 p-6">
-      <p className="rounded border border-stone-300 bg-stone-50 p-3">
+      <p className="rounded border border-field bg-raised p-3">
         {email ? (
           <>
             You're signed in as <strong>{email}</strong>. This email isn't part of a household yet.
@@ -97,7 +97,7 @@ export default function HouseholdSetup() {
             Create household
           </button>
           {createError && (
-            <p role="alert" className="text-red-700">
+            <p role="alert" className="text-danger">
               {createError}
             </p>
           )}
@@ -132,7 +132,7 @@ export default function HouseholdSetup() {
             Join household
           </button>
           {joinError && (
-            <p role="alert" className="text-red-700">
+            <p role="alert" className="text-danger">
               {joinError}
             </p>
           )}

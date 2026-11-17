@@ -83,7 +83,7 @@ export default function TagRunPanel({
               onClick={() => void go(a)}
               className={
                 i === 0
-                  ? "min-h-10 rounded bg-stone-800 px-3 text-white disabled:opacity-50"
+                  ? "min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                   : "min-h-10 rounded border px-3 disabled:opacity-50"
               }
             >
@@ -92,7 +92,7 @@ export default function TagRunPanel({
           ))}
         </div>
       </div>
-      <div className="mt-1 space-y-0.5 text-sm text-stone-700">
+      <div className="mt-1 space-y-0.5 text-sm text-muted">
         {progress !== null && (
           <p role="status">{`Tagged ${progress.done} of ${progress.total}. It carries on whenever either of you has the app open.`}</p>
         )}
