@@ -8,7 +8,7 @@ import { insert } from "./tag-jobs";
  * only; every cover is a generated gradient answered from a `.invalid` host.
  */
 
-const CONTROLS = 'button, a[href], [role="tab"], select, input[type="checkbox"]';
+export const CONTROLS = 'button, a[href], [role="tab"], select, input[type="checkbox"]';
 
 /**
  * Every visible button, link, tab, select and checkbox in `scope` has a box at least `min` x `min`

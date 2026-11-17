@@ -1,3 +1,4 @@
+import { AlertIcon, Button } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import type { CoverStop } from "@/lib/covers/drain";
 
@@ -15,17 +16,16 @@ export default function CoverStopBanner() {
   return (
     <div
       role="status"
-      className="flex flex-wrap items-center justify-between gap-2 border-b bg-notice px-3 py-2 text-sm text-fg sm:px-4"
+      className="mx-4 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-notice-line bg-notice px-3 py-2 text-sm text-fg sm:mx-6"
     >
-      <p>{COPY[stop]}</p>
+      <p className="flex min-w-0 flex-1 items-start gap-2">
+        <AlertIcon className="mt-0.5 size-5 shrink-0" />
+        <span>{COPY[stop]}</span>
+      </p>
       {stop !== "budget" && (
-        <button
-          type="button"
-          onClick={clearStop}
-          className="min-h-10 rounded border border-notice-line bg-raised px-3 text-fg"
-        >
+        <Button size="sm" onClick={clearStop}>
           Try again
-        </button>
+        </Button>
       )}
     </div>
   );

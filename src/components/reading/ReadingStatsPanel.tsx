@@ -19,21 +19,21 @@ export default function ReadingStatsPanel({ books, byBook, members, me, today }:
   const ordered = [...members].sort((a, b) => Number(b.userId === me) - Number(a.userId === me));
   return (
     <section aria-label="Reading" className="space-y-3">
-      <h3 className="font-medium">Reading</h3>
+      <h3 className="font-medium text-fg-strong">Reading</h3>
       <label className="block text-sm">
         Since
         <input
           type="date"
           value={since}
           onChange={(e) => setSince(e.target.value)}
-          className="mt-1 block rounded border p-2"
+          className="mt-1 block min-h-11 sm:min-h-9 rounded-md border border-field bg-control px-3 text-sm text-fg"
         />
       </label>
       <ul className="space-y-2">
         {ordered.map((m) => {
           const s = readingStats(books, byBook, m.userId, { today, since: since === "" ? null : since });
           return (
-            <li key={m.userId} aria-label={m.displayName} className="rounded border p-3 text-sm">
+            <li key={m.userId} aria-label={m.displayName} className="rounded-xl border border-line bg-raised p-3 text-sm">
               <p className="font-medium">{m.displayName}</p>
               {s.owned === 0 ? (
                 <p>No books yet</p>

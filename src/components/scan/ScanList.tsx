@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { OWNED_BADGE } from "@/lib/scan/owners";
+import { Button } from "../ui";
 
 /** One row of the session list, already worded by ScanPage. */
 export interface ScanRowView {
@@ -37,7 +38,7 @@ export default function ScanList({ rows, onPhoto, onAnother }: Props) {
     <>
       <ul aria-label="Scanned books" className="space-y-1.5 sm:space-y-2">
         {shown.map((r) => (
-          <li key={r.key} className="flex gap-2 rounded border p-1.5 sm:gap-3 sm:p-2">
+          <li key={r.key} className="flex gap-2 rounded-md border border-line bg-raised p-1.5 sm:gap-3 sm:p-2">
             {r.thumbUrl ? (
               <img
                 src={r.thumbUrl}
@@ -69,24 +70,24 @@ export default function ScanList({ rows, onPhoto, onAnother }: Props) {
               ))}
               <div className="mt-1 flex flex-wrap gap-2">
                 {r.notFound && (
-                  <button type="button" onClick={() => onPhoto(r)} className="min-h-10 rounded border px-2 py-1">
+                  <Button size="sm" onClick={() => onPhoto(r)}>
                     Take a photo
-                  </button>
+                  </Button>
                 )}
                 {r.onRetry && (
-                  <button type="button" onClick={r.onRetry} className="min-h-10 rounded border px-2 py-1">
+                  <Button size="sm" onClick={r.onRetry}>
                     Retry
-                  </button>
+                  </Button>
                 )}
                 {r.isbn && (
-                  <button type="button" onClick={() => onAnother(r.isbn!)} className="min-h-10 rounded border px-2 py-1">
+                  <Button size="sm" onClick={() => onAnother(r.isbn!)}>
                     Add another copy
-                  </button>
+                  </Button>
                 )}
                 {r.onRemove && (
-                  <button type="button" onClick={r.onRemove} className="min-h-10 rounded border px-2 py-1">
+                  <Button size="sm" onClick={r.onRemove}>
                     Remove
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -95,9 +96,9 @@ export default function ScanList({ rows, onPhoto, onAnother }: Props) {
       </ul>
       {rows.length === 0 && <p className="text-sm text-muted">No books scanned yet.</p>}
       {!all && rows.length > SHOWN && (
-        <button type="button" onClick={() => setAll(true)} className="mt-2 rounded border px-3 py-2 text-sm">
+        <Button size="sm" onClick={() => setAll(true)} className="mt-2">
           {`Show all ${rows.length}`}
-        </button>
+        </Button>
       )}
     </>
   );

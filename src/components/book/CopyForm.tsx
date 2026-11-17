@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button, Select } from "@/components/ui";
 import type { CopyInput, HouseholdMember } from "@/lib/types";
 import { normalizeCopyInput } from "@/lib/normalize";
 import EditionPicker from "@/components/edition/EditionPicker";
@@ -39,19 +40,19 @@ export default function CopyForm({
     }
   }
 
-  const input = "mt-1 block w-full rounded border p-2";
+  const input = "mt-1 block w-full min-h-11 sm:min-h-9 rounded-md border border-field bg-control px-3 text-sm text-fg";
   return (
     <form onSubmit={submit} className="space-y-2">
       <label className="block text-sm">
         Owner
-        <select value={owner} onChange={(e) => setOwner(e.target.value)} className={input}>
+        <Select value={owner} onChange={(e) => setOwner(e.target.value)} className="mt-1 block w-full">
           <option value="">Shared</option>
           {members.map((m) => (
             <option key={m.userId} value={m.userId}>
               {m.displayName}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <EditionPicker value={editionNote} labels={labels} onChange={setEditionNote} />
       <label className="block text-sm">
@@ -61,7 +62,7 @@ export default function CopyForm({
           onChange={(e) => setCopyNote(e.target.value)}
           placeholder="Sprayed edges, signed, damage…"
           rows={2}
-          className={input}
+          className={input + " py-2"}
         />
       </label>
       <label className="block text-sm">
@@ -69,18 +70,18 @@ export default function CopyForm({
         <input value={location} onChange={(e) => setLocation(e.target.value)} className={input} />
       </label>
       {error && (
-        <p role="alert" className="text-danger">
+        <p role="alert" className="rounded-md bg-danger-surface p-3 text-danger">
           {error}
         </p>
       )}
       <div className="flex gap-2">
-        <button type="submit" disabled={busy} className="rounded bg-accent px-3 py-2 text-on-accent">
+        <Button type="submit" variant="primary" disabled={busy}>
           {submitLabel}
-        </button>
+        </Button>
         {onCancel && (
-          <button type="button" onClick={onCancel} className="underline">
+          <Button variant="ghost" onClick={onCancel} className="underline">
             Cancel
-          </button>
+          </Button>
         )}
       </div>
     </form>

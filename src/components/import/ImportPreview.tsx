@@ -3,6 +3,7 @@ import { planState } from "@/lib/libib/plan";
 import type { CollectionMapping } from "@/lib/libib/owner-map";
 import type { ParsedFile, RowWarning, SkipReason } from "@/lib/libib/parse";
 import type { BookWithCopies, HouseholdMember } from "@/lib/types";
+import { Button, Select } from "../ui";
 import ReviewList from "./ReviewList";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -62,10 +63,10 @@ export default function ImportPreview(p: Props) {
     state === "nothing" && (plan.summary.skippedCollection > 0 || file.skipped.length > 0);
 
   return (
-    <div className="p-4">
-      <h2 className="mb-3 text-lg font-semibold">Import from libib</h2>
+    <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+      <h2 className="mb-3 text-xl font-semibold text-fg-strong">Import from libib</h2>
       {p.notice && (
-        <p role="alert" className="mb-3 rounded border border-notice-line bg-notice p-2">
+        <p role="alert" className="mb-3 rounded-md border border-notice-line bg-notice p-2">
           {p.notice}
         </p>
       )}
@@ -84,11 +85,11 @@ export default function ImportPreview(p: Props) {
               <label htmlFor={id} className="block text-sm">
                 {`Owner for ${collectionLabel(collection)}`}
               </label>
-              <select
+              <Select
                 id={id}
                 value={p.mapping[collection] ?? ""}
                 onChange={(e) => p.onMapping(collection, e.target.value)}
-                className="w-full rounded border p-2"
+                className="w-full"
               >
                 <option value="" disabled>
                   Choose…
@@ -100,7 +101,7 @@ export default function ImportPreview(p: Props) {
                 ))}
                 <option value="shared">Shared</option>
                 <option value="skip">Skip this collection</option>
-              </select>
+              </Select>
               {p.mapping[collection] === undefined && (
                 <p className="text-sm text-danger">{`Choose an owner for ${collectionLabel(collection)}.`}</p>
               )}
@@ -125,7 +126,7 @@ export default function ImportPreview(p: Props) {
 
       {plan.newBooks.length > 0 && (
         <section aria-labelledby="import-new" className="mb-4">
-          <h3 id="import-new" className="mb-2 font-semibold">
+          <h3 id="import-new" className="mb-2 font-semibold text-fg-strong">
             New books
           </h3>
           <ul className="space-y-1">
@@ -145,7 +146,7 @@ export default function ImportPreview(p: Props) {
 
       {removedRows.length > 0 && (
         <section aria-labelledby="import-removed" className="mb-4">
-          <h3 id="import-removed" className="mb-1 font-semibold">
+          <h3 id="import-removed" className="mb-1 font-semibold text-fg-strong">
             Removed here earlier, staying removed
           </h3>
           <ul>
@@ -171,7 +172,7 @@ export default function ImportPreview(p: Props) {
 
       {file.skipped.length > 0 && (
         <section aria-labelledby="import-skipped" className="mb-4">
-          <h3 id="import-skipped" className="mb-1 font-semibold">
+          <h3 id="import-skipped" className="mb-1 font-semibold text-fg-strong">
             Skipped rows
           </h3>
           <ul className="text-sm">
@@ -186,7 +187,7 @@ export default function ImportPreview(p: Props) {
 
       {file.warnings.length > 0 && (
         <section aria-labelledby="import-warnings" className="mb-4">
-          <h3 id="import-warnings" className="mb-1 font-semibold">
+          <h3 id="import-warnings" className="mb-1 font-semibold text-fg-strong">
             Warnings
           </h3>
           <ul className="text-sm">
@@ -197,20 +198,13 @@ export default function ImportPreview(p: Props) {
         </section>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         {(state === "writes" || state === "ledger_only" || awaitingOwner) && (
-          <button
-            type="button"
-            onClick={p.onConfirm}
-            disabled={awaitingOwner}
-            className="rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
-          >
+          <Button variant="primary" onClick={p.onConfirm} disabled={awaitingOwner}>
             {state === "ledger_only" ? "Finish the earlier import" : "Import"}
-          </button>
+          </Button>
         )}
-        <button type="button" onClick={p.onReset} className="rounded border px-3 py-2">
-          Choose a different file
-        </button>
+        <Button onClick={p.onReset}>Choose a different file</Button>
       </div>
     </div>
   );

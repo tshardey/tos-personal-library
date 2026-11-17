@@ -23,6 +23,7 @@ import { createReadGate, idleDue, nudgeDue, REPEAT_WINDOW_MS } from "@/lib/scan/
 import { loadDecoder as browserLoadDecoder, runScanLoop } from "@/lib/scan/scan-loop";
 import { clearSession, loadSession, saveSession, type ScanSession } from "@/lib/scan/session";
 import type { HouseholdMember } from "@/lib/types";
+import { Button, Select } from "../ui";
 import ScanList, { type ScanRowView } from "./ScanList";
 import TypeIsbnSheet from "./TypeIsbnSheet";
 
@@ -756,11 +757,11 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
 
   // D6: a rate limit or a dropped network pauses lookups; rows would otherwise sit at "Looking up…".
   const lookupPausedBanner = intake.lookupPaused && (
-    <div className="mb-3 flex items-center gap-2 rounded border p-2 text-sm">
+    <div className="mb-3 flex items-center gap-2 rounded-md border border-line bg-raised p-2 text-sm">
       <span>Online lookup paused. It will retry.</span>
-      <button type="button" onClick={intake.resumeLookups} className="rounded border px-2 py-1">
+      <Button size="sm" onClick={intake.resumeLookups}>
         Retry
-      </button>
+      </Button>
     </div>
   );
 
@@ -774,24 +775,24 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
 
   if (!running) {
     return (
-      <div className="mx-auto max-w-2xl p-3 sm:p-4">
-        <h2 className="mb-3 text-lg font-semibold">Scan barcodes</h2>
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+        <h2 className="mb-3 text-xl font-semibold text-fg-strong">Scan barcodes</h2>
         {session && (
           <div className="mb-3 flex items-center justify-between gap-2 text-sm">
             <span>{`Started ${new Date(session.startedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}</span>
-            <button type="button" onClick={newSession} className="rounded border px-3 py-1">
+            <Button size="sm" onClick={newSession}>
               New session
-            </button>
+            </Button>
           </div>
         )}
         <label htmlFor="scan-owner" className="mb-1 block text-sm">
           Owner
         </label>
-        <select
+        <Select
           id="scan-owner"
           value={owner}
           onChange={(e) => changeOwner(e.target.value)}
-          className="mb-3 block w-full rounded border px-2 py-2"
+          className="mb-3 block w-full"
         >
           {members.map((m) => (
             <option key={m.userId} value={m.userId}>
@@ -799,7 +800,7 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
             </option>
           ))}
           <option value={SHARED}>Shared</option>
-        </select>
+        </Select>
         <div className="mb-3">
           <EditionPicker
             value={edition}
@@ -808,13 +809,9 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
             onChange={changeEdition}
           />
         </div>
-        <button
-          type="button"
-          onClick={start}
-          className="mb-4 block w-full rounded bg-accent px-4 py-4 text-lg font-semibold text-on-accent"
-        >
+        <Button variant="primary" onClick={start} className="mb-4 w-full py-4 font-semibold">
           Start scanning
-        </button>
+        </Button>
         {photoInput}
         {lookupPausedBanner}
         {list}
@@ -833,25 +830,20 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         lastActivity.current = d.now();
       }}
     >
-      <div className="flex flex-wrap items-center gap-1.5 border-b p-1.5 text-sm sm:gap-2 sm:p-2 sm:text-base">
-        <button type="button" onClick={done} className="rounded bg-accent px-3 py-2 text-on-accent">
+      <div className="flex flex-wrap items-center gap-2 border-b border-line p-2 text-sm">
+        <Button variant="primary" onClick={done}>
           Done
-        </button>
+        </Button>
         <div className="min-w-0 flex-1">
           <EditionPicker value={edition} labels={intake.labels} label="Edition" onChange={changeEdition} />
         </div>
-        <button type="button" aria-pressed={soundOn} onClick={toggleSound} className="rounded border px-3 py-2 text-sm">
+        <Button aria-pressed={soundOn} onClick={toggleSound}>
           {soundOn ? "Sound on" : "Sound off"}
-        </button>
+        </Button>
         {torchSupported && cameraError === null && (
-          <button
-            type="button"
-            aria-pressed={torchOn}
-            onClick={toggleTorch}
-            className="rounded border px-3 py-2 text-sm"
-          >
+          <Button aria-pressed={torchOn} onClick={toggleTorch}>
             Torch
-          </button>
+          </Button>
         )}
       </div>
 
@@ -866,17 +858,17 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         {idle && cameraError === null && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-fg-strong">
             <p>Camera paused to save battery.</p>
-            <button type="button" onClick={resume} className="rounded bg-raised px-3 py-2 text-fg-strong">
+            <Button onClick={resume}>
               Resume camera
-            </button>
+            </Button>
           </div>
         )}
         {photoOpen && !idle && cameraError === null && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 p-4 text-center text-fg-strong">
             <p>Camera paused for the photo.</p>
-            <button type="button" onClick={resume} className="rounded bg-raised px-3 py-2 text-fg-strong">
+            <Button onClick={resume}>
               Resume camera
-            </button>
+            </Button>
           </div>
         )}
         {cameraError !== null && (
@@ -885,9 +877,9 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
             {cameraError === "denied" && (
               <p className="text-sm text-fg">On iPhone: Settings → Safari → Camera.</p>
             )}
-            <button type="button" onClick={resume} className="rounded bg-raised px-3 py-2 text-fg-strong">
+            <Button onClick={resume}>
               Resume camera
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -897,31 +889,30 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
         {nudge && (
           <div
             role="status"
-            className="mb-2 flex flex-wrap items-center gap-2 rounded border border-notice-line bg-notice p-2 text-sm"
+            className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-notice-line bg-notice p-2 text-sm"
           >
             <span className="flex-1">{NUDGE_TEXT}</span>
-            <button type="button" onClick={() => takePhoto(null)} className="rounded border px-2 py-1">
+            <Button size="sm" onClick={() => takePhoto(null)}>
               Take a photo
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              size="sm"
               onClick={() => {
                 since.current = d.now();
                 setNudge(false);
               }}
-              className="rounded border px-2 py-1"
             >
               Dismiss
-            </button>
+            </Button>
           </div>
         )}
         <div className="mb-2 grid grid-cols-2 gap-2 sm:mb-3">
-          <button type="button" onClick={() => takePhoto(null)} className="min-h-10 rounded border px-3 py-2 sm:py-3">
+          <Button onClick={() => takePhoto(null)}>
             Take a photo
-          </button>
-          <button type="button" onClick={() => setTyping(true)} className="min-h-10 rounded border px-3 py-2 sm:py-3">
+          </Button>
+          <Button onClick={() => setTyping(true)}>
             Type ISBN
-          </button>
+          </Button>
         </div>
         {photoInput}
         {lookupPausedBanner}
@@ -929,25 +920,19 @@ export default function ScanPage({ deps }: { deps?: Partial<ScanDeps> }) {
       </div>
 
       {prompt !== null && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
           <div
             role="alertdialog"
             aria-modal="true"
             aria-label="Another copy?"
-            className="w-full max-w-lg rounded-t bg-raised p-4 sm:rounded"
+            className="w-full max-w-lg rounded-t-xl border border-line-strong bg-raised p-4 text-fg sm:rounded-xl"
           >
             <p className="mb-3">{PROMPT_TEXT}</p>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => answerPrompt(true)}
-                className="rounded bg-accent px-3 py-2 text-on-accent"
-              >
+              <Button variant="primary" onClick={() => answerPrompt(true)}>
                 Add another copy
-              </button>
-              <button type="button" onClick={() => answerPrompt(false)} className="rounded border px-3 py-2">
-                No
-              </button>
+              </Button>
+              <Button onClick={() => answerPrompt(false)}>No</Button>
             </div>
           </div>
         </div>

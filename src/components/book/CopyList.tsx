@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Button } from "@/components/ui";
 import { deleteBook, deleteCopy, setCopyFlags, updateCopy } from "@/lib/library-repo";
 import { diffPatch, markEdited } from "@/lib/edited-fields";
 import { normalizeCopyInput } from "@/lib/normalize";
@@ -84,7 +85,7 @@ export default function CopyList({
   return (
     <div className="mt-2">
       {error && (
-        <p role="alert" className="mb-2 text-danger">
+        <p role="alert" className="mb-2 rounded-md bg-danger-surface p-3 text-danger">
           {error}
         </p>
       )}
@@ -93,7 +94,7 @@ export default function CopyList({
           <li
             key={copy.id}
             data-unhauled={isUnhauled(copy) ? "true" : undefined}
-            className={`rounded border p-3 ${isUnhauled(copy) ? "opacity-60" : ""}`}
+            className={`rounded-xl border border-line bg-raised p-3 ${isUnhauled(copy) ? "opacity-60" : ""}`}
           >
             {editingId === copy.id ? (
               <CopyForm
@@ -106,7 +107,7 @@ export default function CopyList({
               />
             ) : (
               <>
-                <p className="font-medium">{ownerLabel(copy.ownerUserId, members)}</p>
+                <p className="font-medium text-fg-strong">{ownerLabel(copy.ownerUserId, members)}</p>
                 {copy.editionNote && <p className="text-sm">{copy.editionNote}</p>}
                 {copy.copyNote && <p className="text-sm text-muted">{copy.copyNote}</p>}
                 {copy.location && <p className="text-sm">Location: {copy.location}</p>}
@@ -114,35 +115,34 @@ export default function CopyList({
                 {copy.unhauledAt && <p className="text-sm">Unhauled {dayLabel(localDay(copy.unhauledAt))}</p>}
                 <div className="mt-2 flex gap-2 text-sm">
                   {(["deluxe", "signed"] as const).map((flag) => (
-                    <button
+                    <Button
                       key={flag}
-                      type="button"
+                      size="sm"
+                      variant={copy[flag] ? "primary" : "secondary"}
                       aria-pressed={copy[flag]}
                       disabled={pendingIds.has(copy.id)}
                       onClick={() => void toggle(copy, { [flag]: !copy[flag] })}
-                      className={`rounded border px-2 py-1 ${copy[flag] ? "bg-accent text-on-accent" : ""}`}
                     >
                       {flag === "deluxe" ? "Deluxe" : "Signed"}
-                    </button>
+                    </Button>
                   ))}
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
                     disabled={pendingIds.has(copy.id)}
                     onClick={() =>
                       void toggle(copy, { unhauledAt: isUnhauled(copy) ? null : new Date().toISOString() })
                     }
-                    className="rounded border px-2 py-1"
                   >
                     {isUnhauled(copy) ? "Undo unhaul" : "Unhaul"}
-                  </button>
+                  </Button>
                 </div>
                 <div className="mt-2 flex gap-3 text-sm">
-                  <button type="button" onClick={() => setEditingId(copy.id)} className="underline">
+                  <Button variant="ghost" size="sm" onClick={() => setEditingId(copy.id)} className="underline">
                     Edit copy
-                  </button>
-                  <button type="button" onClick={() => void remove(copy)} className="underline">
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={() => void remove(copy)}>
                     Delete copy
-                  </button>
+                  </Button>
                 </div>
               </>
             )}

@@ -100,3 +100,10 @@ export const SparkleIcon = (p: P) => (
     <path d="M12 4c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7z" />
   </Svg>
 );
+export const AlertIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 4 3 19.5h18z" />
+    <path d="M12 10v4.5" />
+    <path d="M12 17.25v.01" />
+  </Svg>
+);

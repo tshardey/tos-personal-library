@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "@/components/ui";
 import { budgetUsedUp, formatUsd, remainingMicro } from "@/lib/covers/cost";
 import { booksCoveredBy, TAG_PER_BOOK_ESTIMATE_MICRO } from "@/lib/tagging/cost";
 import type { AiBudget } from "@/lib/tagging/types";
@@ -58,44 +59,32 @@ export default function RetagConfirm({
   return (
     <>
       {step === "idle" && (
-        <button
-          type="button"
+        <Button
           disabled={books === 0 || usedUp || disabled}
           onClick={() => {
             setMessage(null);
             setError(false);
             setStep("confirm");
           }}
-          className="min-h-10 rounded border px-3 disabled:opacity-50"
         >
           {label}
-        </button>
+        </Button>
       )}
       {usedUp && <p className="text-sm text-muted">This month's tagging budget is used up.</p>}
       {step !== "idle" && (
-        <div role="group" aria-label="Confirm retag" className="space-y-2 rounded border p-2 text-sm">
+        <div role="group" aria-label="Confirm retag" className="space-y-2 rounded-md border border-line bg-raised p-2 text-sm">
           <p className="font-medium">
             {`Retag ${books} ${books === 1 ? "book" : "books"} · ${estimate.startsWith("under") ? "" : "about "}${estimate}`}
           </p>
           {budget !== null && <p>{`${formatUsd(remainingMicro(budget))} of this month's tagging budget left.`}</p>}
           {budget !== null && covered < books && <p>{coverage}</p>}
           <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={step === "queueing" || usedUp}
-              onClick={() => void retag()}
-              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
-            >
+            <Button variant="primary" disabled={step === "queueing" || usedUp} onClick={() => void retag()}>
               {step === "queueing" ? "Queueing…" : "Confirm"}
-            </button>
-            <button
-              type="button"
-              disabled={step === "queueing"}
-              onClick={() => setStep("idle")}
-              className="min-h-10 rounded border px-3 disabled:opacity-50"
-            >
+            </Button>
+            <Button disabled={step === "queueing"} onClick={() => setStep("idle")}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}

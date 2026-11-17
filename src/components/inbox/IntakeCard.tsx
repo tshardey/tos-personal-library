@@ -1,5 +1,6 @@
 import { useId, useMemo, useRef, useState } from "react";
 import EditionPicker from "@/components/edition/EditionPicker";
+import { Button, Select } from "../ui";
 import { splitAuthors } from "@/lib/normalize";
 import type { ConfirmForm } from "@/lib/photo/confirm";
 import { needsLookup } from "@/lib/photo/lookup";
@@ -131,7 +132,7 @@ export default function IntakeCard(props: Props) {
 
   if (item.status === "confirmed" || item.status === "discarded") {
     return (
-      <article aria-label={heading} className="flex gap-2 rounded border p-2 text-[13px] sm:gap-3 sm:p-3 sm:text-sm">
+      <article aria-label={heading} className="flex gap-2 rounded-md border border-line bg-raised p-3 text-sm sm:gap-3">
         <p className="font-medium">{heading}</p>
         <p className="text-muted">
           {item.status === "confirmed"
@@ -159,7 +160,7 @@ export default function IntakeCard(props: Props) {
 
   if (item.status === "pending" || item.status === "processing") {
     return (
-      <article aria-label={heading} className="flex gap-2 rounded border p-2 text-[15px] sm:gap-3 sm:p-3 sm:text-base">
+      <article aria-label={heading} className="flex gap-2 rounded-md border border-line bg-raised p-3 text-base sm:gap-3">
         {thumb}
         <div>
           {extracted && <p className="font-medium">{extracted}</p>}
@@ -226,7 +227,7 @@ export default function IntakeCard(props: Props) {
   );
 
   return (
-    <article aria-label={heading} className="rounded border p-2 text-[15px] sm:p-3 sm:text-base">
+    <article aria-label={heading} className="rounded-md border border-line bg-raised p-3 text-base">
       <div className="mb-2 flex gap-2 sm:gap-3">
         {thumb}
         <div className="min-w-0">
@@ -250,9 +251,9 @@ export default function IntakeCard(props: Props) {
         <div className="mb-2 text-sm">
           <p className="text-danger">{`${FAILED_TEXT[item.errorCode ?? "vision_unreadable"]} Type the title to add it.`}</p>
           {item.attempts < MAX_ATTEMPTS && (
-            <button type="button" onClick={() => void onRetry()} className="mt-1 rounded border px-3 py-1">
+            <Button size="sm" onClick={() => void onRetry()} className="mt-1">
               Try again
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -319,9 +320,9 @@ export default function IntakeCard(props: Props) {
       </fieldset>
 
       {!showDetails && (
-        <button type="button" onClick={() => setEditing(true)} className="mb-2 text-sm underline">
+        <Button variant="ghost" size="sm" onClick={() => setEditing(true)} className="mb-2 underline">
           Edit details
-        </button>
+        </Button>
       )}
       {showDetails && (
         <div className="mb-2 space-y-2 text-sm">
@@ -337,7 +338,7 @@ export default function IntakeCard(props: Props) {
                 // Keep the form open once a missing title is being typed.
                 setEditing(true);
               }}
-              className="w-full rounded border px-2 py-1"
+              className="min-h-11 w-full rounded-md border border-field bg-control px-3 text-sm text-fg sm:min-h-9"
             />
           </div>
           <div>
@@ -348,7 +349,7 @@ export default function IntakeCard(props: Props) {
               id={`${uid}-authors`}
               value={authorsText ?? ownAuthors.join(", ")}
               onChange={(e) => setAuthorsText(e.target.value)}
-              className="w-full rounded border px-2 py-1"
+              className="min-h-11 w-full rounded-md border border-field bg-control px-3 text-sm text-fg sm:min-h-9"
             />
           </div>
           <div>
@@ -360,18 +361,18 @@ export default function IntakeCard(props: Props) {
               value={copyNote}
               maxLength={2000}
               onChange={(e) => setCopyNote(e.target.value)}
-              className="w-full rounded border px-2 py-1"
+              className="min-h-11 w-full rounded-md border border-field bg-control px-3 text-sm text-fg sm:min-h-9"
             />
           </div>
           <div>
             <label htmlFor={`${uid}-owner`} className="block">
               Owner
             </label>
-            <select
+            <Select
               id={`${uid}-owner`}
               value={owner ?? SHARED}
               onChange={(e) => props.onOwner(item.id, e.target.value === SHARED ? null : e.target.value)}
-              className="w-full rounded border px-2 py-1"
+              className="w-full"
             >
               {members.map((m) => (
                 <option key={m.userId} value={m.userId}>
@@ -379,7 +380,7 @@ export default function IntakeCard(props: Props) {
                 </option>
               ))}
               <option value={SHARED}>Shared</option>
-            </select>
+            </Select>
           </div>
           <div>
             <label htmlFor={`${uid}-location`} className="block">
@@ -389,7 +390,7 @@ export default function IntakeCard(props: Props) {
               id={`${uid}-location`}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="w-full rounded border px-2 py-1"
+              className="min-h-11 w-full rounded-md border border-field bg-control px-3 text-sm text-fg sm:min-h-9"
             />
           </div>
         </div>
@@ -401,22 +402,16 @@ export default function IntakeCard(props: Props) {
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
+        <Button
+          variant="primary"
           disabled={busy || props.stale || (writes && effectiveTitle.trim() === "")}
           onClick={() => void submit(chosen)}
-          className="rounded bg-accent min-h-10 px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
         >
           Confirm
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void submit(DISCARD)}
-          className="min-h-10 rounded border px-3 py-2 disabled:opacity-50"
-        >
+        </Button>
+        <Button disabled={busy} onClick={() => void submit(DISCARD)}>
           {isScan ? "Discard scan" : "Discard photo"}
-        </button>
+        </Button>
       </div>
     </article>
   );

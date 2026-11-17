@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "@/components/ui";
 import type { BookInput } from "@/lib/types";
 import { normalizeBookInput, splitAuthors, splitList } from "@/lib/normalize";
 
@@ -62,7 +63,7 @@ export default function BookForm({
     }
   }
 
-  const input = "mt-1 block w-full rounded border p-2";
+  const input = "mt-1 block w-full min-h-11 sm:min-h-9 rounded-md border border-field bg-control px-3 text-sm text-fg";
   return (
     <form onSubmit={submit} className="space-y-2">
       <label className="block text-sm">
@@ -75,7 +76,7 @@ export default function BookForm({
       </label>
       <label className="block text-sm">
         Synopsis
-        <textarea value={synopsis} onChange={(e) => setSynopsis(e.target.value)} className={input} rows={4} />
+        <textarea value={synopsis} onChange={(e) => setSynopsis(e.target.value)} className={input + " py-2"} rows={4} />
       </label>
       <label className="block text-sm">
         Cover URL
@@ -102,18 +103,18 @@ export default function BookForm({
         <input value={publishDate} onChange={(e) => setPublishDate(e.target.value)} className={input} />
       </label>
       {error && (
-        <p role="alert" className="text-danger">
+        <p role="alert" className="rounded-md bg-danger-surface p-3 text-danger">
           {error}
         </p>
       )}
       <div className="flex gap-2">
-        <button type="submit" disabled={busy} className="rounded bg-accent px-3 py-2 text-on-accent">
+        <Button type="submit" variant="primary" disabled={busy}>
           {submitLabel}
-        </button>
+        </Button>
         {onCancel && (
-          <button type="button" onClick={onCancel} className="underline">
+          <Button variant="ghost" onClick={onCancel} className="underline">
             Cancel
-          </button>
+          </Button>
         )}
       </div>
     </form>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui";
 import { useReading } from "@/contexts/ReadingContext";
 import { dismissMatch, linkHistory, listPossibleMatches } from "@/lib/reading/reading-repo";
 import type { PossibleMatch } from "@/lib/reading/types";
@@ -60,7 +61,7 @@ export default function PossibleMatches({ books, refreshKey = 0 }: Props) {
   const shown = (matches ?? []).filter((m) => byId.has(m.bookId));
   return (
     <section aria-label="Possible matches" className="space-y-2">
-      <h3 className="font-medium">Possible matches</h3>
+      <h3 className="font-medium text-fg-strong">Possible matches</h3>
       {loadError && (
         <p role="alert" className="text-sm text-danger">
           Couldn't load possible matches.
@@ -73,7 +74,7 @@ export default function PossibleMatches({ books, refreshKey = 0 }: Props) {
             const book = byId.get(m.bookId)!;
             const disabled = busyKey !== null;
             return (
-              <li key={key(m)} className="rounded border p-3 text-sm">
+              <li key={key(m)} className="rounded-xl border border-line bg-raised p-3 text-sm">
                 <p>{`From StoryGraph: ${m.sgTitle} by ${m.sgAuthors.join(", ")}`}</p>
                 <a href={`#/book/${book.id}`} className="mt-2 flex items-center gap-3 underline">
                   {book.coverUrl ? (
@@ -87,22 +88,16 @@ export default function PossibleMatches({ books, refreshKey = 0 }: Props) {
                   </span>
                 </a>
                 <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
                     disabled={disabled}
                     onClick={() => void act(m, () => linkHistory(m.historyId, m.bookId), reload)}
-                    className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
                   >
                     Link
-                  </button>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => void act(m, () => dismissMatch(m.historyId, m.bookId))}
-                    className="min-h-10 rounded border px-3 disabled:opacity-50"
-                  >
+                  </Button>
+                  <Button disabled={disabled} onClick={() => void act(m, () => dismissMatch(m.historyId, m.bookId))}>
                     Not this book
-                  </button>
+                  </Button>
                 </div>
               </li>
             );
