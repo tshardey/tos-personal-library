@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import CoverBatchFooter from "@/components/covers/CoverBatchFooter";
 import NothingFoundList from "@/components/covers/NothingFoundList";
 import { BottomBar } from "@/components/ui";
@@ -15,14 +15,20 @@ import { editionLabels } from "@/lib/editions";
 import { hasUnhauledCopy } from "@/lib/copy-flags";
 import { dateAddedOptions } from "@/lib/date-added";
 import { showsUnhauled } from "@/lib/filter-books";
+import { COVER_SIZES, DEFAULT_COVER_SIZE } from "@/lib/cover-size";
+import { useDevicePref } from "@/lib/device-prefs";
+import { activeFilterChips, clearAllPatch, type FilterChip } from "@/lib/filter-chips";
 import { currentLibraryView, useLibraryView } from "@/lib/library-view";
 import type { AskResponse } from "@/lib/tagging/types";
 import { navigate } from "@/lib/router";
 import { seriesNames } from "@/lib/series";
+import { SORT_KEYS, sortBooks } from "@/lib/sort-books";
 import { loadTosTags, type TosTag } from "@/lib/tos-tags";
 import AskResults from "./AskResults";
 import CoverWall from "./CoverWall";
+import FilterChipsRow from "./FilterChipsRow";
 import LibraryFilters from "./LibraryFilters";
+import LibraryToolbar from "./LibraryToolbar";
 import MassEditSheet from "./MassEditSheet";
 
 export default function LibraryPage({ series: routeSeries }: { series?: string } = {}) {
@@ -65,6 +71,12 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState(false);
   const [editStatus, setEditStatus] = useState<string | null>(null);
+  // D5/D4: per-device view preferences. Sort is not part of the view: it never clears Ask or enters viewKey.
+  const [sort, setSort] = useDevicePref("tpl_library_sort", SORT_KEYS, "title");
+  const [coverSize, setCoverSize] = useDevicePref("tpl_cover_size", COVER_SIZES, DEFAULT_COVER_SIZE);
+  // D6: the panel's open state is local, so it is closed again on coming back from a book.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersId = useId();
   // The series stays in the route; the anchor's key covers both.
   const viewKey = JSON.stringify({ ...view, series: routeSeries ?? null });
   const pageRef = useRef<HTMLDivElement>(null);
@@ -100,13 +112,22 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
       cover,
       readStatusByBook,
     });
-    if (!series) return found;
-    // D5: within a series, volume order (nulls last), so 2.5 sorts between 2 and 3.
-    return [...found].sort(
-      (a, b) =>
-        (a.seriesVolume ?? Infinity) - (b.seriesVolume ?? Infinity) || a.title.localeCompare(b.title),
-    );
-  }, [books, view, tags, tagging.libraryTagsByBook, series, cover, readStatusByBook]);
+    // D5: within a series sortBooks always gives volume order (nulls last), whatever the sort.
+    return sortBooks(found, sort, { series });
+  }, [books, view, tags, tagging.libraryTagsByBook, series, cover, readStatusByBook, sort]);
+  // D6: chips come from the effective view, so a dropped library-tag or read-status choice never shows.
+  const chips = useMemo(
+    () =>
+      activeFilterChips(view, {
+        series,
+        members,
+        tosTags,
+        libraryVocabulary: tagging.available ? tagging.vocabulary : [],
+        readOptions,
+        coversAvailable,
+      }),
+    [view, series, members, tosTags, tagging.available, tagging.vocabulary, readOptions, coversAvailable],
+  );
   // D11: the Ask set is the view as if the box were empty.
   const askIds = useMemo(
     () =>
@@ -184,6 +205,15 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
     setSeries(next);
     navigate({ name: "library", series: next ?? undefined });
   }
+  function removeChip(chip: FilterChip) {
+    if (chip.clear === "series") changeSeries(null);
+    else patch(chip.clear);
+  }
+  // D6: every filter back to its default except the search text; the series leaves the route.
+  function clearAllFilters() {
+    patch(clearAllPatch());
+    if (series !== null) changeSeries(null);
+  }
 
   if (loading) return <p className="p-6">Loading…</p>;
   if (error) {
@@ -231,102 +261,113 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   const showFooter =
     !selecting && askView === null && coversAvailable && (coverFilter === "no_cover" || coverFilter === "marked");
   const allShownSelected = visible.length > 0 && visible.every((b) => selectedIds.has(b.id));
+  const canSelect = askView === null && visible.length > 0 && !showNothingFound;
+  // Ruling D: the page's single live count. While Ask results show, it carries their matches count.
+  const countText =
+    askView !== null
+      ? askView.status === "done" && askCount > 0
+        ? `${askCount} ${askCount === 1 ? "match" : "matches"}`
+        : ""
+      : visible.length === 0
+        ? "No matching books"
+        : `${visible.length} ${visible.length === 1 ? "book" : "books"}`;
   return (
     <div ref={pageRef}>
-      <LibraryFilters
-        query={query}
-        owner={owner}
-        edition={edition}
-        tagFilter={tagFilter}
-        series={series}
-        tosTags={tosTags}
-        seriesNames={names}
-        labels={labels}
-        members={members}
-        onQuery={(query) => patch({ query })}
-        onOwner={(owner) => patch({ owner })}
-        onEdition={(edition) => patch({ edition })}
-        onTagFilter={(tags) => patch({ tags })}
-        onSeries={changeSeries}
-        tagsUnavailable={tagsError !== null}
-        coverFilter={coverFilter}
-        coversAvailable={coversAvailable}
-        onCoverFilter={(coverFilter) => patch({ coverFilter })}
-        unhauled={unhauled}
-        deluxe={deluxe}
-        signed={signed}
-        addedDay={addedDay}
-        addedOptions={addedOptions}
-        publishedFrom={publishedFrom}
-        publishedTo={publishedTo}
-        onChange={patch}
-        libraryTagFilter={
-          tagging.available
-            ? { vocabulary: tagging.vocabulary, selected: view.libraryTags, onChange: (libraryTags) => patch({ libraryTags }) }
-            : undefined
-        }
-        readStatusFilter={
-          readOptions
-            ? {
-                options: readOptions,
-                value: readOption?.value ?? "any",
-                onChange: (v) => patch({ readStatus: readOptions.find((o) => o.value === v)?.readStatus ?? null }),
+      {/* No backdrop-filter: it would trap the fixed sheets and bars inside this block. */}
+      <div className="sticky top-[var(--toolbar-top)] z-20 bg-surface/95 border-b border-line">
+        <LibraryToolbar
+          query={query}
+          onQuery={(query) => patch({ query })}
+          ask={tagging.available ? { disabled: askDisabled, note: askNote, onAsk: () => void runAsk() } : undefined}
+          filtersCount={chips.length}
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => setFiltersOpen((o) => !o)}
+          filtersId={filtersId}
+          sort={sort}
+          onSort={setSort}
+          seriesOrder={series !== null}
+          size={coverSize}
+          onSize={setCoverSize}
+          selecting={selecting}
+          canSelect={canSelect}
+          allShownSelected={allShownSelected}
+          onSelect={startSelecting}
+          onSelectAll={() => setSelectedIds((prev) => new Set([...prev, ...visible.map((b) => b.id)]))}
+        />
+        <FilterChipsRow
+          chips={chips}
+          count={
+            <p aria-live="polite" className="text-sm text-muted">
+              {countText}
+            </p>
+          }
+          onRemove={removeChip}
+          onClearAll={clearAllFilters}
+        />
+        {/* Task 11 replaces this slot with the filters panel; until then LibraryFilters opens here. */}
+        {filtersOpen && (
+          <div id={filtersId} className="max-h-[60vh] overflow-y-auto border-t border-line">
+            <LibraryFilters
+              owner={owner}
+              edition={edition}
+              tagFilter={tagFilter}
+              series={series}
+              tosTags={tosTags}
+              seriesNames={names}
+              labels={labels}
+              members={members}
+              onOwner={(owner) => patch({ owner })}
+              onEdition={(edition) => patch({ edition })}
+              onTagFilter={(tags) => patch({ tags })}
+              onSeries={changeSeries}
+              tagsUnavailable={tagsError !== null}
+              coverFilter={coverFilter}
+              coversAvailable={coversAvailable}
+              onCoverFilter={(coverFilter) => patch({ coverFilter })}
+              unhauled={unhauled}
+              deluxe={deluxe}
+              signed={signed}
+              addedDay={addedDay}
+              addedOptions={addedOptions}
+              publishedFrom={publishedFrom}
+              publishedTo={publishedTo}
+              onChange={patch}
+              libraryTagFilter={
+                tagging.available
+                  ? { vocabulary: tagging.vocabulary, selected: view.libraryTags, onChange: (libraryTags) => patch({ libraryTags }) }
+                  : undefined
               }
-            : undefined
-        }
-        ask={tagging.available ? { disabled: askDisabled, note: askNote, onAsk: () => void runAsk() } : undefined}
-      />
+              readStatusFilter={
+                readOptions
+                  ? {
+                      options: readOptions,
+                      value: readOption?.value ?? "any",
+                      onChange: (v) => patch({ readStatus: readOptions.find((o) => o.value === v)?.readStatus ?? null }),
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        )}
+      </div>
       {editStatus && (
         <p role="status" className="px-4 pt-3 text-sm">
           {editStatus}
         </p>
       )}
       {askView !== null ? (
-        <>
-          {askView.status === "done" && askCount > 0 && (
-            <p aria-live="polite" className="px-4 pt-3 text-sm text-muted">
-              {`${askCount} ${askCount === 1 ? "match" : "matches"}`}
-            </p>
-          )}
-          <AskResults view={askView} books={books} viewKey={viewKey} onClear={() => patch({ ask: null })} />
-        </>
-      ) : (
-        <>
-      <div className={visible.length === 0 ? "p-6 text-center" : "flex items-center justify-between gap-2 px-4 pt-3"}>
-        <p aria-live="polite" className={visible.length === 0 ? undefined : "text-sm text-muted"}>
-          {visible.length === 0 ? "No matching books" : `${visible.length} ${visible.length === 1 ? "book" : "books"}`}
-        </p>
-        {visible.length > 0 && !showNothingFound && (
-          <div className="flex gap-2">
-            {selecting ? (
-              <button
-                type="button"
-                disabled={allShownSelected}
-                onClick={() => setSelectedIds((prev) => new Set([...prev, ...visible.map((b) => b.id)]))}
-                className="min-h-10 rounded border px-3 text-sm disabled:opacity-50"
-              >
-                Select all
-              </button>
-            ) : (
-              <button type="button" onClick={startSelecting} className="min-h-10 rounded border px-3 text-sm">
-                Select
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-      {visible.length === 0 ? null : showNothingFound ? (
+        <AskResults view={askView} books={books} viewKey={viewKey} onClear={() => patch({ ask: null })} />
+      ) : visible.length === 0 ? null : showNothingFound ? (
         <NothingFoundList books={visible} />
       ) : (
         <div className={showFooter || selecting ? "pb-32" : undefined}>
           <CoverWall
             books={visible}
             viewKey={viewKey}
+            size={coverSize}
             selection={selecting ? { ids: selectedIds, toggle: toggleSelected } : undefined}
           />
         </div>
-      )}
-        </>
       )}
       {showFooter && <CoverBatchFooter books={visible} />}
       {showSelecting && (

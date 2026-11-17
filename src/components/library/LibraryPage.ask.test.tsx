@@ -27,6 +27,8 @@ vi.mock("@/lib/tos-tags", async (importOriginal) => ({
   loadTosTags: vi.fn().mockResolvedValue({ tags: [], stale: false }),
 }));
 import LibraryPage from "./LibraryPage";
+
+const openFilters = () => fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
 import { askBookIds } from "@/lib/ask";
 import { DEFAULT_VIEW, takeScrollAnchor } from "@/lib/library-view";
 import { UNAVAILABLE_READING } from "@/contexts/ReadingContext";
@@ -96,6 +98,7 @@ describe("LibraryPage library tag filter", () => {
   it("groups active tags by category in D3 order and filters with all-of matching", () => {
     setup();
     render(<LibraryPage />);
+    openFilters();
     fireEvent.click(screen.getByRole("button", { name: "Library tags" }));
     const dialog = screen.getByRole("dialog", { name: "Library tags" });
     const legends = within(dialog)
@@ -108,8 +111,11 @@ describe("LibraryPage library tag filter", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(titles()).toEqual(["The Salt Road"]);
-    expect(screen.getByText("Vampires", { selector: "span" })).toBeInTheDocument();
-    expect(screen.getByText("Found family", { selector: "span" })).toBeInTheDocument();
+    // Scoped to the panel: the chips row shows the same labels as Chip spans.
+    const filtersButton = screen.getByRole("button", { name: /^Filters/ });
+    const panel = document.getElementById(filtersButton.getAttribute("aria-controls") ?? "") as HTMLElement;
+    expect(within(panel).getByText("Vampires", { selector: "span" })).toBeInTheDocument();
+    expect(within(panel).getByText("Found family", { selector: "span" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(titles()).toEqual(["The Salt Road", "Glass Orchard", "Paper Tide"]);
   });
@@ -158,6 +164,7 @@ describe("LibraryPage Ask", () => {
     const ask = vi.fn().mockReturnValue(d.promise);
     setup({ ask });
     render(<LibraryPage />);
+    openFilters();
     fireEvent.click(screen.getByRole("button", { name: "Library tags" }));
     fireEvent.click(within(screen.getByRole("dialog")).getByLabelText("Found family"));
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
@@ -193,6 +200,23 @@ describe("LibraryPage Ask", () => {
     expect(screen.queryByRole("button", { name: "Select" })).not.toBeInTheDocument();
     fireEvent.click(within(rows[1]).getByRole("link"));
     expect(takeScrollAnchor()).toMatchObject({ bookId: "The Salt Road" });
+  });
+
+  it("keeps the pinned toolbar while results show, hides Select, and keeps one live count", async () => {
+    setup({ ask: vi.fn().mockResolvedValue(okResponse) });
+    render(<LibraryPage />);
+    expect(screen.getByRole("button", { name: "Select" })).toBeInTheDocument();
+    fireEvent.change(search(), { target: { value: "a long walk" } });
+    fireEvent.click(askButton());
+    await screen.findByRole("heading", { name: 'Books for "a long walk"' });
+    const pinned = search().closest(".sticky") as HTMLElement;
+    expect(pinned).toContainElement(askButton());
+    expect(within(pinned).getByRole("button", { name: "Filters" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Select" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Select all" })).not.toBeInTheDocument();
+    const live = document.querySelectorAll("p[aria-live='polite']");
+    expect(live).toHaveLength(1);
+    expect(live[0]).toHaveTextContent("2 matches");
   });
 
   it("clips the prompt to 300 characters", async () => {
@@ -279,6 +303,7 @@ describe("LibraryPage Ask", () => {
     const d = deferred<AskResponse>();
     setup({ ask: vi.fn().mockReturnValue(d.promise) });
     render(<LibraryPage />);
+    openFilters();
     fireEvent.change(search(), { target: { value: "dragons" } });
     fireEvent.click(askButton());
     fireEvent.click(screen.getByRole("button", { name: "Shared" }));
@@ -310,6 +335,7 @@ describe("LibraryPage with tagging unavailable", () => {
   it("renders no Ask button and no Library tags button", () => {
     setup({ available: false });
     render(<LibraryPage />);
+    openFilters();
     expect(screen.queryByRole("button", { name: "Ask ✨" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Library tags" })).not.toBeInTheDocument();
     expect(titles()).toEqual(["The Salt Road", "Glass Orchard", "Paper Tide"]);
@@ -323,6 +349,7 @@ describe("LibraryPage Ask and the series", () => {
   it("a series change clears the results", async () => {
     setup({ ask: vi.fn().mockResolvedValue(okResponse) }, saga);
     render(<LibraryPage />);
+    openFilters();
     fireEvent.change(search(), { target: { value: "dragons" } });
     fireEvent.click(askButton());
     await screen.findByRole("heading", { name: 'Books for "dragons"' });
@@ -334,6 +361,7 @@ describe("LibraryPage Ask and the series", () => {
     const d = deferred<AskResponse>();
     setup({ ask: vi.fn().mockReturnValue(d.promise) }, saga);
     render(<LibraryPage />);
+    openFilters();
     fireEvent.change(search(), { target: { value: "dragons" } });
     fireEvent.click(askButton());
     fireEvent.change(screen.getByLabelText("Series"), { target: { value: "Saga" } });
@@ -377,6 +405,7 @@ describe("LibraryPage read status filter", () => {
   it("offers D10's options in order", () => {
     setupReading();
     render(<LibraryPage />);
+    openFilters();
     const labels = within(statusSelect()).getAllByRole("option").map((o) => o.textContent);
     expect(labels).toEqual([
       "Any read status",
@@ -392,6 +421,7 @@ describe("LibraryPage read status filter", () => {
   it("Unread by me narrows the wall and the count", () => {
     setupReading();
     render(<LibraryPage />);
+    openFilters();
     fireEvent.change(statusSelect(), { target: { value: "u-a:unread" } });
     expect(titles()).toEqual(["The Salt Road", "Paper Tide"]);
     expect(screen.getByText("2 books")).toBeInTheDocument();
@@ -400,6 +430,7 @@ describe("LibraryPage read status filter", () => {
   it("Ask sends only the ids that pass the read status filter", async () => {
     const ask = setupReading();
     render(<LibraryPage />);
+    openFilters();
     fireEvent.change(statusSelect(), { target: { value: "u-a:unread" } });
     fireEvent.change(search(), { target: { value: "a quiet book" } });
     fireEvent.click(askButton());
@@ -410,6 +441,7 @@ describe("LibraryPage read status filter", () => {
   it("choosing a read status clears shown Ask results", async () => {
     setupReading();
     render(<LibraryPage />);
+    openFilters();
     fireEvent.change(search(), { target: { value: "a quiet book" } });
     fireEvent.click(askButton());
     await screen.findByRole("heading", { name: 'Books for "a quiet book"' });
@@ -421,6 +453,7 @@ describe("LibraryPage read status filter", () => {
   it("renders no select and filters nothing while reading is unavailable", () => {
     setup();
     render(<LibraryPage />);
+    openFilters();
     expect(screen.queryByLabelText("Read status")).not.toBeInTheDocument();
     expect(titles()).toEqual(["The Salt Road", "Glass Orchard", "Paper Tide"]);
   });
@@ -428,10 +461,12 @@ describe("LibraryPage read status filter", () => {
   it("treats a filter naming a user who left the household as no filter", () => {
     setupReading();
     render(<LibraryPage />);
+    openFilters();
     fireEvent.change(statusSelect(), { target: { value: "u-b:unread" } });
     h.members = [member("u-a", "Member A")];
     cleanup();
     render(<LibraryPage />);
+    openFilters();
     expect(statusSelect()).toHaveValue("any");
     expect(titles()).toEqual(["The Salt Road", "Glass Orchard", "Paper Tide"]);
   });

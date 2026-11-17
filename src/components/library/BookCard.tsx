@@ -13,10 +13,13 @@ export default function BookCard({
   book,
   photoUrl,
   selection,
+  showText = true,
 }: {
   book: BookWithCopies;
   photoUrl?: string;
   selection?: CardSelection;
+  /** False at the smallest cover size: the text is visually hidden but still names the link. */
+  showText?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -58,7 +61,7 @@ export default function BookCard({
           </div>
         )}
       </div>
-      <div className="mt-1">
+      <div className={showText ? "mt-1" : "sr-only"}>
         <p className="line-clamp-2 text-sm font-medium leading-tight">{book.title}</p>
         {author && <p className="line-clamp-1 text-xs text-muted">{author}</p>}
         {badgeLabels.length > 0 && (

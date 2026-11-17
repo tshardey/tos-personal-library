@@ -50,7 +50,7 @@ export default function LibraryTagFilter({
           </button>
         )}
       </div>
-      {/* Portalled: it renders inside the sticky z-10 filter bar, which would keep it under the z-30 tab bar. */}
+      {/* Portalled: it renders inside the sticky z-20 pinned block, which would keep it under the z-30 tab bar. */}
       {open && createPortal(
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div

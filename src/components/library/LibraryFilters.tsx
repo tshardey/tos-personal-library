@@ -10,7 +10,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 interface Props {
-  query: string;
+  /** Unused: the search row moved to LibraryToolbar (Task 10). Task 11 deletes this component. */
+  query?: string;
   owner: OwnerFilter;
   edition: string | null;
   tagFilter: string[];
@@ -20,7 +21,7 @@ interface Props {
   tagsUnavailable?: boolean;
   labels: string[];
   members: HouseholdMember[];
-  onQuery(q: string): void;
+  onQuery?(q: string): void;
   onOwner(o: OwnerFilter): void;
   onEdition(e: string | null): void;
   onTagFilter(ids: string[]): void;
@@ -38,7 +39,7 @@ interface Props {
   onChange(patch: Partial<LibraryView>): void;
   /** D14: the library tag filter; absent while tagging is unavailable. */
   libraryTagFilter?: { vocabulary: LibraryTag[]; selected: string[]; onChange(ids: string[]): void };
-  /** D11: the Ask button beside the box; absent while tagging is unavailable. `note` explains a disabled button. */
+  /** Unused: Ask moved to LibraryToolbar with the search box. */
   ask?: { disabled: boolean; note: string | null; onAsk(): void };
   /** D10: the Read status select; absent while reading is unavailable. */
   readStatusFilter?: { options: { value: string; label: string }[]; value: string; onChange(v: string): void };
@@ -83,7 +84,6 @@ function YearInput({
 }
 
 export default function LibraryFilters({
-  query,
   owner,
   edition,
   tagFilter,
@@ -93,7 +93,6 @@ export default function LibraryFilters({
   tagsUnavailable,
   labels,
   members,
-  onQuery,
   onOwner,
   onEdition,
   onTagFilter,
@@ -110,7 +109,6 @@ export default function LibraryFilters({
   publishedTo,
   onChange,
   libraryTagFilter,
-  ask,
   readStatusFilter,
 }: Props) {
   const [tagsOpen, setTagsOpen] = useState(false);
@@ -138,28 +136,7 @@ export default function LibraryFilters({
     ...members.map((m) => ({ value: m.userId, label: m.displayName })),
   ];
   return (
-    <div className="sticky top-[var(--toolbar-top)] z-10 space-y-2 border-b bg-raised p-3">
-      <div className="flex gap-2">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => onQuery(e.target.value)}
-          placeholder="Search title or author"
-          aria-label="Search books"
-          className="w-full min-w-0 rounded border px-3 py-2"
-        />
-        {ask && (
-          <button
-            type="button"
-            disabled={ask.disabled}
-            onClick={ask.onAsk}
-            className="shrink-0 rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
-          >
-            Ask ✨
-          </button>
-        )}
-      </div>
-      {ask?.note && <p className="text-sm text-muted">{ask.note}</p>}
+    <div className="space-y-2 px-4 py-3 sm:px-6">
       {labels.length > 0 && (
         <select
           aria-label="Edition"
@@ -263,7 +240,7 @@ export default function LibraryFilters({
           onChange={libraryTagFilter.onChange}
         />
       )}
-      {/* Portalled: the sticky z-10 filter bar would otherwise keep this sheet under the z-30 tab bar. */}
+      {/* Portalled: the sticky z-20 pinned block would otherwise keep this sheet under the z-30 tab bar. */}
       {tagsOpen && !tagsUnavailable && createPortal(
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
           <div

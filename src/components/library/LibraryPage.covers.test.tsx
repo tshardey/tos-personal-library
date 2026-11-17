@@ -21,6 +21,8 @@ vi.mock("@/lib/tos-tags", async (importOriginal) => ({
 }));
 import LibraryPage from "./LibraryPage";
 
+const openFilters = () => fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+
 const copy = (owner: string | null) => ({ ownerUserId: owner, unhauledAt: null }) as Copy;
 const withCover = (id: string, title: string) => mkBook(id, title, { coverUrl: "https://example.test/c.jpg" });
 
@@ -52,6 +54,7 @@ describe("LibraryPage cover filters", () => {
       withCover("d", "Has Cover"),
     ]);
     await renderPage();
+    openFilters();
     expect(screen.getAllByText("Has Cover").length).toBeGreaterThan(0);
     pick("no_cover");
     expect(screen.queryAllByText("Has Cover")).toHaveLength(0);
@@ -66,6 +69,7 @@ describe("LibraryPage cover filters", () => {
       mkBook("c", "Salt Road", { copies: [copy("ub")] }),
     ]);
     await renderPage();
+    openFilters();
     pick("no_cover");
     fireEvent.click(screen.getByRole("button", { name: "Member B" }));
     expect(screen.getByText("2 books · under $0.01")).toBeInTheDocument();
@@ -78,6 +82,7 @@ describe("LibraryPage cover filters", () => {
     setCatalog([withCover("a", "Glass Orchard"), withCover("b", "Paper Tide"), withCover("c", "Salt Road")]);
     h.finder = finderState({ marks: new Map([["b", { bookId: "b" }]]) });
     await renderPage();
+    openFilters();
     pick("marked");
     expect(screen.queryAllByText("Glass Orchard")).toHaveLength(0);
     expect(screen.getAllByText("Paper Tide").length).toBeGreaterThan(0);
@@ -93,6 +98,7 @@ describe("LibraryPage cover filters", () => {
       ]),
     });
     await renderPage();
+    openFilters();
     pick("nothing_found");
     expect(screen.queryAllByText("Salt Road")).toHaveLength(0);
     expect(screen.getByText("Search failed")).toBeInTheDocument();
@@ -106,6 +112,7 @@ describe("LibraryPage cover filters", () => {
     setCatalog([mkBook("a", "Glass Orchard")]);
     h.finder = finderState({ available: false });
     await renderPage();
+    openFilters();
     expect(screen.queryByLabelText("Covers")).toBeNull();
     expect(screen.queryByRole("button", { name: "Find covers" })).toBeNull();
   });
