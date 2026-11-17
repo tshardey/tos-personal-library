@@ -62,10 +62,13 @@ async function start(page: Page) {
   await expect(page.getByRole("button", { name: "Done" })).toBeVisible();
 }
 
-/** Shows the barcode for `ms`, then a blank frame. */
-async function showBarcode(page: Page, isbn: string, ms: number) {
+/**
+ * Shows the barcode until its row is in the list, then a blank frame. A fixed show window raced the
+ * decode loop: under load the first decode of a new frame sometimes landed after the blank.
+ */
+async function scanBarcode(page: Page, isbn: string) {
   await show(page, await barcodePng(isbn));
-  await page.waitForTimeout(ms);
+  await expect(rowFor(page, isbn)).not.toHaveCount(0);
   await show(page, null);
 }
 
@@ -87,7 +90,7 @@ test.describe("barcode scanner walkthrough", () => {
     await start(page);
 
     for (const isbn of [A, B, PREFIX_979]) {
-      await showBarcode(page, isbn, 2000);
+      await scanBarcode(page, isbn);
       await page.waitForTimeout(500);
     }
     await expect(rows(page)).toHaveCount(3);
@@ -175,7 +178,7 @@ test.describe("barcode scanner walkthrough", () => {
     await setUp(page);
     await openScanner(page);
     await start(page);
-    await showBarcode(page, OWNED, 1500);
+    await scanBarcode(page, OWNED);
     await expect(rowFor(page, OWNED)).toContainText(titleFor(OWNED));
     await done(page);
     const cards = await inboxReviewCards(page);
@@ -185,7 +188,7 @@ test.describe("barcode scanner walkthrough", () => {
 
     await page.goto("#/scan");
     await start(page);
-    await showBarcode(page, OWNED, 1500);
+    await scanBarcode(page, OWNED);
     await expect(rowFor(page, OWNED)).toContainText("Already in library — Tester's copy");
   });
 
@@ -193,7 +196,7 @@ test.describe("barcode scanner walkthrough", () => {
     const { user } = await setUp(page);
     await openScanner(page);
     await start(page);
-    await showBarcode(page, NOT_FOUND_ISBN, 1500);
+    await scanBarcode(page, NOT_FOUND_ISBN);
     const row = rowFor(page, NOT_FOUND_ISBN);
     await expect(row).toContainText("Not found online.");
 
@@ -248,9 +251,9 @@ test.describe("barcode scanner walkthrough", () => {
     // Let the session's first reads settle before the network drops.
     await page.waitForTimeout(500);
     await context.setOffline(true);
-    await showBarcode(page, A, 1500);
+    await scanBarcode(page, A);
     await page.waitForTimeout(300);
-    await showBarcode(page, B, 1500);
+    await scanBarcode(page, B);
     await expect(rows(page)).toHaveCount(2);
     for (const isbn of [A, B]) {
       await expect(rowFor(page, isbn)).toContainText("Saved on this phone. It will upload when you're back online.");
@@ -291,9 +294,9 @@ test.describe("barcode scanner walkthrough", () => {
     await openScanner(page);
     await start(page);
     catalogs.rateLimitNext(3);
-    await showBarcode(page, A, 1500);
+    await scanBarcode(page, A);
     await page.waitForTimeout(300);
-    await showBarcode(page, B, 1500);
+    await scanBarcode(page, B);
     await expect(rows(page)).toHaveCount(2);
     await expect(page.getByText("Online lookup paused. It will retry.")).toBeVisible();
     await expect(rowFor(page, A)).toContainText("Looking up…");
@@ -365,7 +368,7 @@ test.describe("barcode scanner walkthrough", () => {
     await setVisibility("visible");
     await expect.poll(async () => (await cameraTracks(page)).map((t) => t.readyState)).toEqual(["ended", "live"]);
     // The new stream reads.
-    await showBarcode(page, A, 1500);
+    await scanBarcode(page, A);
     await expect(rowFor(page, A)).toBeVisible();
   });
 
