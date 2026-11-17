@@ -91,11 +91,17 @@ export default function InboxPage() {
 
   if (!household || !user) return null;
 
-  if (status === "loading") return <p className="p-6">Loading…</p>;
+  if (status === "loading") {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+        <p>Loading…</p>
+      </div>
+    );
+  }
   if (status === "error") {
     return (
-      <div className="p-6">
-        <p role="alert" className="mb-3 text-danger">
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+        <p role="alert" className="mb-3 rounded-md bg-danger-surface p-3 text-danger">
           Couldn't reach the photo inbox.
         </p>
         <Button variant="primary" onClick={() => void intake.reload().catch(() => {})}>

@@ -241,7 +241,7 @@ export default function ImportPage() {
         <h2 className="mb-3 text-xl font-semibold text-fg-strong">Import from libib</h2>
         <p className="mb-3">In libib, use Export, then upload the .csv it gives you.</p>
         {stage.error && (
-          <p role="alert" className="mb-3 text-danger">
+          <p role="alert" className="mb-3 rounded-md bg-danger-surface p-3 text-danger">
             {stage.error}
           </p>
         )}
@@ -311,11 +311,11 @@ export default function ImportPage() {
   if (stage.name === "failed") {
     return (
       <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
-        <p role="alert" className="mb-3 text-danger">
+        <p role="alert" className="mb-3 rounded-md bg-danger-surface p-3 text-danger">
           {FAILED}
         </p>
         {stage.error && (
-          <p role="alert" className="mb-3 text-danger">
+          <p role="alert" className="mb-3 rounded-md bg-danger-surface p-3 text-danger">
             {stage.error}
           </p>
         )}

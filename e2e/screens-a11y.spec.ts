@@ -12,7 +12,7 @@ interface Screen {
   hash: string;
   heading: string;
   /** A control this page renders for a fresh user: waiting for it means the page has loaded. */
-  ready: (page: Page) => Locator;
+  ready?: (page: Page) => Locator;
 }
 
 const SCREENS: Screen[] = [
@@ -20,13 +20,13 @@ const SCREENS: Screen[] = [
   { hash: "#/inbox", heading: "Photo inbox", ready: (p) => p.getByRole("button", { name: "Choose photos" }) },
   { hash: "#/import", heading: "Import from libib", ready: (p) => p.getByLabel("libib CSV file") },
   { hash: "#/covers", heading: "Covers to review", ready: (p) => main(p).getByRole("link", { name: "Back to library" }) },
-  { hash: "#/reading", heading: "Reading history", ready: (p) => main(p).getByRole("button").first() },
+  { hash: "#/reading", heading: "Reading history" },
   { hash: "#/tags", heading: "Tag suggestions", ready: (p) => main(p).getByRole("button").first() },
   { hash: "#/editions", heading: "Edition labels", ready: (p) => main(p).getByRole("link", { name: "Back to library" }) },
 ];
 
-// Known gap: the local stack has reading history unavailable, so its HistoryUpload and PossibleMatches
-// controls are not measured here. Only these pages may have no control to measure; any other page
+// Known gap: reading history on a fresh user renders only a file chooser (no button, link, tab, select or
+// checkbox) and no possible matches, so there is nothing for expectTapTargets to measure. Only these pages may have no control to measure; any other page
 // that renders none fails in expectTapTargets.
 const NO_CONTROLS_OK = new Set(["#/reading"]);
 
@@ -38,12 +38,18 @@ test("the restyled screens keep 44px tap targets", async ({ page }) => {
       await page.goto(hash);
       await expect(page.getByRole("heading", { name: heading })).toBeVisible();
       if (NO_CONTROLS_OK.has(hash)) {
+        await expect(
+          main(page)
+            .getByRole("region", { name: "Upload StoryGraph export" })
+            .or(main(page).getByText("Reading history isn't available yet."))
+            .or(main(page).locator(CONTROLS).first()),
+        ).toBeVisible();
         if ((await main(page).locator(CONTROLS).count()) === 0) {
           console.log(`tap targets: ${hash} NOT measured (no controls)`);
           return;
         }
       } else {
-        await expect(ready(page)).toBeVisible();
+        await expect(ready!(page)).toBeVisible();
       }
       await expectTapTargets(page, main(page));
       console.log(`tap targets: ${hash} measured`);

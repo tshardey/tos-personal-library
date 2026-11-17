@@ -67,7 +67,7 @@ export default function BulkConfirmSheet({ entries, labels, busy, onConfirm, onS
       }
     >
       <div className="mb-2">
-        <h3 id="bulk-heading" className="mb-1 text-lg font-semibold text-fg-strong">
+        <h3 className="mb-1 text-lg font-semibold text-fg-strong">
           {heading}
         </h3>
         <p className="text-sm">Each of these is added as a new book, with a copy for its owner.</p>

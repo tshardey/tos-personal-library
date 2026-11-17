@@ -202,9 +202,9 @@ const LIBIB_HEADER = [
 /** A small synthetic libib export: invented titles, synthetic ISBNs, the first member's collection. */
 function libibCsv(): string {
   const rows = [
-    ["AAAAAAAA01", "The Fallow Lantern", "Wren Halloway", "Member A's Books", "9780000000026"],
-    ["AAAAAAAA02", "The Ivory Orchard", "Corin Vale", "Member A's Books", "9780000000033"],
-    ["AAAAAAAA03", "The Juniper Ledger", "Ada Pemberly", "Member B's Books", "9780000000040"],
+    ["AAAAAAAA01", "The Fallow Lantern", "Wren Halloway", "Member A's Books", "9780000000057"],
+    ["AAAAAAAA02", "The Ivory Orchard", "Corin Vale", "Member A's Books", "9780000000064"],
+    ["AAAAAAAA03", "The Juniper Ledger", "Ada Pemberly", "Member B's Books", "9780000000071"],
   ];
   const lines = [LIBIB_HEADER.join(",")];
   for (const [id, title, creators, collection, isbn] of rows) {
@@ -268,6 +268,7 @@ for (const width of WIDTHS) {
   });
 
   test(`sign-in screenshot at ${width}px`, async ({ browser, baseURL }) => {
+    test.skip(ONLY !== undefined && !ONLY.includes("sign-in"));
     const context = await browser.newContext({ baseURL, viewport: { width, height: width < 640 ? 844 : 800 } });
     const page = await context.newPage();
     await page.goto("#/");
