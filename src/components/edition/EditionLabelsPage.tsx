@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from "react";
+import { Button } from "@/components/ui";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { applyRename, copyLabel, labelCounts, planRename, type RenamePlan } from "@/lib/edition-rename";
@@ -87,23 +88,23 @@ export default function EditionLabelsPage() {
   }
 
   // After a rename, a reload keeps the list on screen; only a first load replaces the page.
-  if (loading && books.length === 0) return <p className="p-6">Loading…</p>;
+  if (loading && books.length === 0) return <p className="mx-auto max-w-3xl px-4 py-6 sm:px-6">Loading…</p>;
   if (error && books.length === 0) {
     return (
-      <div className="p-6">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
         <p role="alert" className="mb-3 text-danger">
           {error}
         </p>
-        <button type="button" onClick={() => void reload()} className="rounded bg-accent px-3 py-2 text-on-accent">
+        <Button variant="primary" onClick={() => void reload()}>
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="p-3 sm:p-4">
-      <h2 className="text-lg font-semibold">Edition labels</h2>
+    <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+      <h2 className="text-xl font-semibold text-fg-strong">Edition labels</h2>
       <p className="text-sm text-muted">Rename a label, merge it into another, or clear it from its copies.</p>
       {status && (
         <p role={status.error ? "alert" : "status"} className={`mt-2 text-sm ${status.error ? "text-danger" : ""}`}>
@@ -113,9 +114,9 @@ export default function EditionLabelsPage() {
       {error && (
         <p role="alert" className="mt-2 text-sm text-danger">
           {"Couldn't reload the labels. "}
-          <button type="button" onClick={() => void reload()} className="underline">
+          <Button variant="ghost" size="sm" onClick={() => void reload()} className="underline">
             Retry
-          </button>
+          </Button>
         </p>
       )}
       <datalist id={listId}>
@@ -126,7 +127,7 @@ export default function EditionLabelsPage() {
       {labels.length === 0 ? (
         <p className="mt-4">No copies have an edition label yet.</p>
       ) : (
-        <ul className="mt-3 divide-y border-y" aria-label="Edition labels">
+        <ul className="mt-3 divide-y divide-line border-y border-line" aria-label="Edition labels">
           {labels.map((l) => (
             <li key={l.label} className="py-2" aria-label={l.label}>
               <div className="flex items-center justify-between gap-2">
@@ -134,15 +135,14 @@ export default function EditionLabelsPage() {
                   {l.label} <span className="text-sm text-muted">{`· ${plural(l.count)}`}</span>
                 </span>
                 {editing !== l.label && (
-                  <button
-                    type="button"
+                  <Button
                     disabled={busy}
                     onClick={() => start(l.label)}
                     aria-label={`Rename ${l.label}`}
-                    className="min-h-10 shrink-0 rounded border px-3 disabled:opacity-50"
+                    className="shrink-0"
                   >
                     Rename
-                  </button>
+                  </Button>
                 )}
               </div>
               {editing === l.label && plan && (
@@ -166,41 +166,30 @@ export default function EditionLabelsPage() {
                         setTyped(e.target.value);
                         setConfirming(false);
                       }}
-                      className="mt-1 block w-full rounded border p-2"
+                      className="mt-1 block w-full min-h-11 sm:min-h-9 rounded-md border border-field bg-control px-3 text-sm text-fg disabled:opacity-50"
                     />
                   </label>
                   <p className="text-sm text-muted">
                     {plan.kind === "invalid" ? plan.reason : describePlan(plan)}
                   </p>
                   {confirming && plan.kind !== "invalid" ? (
-                    <div role="group" aria-label="Confirm" className="space-y-2 rounded border border-notice-line bg-notice p-2">
+                    <div role="group" aria-label="Confirm" className="space-y-2 rounded-md border border-notice-line bg-notice p-2 text-fg">
                       <p className="text-sm font-medium">{confirmText(plan)}</p>
                       <div className="flex gap-2">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void run(plan)}
-                          className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
-                        >
+                        <Button variant="primary" disabled={busy} onClick={() => void run(plan)}>
                           {busy ? "Changing…" : `Change ${plural(plan.copies.length)}`}
-                        </button>
-                        <button type="button" disabled={busy} onClick={() => setConfirming(false)} className="min-h-10 rounded border px-3">
+                        </Button>
+                        <Button disabled={busy} onClick={() => setConfirming(false)}>
                           Back
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={plan.kind === "invalid"}
-                        className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
-                      >
+                      <Button type="submit" variant="primary" disabled={plan.kind === "invalid"}>
                         {plan.kind === "merge" ? "Merge" : plan.kind === "clear" ? "Clear label" : "Rename"}
-                      </button>
-                      <button type="button" onClick={cancel} className="min-h-10 rounded border px-3">
-                        Cancel
-                      </button>
+                      </Button>
+                      <Button onClick={cancel}>Cancel</Button>
                     </div>
                   )}
                 </form>
@@ -209,7 +198,7 @@ export default function EditionLabelsPage() {
           ))}
         </ul>
       )}
-      <a href="#/" className="mt-4 inline-block underline">
+      <a href="#/" className="mt-4 inline-flex min-h-11 items-center underline sm:min-h-9">
         Back to library
       </a>
     </div>

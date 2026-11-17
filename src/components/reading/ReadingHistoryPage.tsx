@@ -33,8 +33,8 @@ export default function ReadingHistoryPage() {
   }, [available, refreshUnmatched]);
 
   return (
-    <section className="mx-auto max-w-3xl space-y-4 p-3 sm:p-4">
-      <h2 className="text-lg font-semibold">Reading history</h2>
+    <section className="mx-auto max-w-3xl space-y-4 px-4 py-4 sm:px-6">
+      <h2 className="text-xl font-semibold text-fg-strong">Reading history</h2>
       {!loading && !available && <p>Reading history isn't available yet.</p>}
       {available && householdId !== null && (
         <>

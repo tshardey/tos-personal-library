@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import { Button } from "@/components/ui";
 import { budgetUsedUp, formatUsd } from "@/lib/covers/cost";
 import { booksCoveredBy } from "@/lib/tagging/cost";
 import type { AiBudget } from "@/lib/tagging/types";
@@ -68,27 +69,22 @@ export default function TagRunPanel({
   }
 
   return (
-    <section aria-labelledby={headingId} className="rounded border p-3">
-      <h3 id={headingId} className="font-medium">
+    <section aria-labelledby={headingId} className="rounded-xl border border-line bg-raised p-3">
+      <h3 id={headingId} className="font-medium text-fg-strong">
         {title}
       </h3>
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium">{`${booksWord(n)} · ${estimateText(n * perBookMicro)}`}</p>
         <div className="flex flex-wrap gap-2">
           {actions.map((a, i) => (
-            <button
+            <Button
               key={a.label}
-              type="button"
+              variant={i === 0 ? "primary" : "secondary"}
               disabled={disabled}
               onClick={() => void go(a)}
-              className={
-                i === 0
-                  ? "min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
-                  : "min-h-10 rounded border px-3 disabled:opacity-50"
-              }
             >
               {a.label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { BottomBar } from "@/components/ui";
+import { BottomBar, Button } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { formatUsd } from "@/lib/covers/cost";
@@ -108,23 +108,23 @@ export default function CoverReviewPage() {
 
   if (!available) {
     return (
-      <div className="p-3 sm:p-4">
-        <h2 className="text-lg font-semibold">Covers to review</h2>
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+        <h2 className="text-xl font-semibold text-fg-strong">Covers to review</h2>
         <p className="mt-2">The cover finder isn't available yet.</p>
       </div>
     );
   }
 
   return (
-    <div className={`p-3 sm:p-4 ${hasFooter ? "pb-32" : ""}`}>
-      <h2 className="text-lg font-semibold">Covers to review</h2>
+    <div className={`mx-auto max-w-3xl px-4 py-4 sm:px-6 ${hasFooter ? "pb-32" : ""}`}>
+      <h2 className="text-xl font-semibold text-fg-strong">Covers to review</h2>
       {budget && (
         <p className="text-sm text-muted">{`This month: ${formatUsd(budget.spentMicro)} of ${formatUsd(budget.budgetMicro)} used.`}</p>
       )}
       {rows.length === 0 ? (
         <div className="mt-4 space-y-2">
           <p>No covers to review.</p>
-          <a href="#/" className="underline">
+          <a href="#/" className="inline-flex min-h-11 items-center underline sm:min-h-9">
             Back to library
           </a>
         </div>
@@ -149,14 +149,9 @@ export default function CoverReviewPage() {
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
             {rows.length > 0 && <p className="text-sm font-medium">{`${n} picked`}</p>}
             {rows.length > 0 && (
-              <button
-                type="button"
-                disabled={running}
-                onClick={() => void apply()}
-                className="rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted"
-              >
+              <Button variant="primary" disabled={running} onClick={() => void apply()}>
                 {n > 0 ? `Apply ${n}` : "Done"}
-              </button>
+              </Button>
             )}
           </div>
           <div className="mx-auto max-w-3xl space-y-0.5 text-sm text-muted">

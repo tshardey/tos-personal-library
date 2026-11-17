@@ -1,10 +1,11 @@
+import { Button } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import type { BookWithCopies } from "@/lib/types";
 
 export default function NothingFoundList({ books }: { books: BookWithCopies[] }) {
   const { latest, retry } = useCoverFinder();
   return (
-    <ul className="divide-y p-4">
+    <ul className="divide-y divide-line p-4">
       {books.map((b) => {
         const s = latest.get(b.id);
         return (
@@ -22,9 +23,9 @@ export default function NothingFoundList({ books }: { books: BookWithCopies[] })
                 </p>
               )}
             </div>
-            <button type="button" onClick={() => void retry(b.id)} className="shrink-0 rounded border px-3 py-1 text-sm">
+            <Button size="sm" onClick={() => void retry(b.id)} className="shrink-0">
               Try again
-            </button>
+            </Button>
           </li>
         );
       })}

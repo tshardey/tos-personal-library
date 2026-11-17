@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui";
 import { routeToHash } from "@/lib/router";
 import type { ReviewRow as Row, RowChoice } from "@/lib/covers/review";
 import { REASON_LABELS } from "@/lib/covers/types";
@@ -14,7 +15,7 @@ interface Props {
   onRetry(): void;
 }
 
-const tile = "relative h-32 w-24 shrink-0 overflow-hidden rounded border bg-control text-xs";
+const tile = "relative h-32 w-24 shrink-0 overflow-hidden rounded-md border border-field bg-control text-xs text-fg";
 const ring = "ring-2 ring-accent ring-offset-1";
 
 export default function ReviewRow({ row, choice, failed, retryFailed = false, onChoose, onTileError, onRetry }: Props) {
@@ -23,8 +24,8 @@ export default function ReviewRow({ row, choice, failed, retryFailed = false, on
   const reasons = search.reasons.map((r) => REASON_LABELS[r]).join(" · ");
 
   return (
-    <li aria-label={book.title} className="space-y-1.5 border-b py-3">
-      <a href={routeToHash({ name: "book", id: book.id })} className="font-medium underline">
+    <li aria-label={book.title} className="space-y-1.5 border-b border-line py-3">
+      <a href={routeToHash({ name: "book", id: book.id })} className="inline-flex min-h-11 items-center font-medium text-fg-strong underline sm:min-h-9">
         {book.title}
       </a>
       {(reasons || search.note) && (
@@ -42,9 +43,9 @@ export default function ReviewRow({ row, choice, failed, retryFailed = false, on
           {visible.length === 0 ? (
             <div className="flex items-center gap-3 text-sm">
               <p>These covers no longer load.</p>
-              <button type="button" onClick={onRetry} className="rounded border px-2 py-1">
+              <Button size="sm" onClick={onRetry}>
                 Search again
-              </button>
+              </Button>
             </div>
           ) : null}
           {visible.length === 0 && retryFailed && (

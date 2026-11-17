@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Button } from "@/components/ui";
 import { readStoryGraphFile, StoryGraphFileError, type ParsedHistory } from "@/lib/reading/storygraph";
 import { uploadHistoryBatch } from "@/lib/reading/reading-repo";
 import type { UploadCounts } from "@/lib/reading/types";
@@ -85,8 +86,8 @@ export default function HistoryUpload({ householdId, onDone }: Props) {
   }
 
   return (
-    <section aria-label="Upload StoryGraph export" className="space-y-2 rounded border p-3">
-      <h3 className="font-medium">Upload StoryGraph export</h3>
+    <section aria-label="Upload StoryGraph export" className="space-y-2 rounded-xl border border-line bg-raised p-3">
+      <h3 className="font-medium text-fg-strong">Upload StoryGraph export</h3>
       <p className="text-sm text-muted">
         Export your library from StoryGraph, then choose the CSV file here. Only each book's title, authors, ISBN, read
         status and last date read are sent. Reviews, ratings and everything else stay on this device.
@@ -98,7 +99,7 @@ export default function HistoryUpload({ householdId, onDone }: Props) {
           accept=".csv,text/csv"
           disabled={progress !== null}
           onChange={(e) => void choose(e.target.files?.[0])}
-          className="mt-1 block w-full"
+          className="mt-1 block w-full text-fg file:mr-3 file:min-h-11 file:rounded-md file:border file:border-field file:bg-control file:px-3 file:text-sm file:text-fg sm:file:min-h-9"
         />
       </label>
       {parseError && (
@@ -110,14 +111,9 @@ export default function HistoryUpload({ householdId, onDone }: Props) {
         <>
           <p className="text-sm">{`${parsed.rows.length} books read or not finished. ${parsed.skipped} to-read or currently reading will be skipped.`}</p>
           {parsed.rows.length > 0 && (
-            <button
-              type="button"
-              disabled={progress !== null}
-              onClick={() => void upload()}
-              className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
-            >
+            <Button variant="primary" disabled={progress !== null} onClick={() => void upload()}>
               Upload
-            </button>
+            </Button>
           )}
         </>
       )}

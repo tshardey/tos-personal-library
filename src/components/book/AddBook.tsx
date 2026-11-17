@@ -31,8 +31,8 @@ export default function AddBook() {
   const householdId = household.id;
 
   return (
-    <div className="p-4">
-      <h2 className="mb-3 text-lg font-semibold">Add a book</h2>
+    <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+      <h2 className="mb-3 text-xl font-semibold text-fg-strong">Add a book</h2>
       {book === null ? (
         <BookForm
           initial={EMPTY}
