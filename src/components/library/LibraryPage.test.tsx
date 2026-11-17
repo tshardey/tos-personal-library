@@ -91,7 +91,7 @@ describe("LibraryPage series and tag filters", () => {
     render(<LibraryPage />);
     openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "ToS tags" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("dialog", { name: "ToS tags" });
     await waitFor(() => within(dialog).getByLabelText("Fantasy"));
     fireEvent.click(within(dialog).getByLabelText("Letters / Documents / Found Records"));
     fireEvent.click(within(dialog).getByLabelText("Fantasy"));
@@ -144,10 +144,10 @@ describe("LibraryPage series and tag filters", () => {
     openFilters();
     const trigger = await screen.findByRole("button", { name: "ToS tags" });
     fireEvent.click(trigger);
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("dialog", { name: "ToS tags" });
     expect(dialog.contains(document.activeElement)).toBe(true);
     fireEvent.keyDown(dialog, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "ToS tags" })).not.toBeInTheDocument();
     expect(document.activeElement).toBe(trigger);
   });
 });
@@ -499,7 +499,7 @@ describe("LibraryPage pinned toolbar (Task 10)", () => {
       fireEvent.click(screen.getByRole("button", { name: "Deluxe" }));
       fireEvent.click(screen.getByRole("button", { name: "Signed" }));
       expect(screen.getByRole("button", { name: "Filters, 2 active" })).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Filters" })).getByRole("button", { name: "Clear all" }));
       expect(screen.queryByRole("button", { name: /^Remove filter/ })).toBeNull();
       expect(screen.getByRole("button", { name: "Filters" })).toBeInTheDocument();
       expect(screen.getByLabelText("Search books")).toHaveValue("Road");

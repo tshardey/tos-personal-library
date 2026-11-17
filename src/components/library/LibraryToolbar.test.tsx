@@ -75,6 +75,20 @@ describe("LibraryToolbar on the phone", () => {
     expect(props.onToggleFilters).toHaveBeenCalled();
   });
 
+  it("Filters has no aria-controls while closed", () => {
+    toolbar();
+    const button = screen.getByRole("button", { name: "Filters" });
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(button).not.toHaveAttribute("aria-controls");
+  });
+
+  it("the phone Ask is a square primary button that isn't faded when disabled", () => {
+    toolbar();
+    const ask = screen.getByRole("button", { name: "Ask ✨" });
+    expect(ask).toHaveClass("bg-accent", "disabled:bg-control", "size-11");
+    expect(ask.className).not.toMatch(/opacity/);
+  });
+
   it("swaps Select for Select all while selecting, and hides both when nothing can be selected", () => {
     const props = toolbar({ selecting: true, allShownSelected: true });
     expect(screen.queryByRole("button", { name: "Select" })).toBeNull();

@@ -1,17 +1,10 @@
-import {
-  Badge,
-  Button,
-  FilterIcon,
-  IconButton,
-  SearchIcon,
-  Select,
-  SelectIcon,
-  SparkleIcon,
-} from "@/components/ui";
+import type { Ref } from "react";
+import { Badge, Button, FilterIcon, SearchIcon, SelectIcon, SparkleIcon } from "@/components/ui";
 import { DESKTOP, useMediaQuery } from "@/hooks/useMediaQuery";
 import type { CoverSize } from "@/lib/cover-size";
-import { SORT_KEYS, SORT_LABELS, type SortKey } from "@/lib/sort-books";
+import type { SortKey } from "@/lib/sort-books";
 import CoverSizeControl from "./CoverSizeControl";
+import SortSelect from "./SortSelect";
 
 interface Props {
   query: string;
@@ -22,6 +15,8 @@ interface Props {
   filtersOpen: boolean;
   onToggleFilters(): void;
   filtersId: string;
+  /** The Filters button, so closing the panel can hand focus back to it. */
+  filtersRef?: Ref<HTMLButtonElement>;
   sort: SortKey;
   onSort(s: SortKey): void;
   /** In a series the wall is always in volume order, so the sort is disabled on "Series order". */
@@ -48,6 +43,7 @@ export default function LibraryToolbar({
   filtersOpen,
   onToggleFilters,
   filtersId,
+  filtersRef,
   sort,
   onSort,
   seriesOrder,
@@ -80,21 +76,27 @@ export default function LibraryToolbar({
               Ask ✨
             </Button>
           ) : (
-            <IconButton
-              label="Ask ✨"
+            <Button
+              variant="primary"
+              aria-label="Ask ✨"
               disabled={ask.disabled}
               onClick={ask.onAsk}
-              className="shrink-0 bg-accent text-on-accent hover:bg-accent disabled:bg-control disabled:text-muted"
+              className="size-11 shrink-0 px-0 sm:size-9"
             >
               <SparkleIcon className="size-5" />
-            </IconButton>
+            </Button>
           ))}
         <Button
+          ref={filtersRef}
           size="sm"
           aria-label={filtersCount > 0 ? `Filters, ${filtersCount} active` : "Filters"}
           aria-expanded={filtersOpen}
-          aria-controls={filtersId}
-          onClick={onToggleFilters}
+          aria-controls={filtersOpen ? filtersId : undefined}
+          onClick={(e) => {
+            // Safari doesn't focus a clicked button; the sheet hands focus back to whatever had it.
+            e.currentTarget.focus();
+            onToggleFilters();
+          }}
           className="shrink-0"
         >
           {/* The aria-label is the name ("Filters, 2 active"); the visible text says the same on every width. */}
@@ -104,23 +106,7 @@ export default function LibraryToolbar({
         </Button>
         {desktop && (
           <>
-            <Select
-              label="Sort"
-              disabled={seriesOrder}
-              value={seriesOrder ? "series" : sort}
-              onChange={(e) => onSort(e.target.value as SortKey)}
-              className="shrink-0"
-            >
-              {seriesOrder ? (
-                <option value="series">Series order</option>
-              ) : (
-                SORT_KEYS.map((k) => (
-                  <option key={k} value={k}>
-                    {SORT_LABELS[k]}
-                  </option>
-                ))
-              )}
-            </Select>
+            <SortSelect sort={sort} onSort={onSort} seriesOrder={seriesOrder} className="shrink-0" />
             <CoverSizeControl size={size} onSize={onSize} />
           </>
         )}

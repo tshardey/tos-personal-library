@@ -3,6 +3,7 @@ import CoverBatchFooter from "@/components/covers/CoverBatchFooter";
 import NothingFoundList from "@/components/covers/NothingFoundList";
 import { BottomBar } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
+import { DESKTOP, useMediaQuery } from "@/hooks/useMediaQuery";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useRestoreScroll } from "@/hooks/useRestoreScroll";
@@ -25,11 +26,13 @@ import { seriesNames } from "@/lib/series";
 import { SORT_KEYS, sortBooks } from "@/lib/sort-books";
 import { loadTosTags, type TosTag } from "@/lib/tos-tags";
 import AskResults from "./AskResults";
+import CoverSizeControl from "./CoverSizeControl";
 import CoverWall from "./CoverWall";
 import FilterChipsRow from "./FilterChipsRow";
-import LibraryFilters from "./LibraryFilters";
+import FiltersPanel from "./FiltersPanel";
 import LibraryToolbar from "./LibraryToolbar";
 import MassEditSheet from "./MassEditSheet";
+import SortSelect from "./SortSelect";
 
 export default function LibraryPage({ series: routeSeries }: { series?: string } = {}) {
   const { household, members } = useHousehold();
@@ -77,6 +80,8 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
   // D6: the panel's open state is local, so it is closed again on coming back from a book.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersId = useId();
+  const filtersRef = useRef<HTMLButtonElement>(null);
+  const desktop = useMediaQuery(DESKTOP);
   // The series stays in the route; the anchor's key covers both.
   const viewKey = JSON.stringify({ ...view, series: routeSeries ?? null });
   const pageRef = useRef<HTMLDivElement>(null);
@@ -214,6 +219,10 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
     patch(clearAllPatch());
     if (series !== null) changeSeries(null);
   }
+  function closeFilters() {
+    setFiltersOpen(false);
+    filtersRef.current?.focus();
+  }
 
   if (loading) return <p className="p-6">Loading…</p>;
   if (error) {
@@ -283,6 +292,7 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
           filtersOpen={filtersOpen}
           onToggleFilters={() => setFiltersOpen((o) => !o)}
           filtersId={filtersId}
+          filtersRef={filtersRef}
           sort={sort}
           onSort={setSort}
           seriesOrder={series !== null}
@@ -304,50 +314,61 @@ export default function LibraryPage({ series: routeSeries }: { series?: string }
           onRemove={removeChip}
           onClearAll={clearAllFilters}
         />
-        {/* Task 11 replaces this slot with the filters panel; until then LibraryFilters opens here. */}
+        {/* D6: one FiltersPanel, a region here on the computer, a bottom sheet (portalled) on the phone. */}
         {filtersOpen && (
-          <div id={filtersId} className="max-h-[60vh] overflow-y-auto border-t border-line">
-            <LibraryFilters
-              owner={owner}
-              edition={edition}
-              tagFilter={tagFilter}
-              series={series}
-              tosTags={tosTags}
-              seriesNames={names}
-              labels={labels}
-              members={members}
-              onOwner={(owner) => patch({ owner })}
-              onEdition={(edition) => patch({ edition })}
-              onTagFilter={(tags) => patch({ tags })}
-              onSeries={changeSeries}
-              tagsUnavailable={tagsError !== null}
-              coverFilter={coverFilter}
-              coversAvailable={coversAvailable}
-              onCoverFilter={(coverFilter) => patch({ coverFilter })}
-              unhauled={unhauled}
-              deluxe={deluxe}
-              signed={signed}
-              addedDay={addedDay}
-              addedOptions={addedOptions}
-              publishedFrom={publishedFrom}
-              publishedTo={publishedTo}
-              onChange={patch}
-              libraryTagFilter={
-                tagging.available
-                  ? { vocabulary: tagging.vocabulary, selected: view.libraryTags, onChange: (libraryTags) => patch({ libraryTags }) }
-                  : undefined
-              }
-              readStatusFilter={
-                readOptions
-                  ? {
-                      options: readOptions,
-                      value: readOption?.value ?? "any",
-                      onChange: (v) => patch({ readStatus: readOptions.find((o) => o.value === v)?.readStatus ?? null }),
-                    }
-                  : undefined
-              }
-            />
-          </div>
+          <FiltersPanel
+            mode={desktop ? "panel" : "sheet"}
+            id={filtersId}
+            onClose={closeFilters}
+            onClearAll={clearAllFilters}
+            me={reading.userId}
+            view={
+              desktop ? undefined : (
+                <>
+                  <SortSelect sort={sort} onSort={setSort} seriesOrder={series !== null} />
+                  <CoverSizeControl size={coverSize} onSize={setCoverSize} />
+                </>
+              )
+            }
+            owner={owner}
+            edition={edition}
+            tagFilter={tagFilter}
+            series={series}
+            tosTags={tosTags}
+            seriesNames={names}
+            labels={labels}
+            members={members}
+            onOwner={(owner) => patch({ owner })}
+            onEdition={(edition) => patch({ edition })}
+            onTagFilter={(tags) => patch({ tags })}
+            onSeries={changeSeries}
+            tagsUnavailable={tagsError !== null}
+            coverFilter={coverFilter}
+            coversAvailable={coversAvailable}
+            onCoverFilter={(coverFilter) => patch({ coverFilter })}
+            unhauled={unhauled}
+            deluxe={deluxe}
+            signed={signed}
+            addedDay={addedDay}
+            addedOptions={addedOptions}
+            publishedFrom={publishedFrom}
+            publishedTo={publishedTo}
+            onChange={patch}
+            libraryTagFilter={
+              tagging.available
+                ? { vocabulary: tagging.vocabulary, selected: view.libraryTags, onChange: (libraryTags) => patch({ libraryTags }) }
+                : undefined
+            }
+            readStatusFilter={
+              readOptions
+                ? {
+                    options: readOptions,
+                    value: readOption?.value ?? "any",
+                    onChange: (v) => patch({ readStatus: readOptions.find((o) => o.value === v)?.readStatus ?? null }),
+                  }
+                : undefined
+            }
+          />
         )}
       </div>
       {editStatus && (
