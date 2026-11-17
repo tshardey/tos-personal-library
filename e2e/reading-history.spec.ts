@@ -83,6 +83,16 @@ async function wallIds(page: Page): Promise<string[]> {
   return (await page.locator("a[data-book-id]").evaluateAll((els) => els.map((e) => e.getAttribute("data-book-id")!))).sort();
 }
 
+/** The phone Filters sheet: the Read status group's `state` button, for `member` when given (else Me), then Done. */
+async function setReadStatus(page: Page, state: "Any" | "Unread" | "Read", member?: string) {
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Filters" });
+  if (member) await sheet.getByLabel("For", { exact: true }).selectOption({ label: member });
+  await sheet.getByRole("group", { name: "Read status" }).getByRole("button", { name: state, exact: true }).click();
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(sheet).toBeHidden();
+}
+
 test("StoryGraph upload, Link, sticky Unread, filter and Ask, auto-link and mass edit across members", async ({
   page,
   browser,
@@ -165,7 +175,7 @@ test("StoryGraph upload, Link, sticky Unread, filter and Ask, auto-link and mass
   await page.goto("#/");
   const count = page.locator("p[aria-live='polite']");
   await expect(count).toHaveText("8 books");
-  await page.getByLabel("Read status").selectOption({ label: "Unread by me" });
+  await setReadStatus(page, "Unread");
   await expect(count).toHaveText("6 books");
   expect(await wallIds(page)).toEqual(unreadTitles.map(id).sort());
   await page.getByRole("searchbox", { name: "Search books" }).fill("something cosy");
@@ -184,7 +194,7 @@ test("StoryGraph upload, Link, sticky Unread, filter and Ask, auto-link and mass
 
   // Mass edit marks the three Hollow books read for A.
   await page.goto("#/");
-  await page.getByLabel("Read status").selectOption({ label: "Any read status" });
+  await setReadStatus(page, "Any");
   await expect(count).toHaveText("9 books");
   await page.getByRole("searchbox", { name: "Search books" }).fill("hollow");
   await expect(count).toHaveText("3 books");
@@ -203,7 +213,7 @@ test("StoryGraph upload, Link, sticky Unread, filter and Ask, auto-link and mass
   await expect(sheet).toBeHidden();
 
   await page.getByRole("searchbox", { name: "Search books" }).fill("");
-  await page.getByLabel("Read status").selectOption({ label: "Unread by me" });
+  await setReadStatus(page, "Unread");
   await expect(count).toHaveText("3 books");
   expect(await wallIds(page)).toEqual(["The Salt Road", "Amber Journal", "Ivory Bastion"].map(id).sort());
 
@@ -219,7 +229,7 @@ test("StoryGraph upload, Link, sticky Unread, filter and Ask, auto-link and mass
     "true",
   );
   await pageB.goto("#/");
-  await pageB.getByLabel("Read status").selectOption({ label: "Read by Member A" });
+  await setReadStatus(pageB, "Read", "Member A");
   await expect(pageB.locator("p[aria-live='polite']")).toHaveText("6 books");
   await contextB.close();
 });
@@ -250,7 +260,11 @@ test("before the read-status migration, no reading UI shows and the library stil
   await expect.poll(() => missing).toBeGreaterThan(0);
   // Tagging still loads (its Ask button shows), so only reading is hidden.
   await expect(page.getByRole("button", { name: "Ask ✨" })).toBeVisible();
-  await expect(page.getByLabel("Read status")).toHaveCount(0);
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  const filters = page.getByRole("dialog", { name: "Filters" });
+  await expect(filters.getByRole("group", { name: "Owner & Copy" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Read status" })).toHaveCount(0);
+  await filters.getByRole("button", { name: "Done" }).click();
   await page.getByRole("button", { name: "More" }).click();
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Reading history" })).toHaveCount(0);

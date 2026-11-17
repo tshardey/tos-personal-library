@@ -114,7 +114,9 @@ test("going back from a book keeps the search, the chips and the place in the li
   const search = page.getByLabel("Search books");
   await expect(search).toBeVisible();
   await search.fill("Folio");
-  await page.getByRole("button", { name: "Deluxe" }).click();
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  await page.getByRole("button", { name: "Deluxe", exact: true }).click();
+  await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" }).click();
   const count = page.locator("p[aria-live='polite']");
   await expect(count).toHaveText("30 books");
 
@@ -135,7 +137,7 @@ test("going back from a book keeps the search, the chips and the place in the li
 
   await page.goBack();
   await expect(page.getByLabel("Search books")).toHaveValue("Folio");
-  await expect(page.getByRole("button", { name: "Deluxe" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Remove filter: Deluxe" })).toBeVisible();
   await expect(count).toHaveText("30 books");
 
   // The delayed covers load in after the return; wait for them all to settle.
