@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button, Sheet } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { budgetUsedUp } from "@/lib/covers/cost";
 import { COVER_REASONS, MAX_NOTE, REASON_LABELS, type CoverReason } from "@/lib/covers/types";
@@ -6,8 +7,8 @@ import type { BookWithCopies } from "@/lib/types";
 
 const ACTIVE = new Set(["queued", "gathered", "processing"]);
 const SAVE_ERROR = "Couldn't save this. Try again.";
-
-const btn = "rounded bg-accent px-3 py-2 text-on-accent disabled:bg-control disabled:text-muted";
+/** Underline buttons get a 44px target below `sm` (D11). */
+const UNDERLINE = "inline-flex min-h-11 items-center underline sm:min-h-9";
 
 /** A deluxe copy usually gets an angled photo of the physical book as its cover, so "angled" starts ticked. */
 const defaultReasons = (book: BookWithCopies): CoverReason[] => (book.copies.some((c) => c.deluxe) ? ["angled"] : []);
@@ -110,7 +111,7 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
       {retryable && (
         <div className="space-y-1">
           <p>{status === "failed" ? "The cover search failed." : "Nothing good found."}</p>
-          <button type="button" disabled={busy || usedUp} onClick={() => void doRetry()} className="underline disabled:opacity-50">
+          <button type="button" disabled={busy || usedUp} onClick={() => void doRetry()} className={`${UNDERLINE} disabled:opacity-50`}>
             Try again
           </button>
           {usedUp && budgetCopy}
@@ -119,58 +120,67 @@ export default function FindCoverPanel({ book }: { book: BookWithCopies }) {
       {current && !open && (
         <p>
           Marked for a cover search.{" "}
-          <button type="button" disabled={busy} onClick={() => void doUnmark()} className="underline">
+          <button type="button" disabled={busy} onClick={() => void doUnmark()} className={UNDERLINE}>
             Remove mark
           </button>
         </p>
       )}
-      {!open && !looking && !ready && (
-        <button type="button" onClick={openPanel} className="underline">
-          Find a better cover
-        </button>
+      {!looking && !ready && (
+        // Stays mounted while the sheet is open, so closing the sheet returns focus to it.
+        <Button variant="secondary" onClick={openPanel} className="w-full">
+          Find cover
+        </Button>
       )}
       {open && (
-        <div className="space-y-3 rounded border border-field p-3">
-          <div className="flex flex-wrap gap-2">
-            {COVER_REASONS.map((r) => (
-              <button
-                key={r}
-                type="button"
-                aria-pressed={reasons.includes(r)}
-                onClick={() => toggle(r)}
-                className={`rounded-full border px-3 py-1 ${
-                  reasons.includes(r) ? "border-accent bg-accent text-on-accent" : "border-field bg-raised"
-                }`}
-              >
-                {REASON_LABELS[r]}
-              </button>
-            ))}
+        <Sheet
+          label="Find cover"
+          title="Find cover"
+          onClose={() => setOpen(false)}
+          footer={
+            <>
+              <Button variant="primary" disabled={busy || usedUp} onClick={() => void doFindNow()}>
+                Find now
+              </Button>
+              <Button variant="primary" disabled={busy} onClick={() => void addToBatch()}>
+                {current ? "Update mark" : "Add to batch"}
+              </Button>
+              <Button variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm">
+            <div className="flex flex-wrap gap-2">
+              {COVER_REASONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  aria-pressed={reasons.includes(r)}
+                  onClick={() => toggle(r)}
+                  className={`min-h-11 rounded-full border px-3 py-1 sm:min-h-9 ${
+                    reasons.includes(r) ? "border-accent bg-accent text-on-accent" : "border-field bg-raised"
+                  }`}
+                >
+                  {REASON_LABELS[r]}
+                </button>
+              ))}
+            </div>
+            <label className="block">
+              <span className="block">What's wrong? (optional)</span>
+              <textarea
+                value={note}
+                maxLength={MAX_NOTE}
+                placeholder="e.g. this is the Spanish edition"
+                onChange={(e) => setNote(e.target.value)}
+                className="mt-1 w-full rounded border border-field p-2"
+                rows={2}
+              />
+            </label>
+            {usedUp && budgetCopy}
+            {alert}
           </div>
-          <label className="block">
-            <span className="block">What's wrong? (optional)</span>
-            <textarea
-              value={note}
-              maxLength={MAX_NOTE}
-              placeholder="e.g. this is the Spanish edition"
-              onChange={(e) => setNote(e.target.value)}
-              className="mt-1 w-full rounded border border-field p-2"
-              rows={2}
-            />
-          </label>
-          {usedUp && budgetCopy}
-          {alert}
-          <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={busy || usedUp} onClick={() => void doFindNow()} className={btn}>
-              Find now
-            </button>
-            <button type="button" disabled={busy} onClick={() => void addToBatch()} className={btn}>
-              {current ? "Update mark" : "Add to batch"}
-            </button>
-            <button type="button" disabled={busy} onClick={() => setOpen(false)} className="underline">
-              Cancel
-            </button>
-          </div>
-        </div>
+        </Sheet>
       )}
       {!open && alert}
     </section>
