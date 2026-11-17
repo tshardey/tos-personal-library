@@ -68,13 +68,13 @@ export default function BookCard({
         {badgeLabels.length > 0 && (
           <div className="absolute bottom-1.5 left-1.5 right-1.5 flex flex-wrap gap-1">
             {badgeLabels.map((l) => (
-              <Badge key={l}>{l}</Badge>
+              <Badge key={l} tone="overlay">{l}</Badge>
             ))}
           </div>
         )}
         {readState && (
           <div className="absolute right-1.5 top-1.5">
-            <Badge tone={readState === "read" ? "success" : "muted"}>{readState === "read" ? "✓ Read" : "DNF"}</Badge>
+            <Badge tone={readState === "read" ? "overlay-success" : "overlay"}>{readState === "read" ? "✓ Read" : "DNF"}</Badge>
           </div>
         )}
       </div>
