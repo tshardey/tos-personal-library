@@ -92,6 +92,7 @@ const STATES: { name: string; open(page: Page, ctx: Ctx): Promise<void>; after?(
       await expect(page.getByRole("link", { name: "Back to library" })).toBeVisible();
     },
   },
+  ...bookStates(),
   {
     name: "reading-history",
     async open(page) {
@@ -132,6 +133,47 @@ const STATES: { name: string; open(page: Page, ctx: Ctx): Promise<void>; after?(
     },
   },
 ];
+
+/** Plan 9 PR 3: the book page's four tabs, the edit form and the open More actions menu. */
+function bookStates(): (typeof STATES)[number][] {
+  const bookPage = async (page: Page, bookId: string, tab: string) => {
+    await page.goto(`#/book/${bookId}`);
+    await expect(page.getByRole("link", { name: "Back to library" })).toBeVisible();
+    await page.getByRole("tab", { name: tab }).click();
+  };
+  const tabState = (name: string, tab: string) => ({
+    name,
+    async open(page: Page, { bookId }: Ctx) {
+      await bookPage(page, bookId, tab);
+    },
+  });
+  return [
+    tabState("book-overview", "Overview"),
+    tabState("book-copies", "Copies (1)"),
+    tabState("book-tags", "Tags"),
+    tabState("book-tos", "Tome of Secrets"),
+    {
+      name: "book-editing",
+      async open(page, { bookId }) {
+        await bookPage(page, bookId, "Overview");
+        await page.getByRole("button", { name: "Edit book" }).click();
+        await expect(page.getByRole("button", { name: "Save book" })).toBeVisible();
+      },
+      async after(page) {
+        await page.getByRole("button", { name: "Cancel" }).click();
+      },
+    },
+    {
+      name: "book-menu",
+      async open(page, { bookId }) {
+        await bookPage(page, bookId, "Overview");
+        await page.getByRole("button", { name: "More actions" }).click();
+        await expect(page.getByRole("button", { name: "Delete book" })).toBeVisible();
+      },
+      after: closeOverlays,
+    },
+  ];
+}
 
 let owner: TestUser;
 let books: { id: string; title: string }[];
