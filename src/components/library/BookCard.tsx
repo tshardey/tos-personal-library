@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { BookWithCopies } from "@/lib/types";
 import { bookBadges } from "@/lib/copy-flags";
 import { routeToHash } from "@/lib/router";
+import { Badge } from "@/components/ui";
 
 /** In select mode a card is a tickbox instead of a link to the book. */
 export interface CardSelection {
@@ -13,10 +14,16 @@ export default function BookCard({
   book,
   photoUrl,
   selection,
+  readState,
+  showText = true,
 }: {
   book: BookWithCopies;
   photoUrl?: string;
   selection?: CardSelection;
+  /** The viewer's own read state; unread books show nothing. */
+  readState?: "read" | "dnf";
+  /** False at the smallest cover size: the text is visually hidden but still names the link. */
+  showText?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -28,8 +35,8 @@ export default function BookCard({
   const body = (
     <>
       <div
-        className={`aspect-[2/3] overflow-hidden rounded bg-control shadow-sm ${
-          selection?.selected ? "ring-4 ring-accent" : ""
+        className={`relative aspect-[2/3] overflow-hidden rounded bg-control shadow-sm ${
+          selection?.selected ? "ring-2 ring-accent ring-offset-2 ring-offset-surface" : ""
         }`}
       >
         {book.coverUrl && !failed ? (
@@ -51,25 +58,29 @@ export default function BookCard({
         ) : (
           <div
             data-testid="cover-placeholder"
-            className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center"
+            className="flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden p-2 text-center"
           >
-            <span className="line-clamp-4 text-sm font-semibold">{book.title}</span>
-            {author && <span className="line-clamp-2 text-xs text-muted">{author}</span>}
+            {/* At the smallest size the cover is about 64px wide: a short title only, so nothing is cut mid-line. */}
+            <span className={`line-clamp-3 font-semibold ${showText ? "text-sm" : "text-xs"}`}>{book.title}</span>
+            {author && showText && <span className="line-clamp-1 text-xs text-muted">{author}</span>}
+          </div>
+        )}
+        {badgeLabels.length > 0 && (
+          <div className="absolute bottom-1.5 left-1.5 right-1.5 flex flex-wrap gap-1">
+            {badgeLabels.map((l) => (
+              <Badge key={l} tone="overlay">{l}</Badge>
+            ))}
+          </div>
+        )}
+        {readState && (
+          <div className="absolute right-1.5 top-1.5">
+            <Badge tone={readState === "read" ? "overlay-success" : "overlay"}>{readState === "read" ? "✓ Read" : "DNF"}</Badge>
           </div>
         )}
       </div>
-      <div className="mt-1">
-        <p className="line-clamp-2 text-sm font-medium leading-tight">{book.title}</p>
-        {author && <p className="line-clamp-1 text-xs text-muted">{author}</p>}
-        {badgeLabels.length > 0 && (
-          <p className="mt-0.5 flex flex-wrap gap-1 text-[11px] text-muted">
-            {badgeLabels.map((l) => (
-              <span key={l} className="rounded bg-control px-1.5">
-                {l}
-              </span>
-            ))}
-          </p>
-        )}
+      <div className={showText ? "mt-1.5" : "sr-only"}>
+        <p className={`${showText ? "line-clamp-1" : "sr-only"} text-sm font-medium leading-tight`}>{book.title}</p>
+        {author && <p className={`${showText ? "line-clamp-1" : "sr-only"} text-xs text-muted`}>{author}</p>}
       </div>
     </>
   );
@@ -81,7 +92,7 @@ export default function BookCard({
           checked={selection.selected}
           onChange={selection.onToggle}
           aria-label={`Select ${book.title}`}
-          className="absolute left-1.5 top-1.5 z-[1] h-6 w-6 accent-accent"
+          className="absolute left-1.5 top-1.5 z-[1] size-6 accent-accent"
         />
         {body}
       </label>

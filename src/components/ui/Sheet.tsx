@@ -33,6 +33,7 @@ export function Sheet({
   footer,
   initialFocus,
   className = "",
+  dismissOnScrim = true,
 }: {
   label: string;
   title?: string;
@@ -41,6 +42,8 @@ export function Sheet({
   footer?: ReactNode;
   initialFocus?: RefObject<HTMLElement | null>;
   className?: string;
+  /** False for forms with unsaved input: a tap on the scrim then does nothing (Escape still closes). */
+  dismissOnScrim?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -90,7 +93,7 @@ export function Sheet({
         data-testid="sheet-scrim"
         aria-hidden="true"
         className="absolute inset-0 bg-black/60 motion-safe:transition-opacity"
-        onClick={onClose}
+        onClick={dismissOnScrim ? onClose : undefined}
       />
       <div
         ref={dialogRef}

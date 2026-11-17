@@ -1,6 +1,7 @@
 import { CloseIcon } from "./icons";
 
-const BASE = "inline-flex items-center gap-1 rounded-full text-sm min-h-11 sm:min-h-9 px-3";
+// D11: a short label ("All") still gives a 44px-wide target on the phone.
+const BASE = "inline-flex items-center justify-center gap-1 rounded-full text-sm min-h-11 min-w-11 sm:min-h-9 sm:min-w-0 px-3";
 
 export function Chip({
   label,

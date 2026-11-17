@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { Sheet } from "@/components/ui";
 import { canonicalLabel, MAX_LABEL } from "@/lib/editions";
 
 interface Props {
@@ -18,10 +19,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
   const filterRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (open) filterRef.current?.focus();
-  }, [open]);
-
+  // Sheet also returns focus to the opener on unmount; this covers browsers that do not focus a clicked button.
   function close() {
     setOpen(false);
     setTyped("");
@@ -40,7 +38,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
   const exists = labels.some((l) => l.toLowerCase() === needle);
   const showAdd = canonical !== null && !exists;
 
-  const option = "block w-full rounded px-2 py-2 text-left hover:bg-control";
+  const option = "block min-h-11 w-full rounded px-2 py-2 text-left hover:bg-control sm:min-h-9";
   return (
     <>
       <button
@@ -53,66 +51,53 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
         {`${label}: ${valueText ?? value ?? "none"}`}
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={label}
+        <Sheet label={label} onClose={close} initialFocus={filterRef}>
+          <input
+            ref={filterRef}
+            type="text"
+            value={typed}
+            maxLength={MAX_LABEL}
+            onChange={(e) => setTyped(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.stopPropagation();
-                close();
-              }
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              const exact = labels.find((l) => l.toLowerCase() === needle);
+              if (exact) pick(exact);
+              else if (shown.length === 1) pick(shown[0]);
+              else if (showAdd) pick(canonical);
             }}
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-raised p-4 sm:rounded"
-          >
-            <input
-              ref={filterRef}
-              type="text"
-              value={typed}
-              maxLength={MAX_LABEL}
-              onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                const exact = labels.find((l) => l.toLowerCase() === needle);
-                if (exact) pick(exact);
-                else if (shown.length === 1) pick(shown[0]);
-                else if (showAdd) pick(canonical);
-              }}
-              aria-label="Filter editions"
-              placeholder="Filter or add an edition"
-              className="mb-2 block w-full rounded border p-2"
-            />
-            <ul className="space-y-1">
-              <li>
-                <button type="button" onClick={() => pick(null)} className={option}>
-                  None
+            aria-label="Filter editions"
+            placeholder="Filter or add an edition"
+            className="mb-2 block min-h-11 w-full rounded border p-2 sm:min-h-9"
+          />
+          <ul className="space-y-1">
+            <li>
+              <button type="button" onClick={() => pick(null)} className={option}>
+                None
+              </button>
+            </li>
+            {shown.map((l) => (
+              <li key={l}>
+                <button type="button" onClick={() => pick(l)} className={option}>
+                  {l}
                 </button>
               </li>
-              {shown.map((l) => (
-                <li key={l}>
-                  <button type="button" onClick={() => pick(l)} className={option}>
-                    {l}
-                  </button>
-                </li>
-              ))}
-              {showAdd && (
-                <li>
-                  <button type="button" onClick={() => pick(canonical)} className={`${option} font-medium`}>
-                    {`Add "${trimmed}"`}
-                  </button>
-                </li>
-              )}
-            </ul>
-            {tooLong && (
-              <p className="mt-2 text-sm text-danger">{`Labels are at most ${MAX_LABEL} characters.`}</p>
+            ))}
+            {showAdd && (
+              <li>
+                <button type="button" onClick={() => pick(canonical)} className={`${option} font-medium`}>
+                  {`Add "${trimmed}"`}
+                </button>
+              </li>
             )}
-            <button type="button" onClick={close} className="mt-3 rounded border px-3 py-2">
-              Close
-            </button>
-          </div>
-        </div>
+          </ul>
+          {tooLong && (
+            <p className="mt-2 text-sm text-danger">{`Labels are at most ${MAX_LABEL} characters.`}</p>
+          )}
+          <button type="button" onClick={close} className="mt-3 min-h-11 rounded border px-3 py-2 sm:min-h-10">
+            Close
+          </button>
+        </Sheet>
       )}
     </>
   );

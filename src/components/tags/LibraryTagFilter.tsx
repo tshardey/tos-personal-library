@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useRef, useState } from "react";
+import { Button, Sheet } from "@/components/ui";
 import { groupLibraryTags } from "@/lib/tagging/group";
 import type { LibraryTag } from "@/lib/tagging/types";
 
-/** D14: the `Library tags` button, its chips and dialog. Same pattern as the ToS tag filter; the book needs every chosen tag. */
+/** D14: the `Library tags` button, its chips and sheet. Same pattern as the ToS tag filter; the book needs every chosen tag. */
 export default function LibraryTagFilter({
   vocabulary,
   selected,
@@ -14,15 +14,7 @@ export default function LibraryTagFilter({
   onChange(ids: string[]): void;
 }) {
   const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (open) closeRef.current?.focus();
-  }, [open]);
-  function close() {
-    setOpen(false);
-    triggerRef.current?.focus();
-  }
   const active = vocabulary.filter((t) => t.active);
   if (active.length === 0 && selected.length === 0) return null;
   const groups = groupLibraryTags(
@@ -36,57 +28,53 @@ export default function LibraryTagFilter({
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="rounded border px-3 py-1 text-sm">
+        <Button
+          size="sm"
+          onClick={(e) => {
+            // The sheet returns focus to whatever had it, so the button takes it first (Safari doesn't on click).
+            e.currentTarget.focus();
+            setOpen(true);
+          }}
+        >
           Library tags
-        </button>
+        </Button>
         {selected.map((id) => (
           <span key={id} className="rounded-full bg-control px-3 py-1 text-sm">
             {labelOf(id)}
           </span>
         ))}
         {selected.length > 0 && (
-          <button type="button" onClick={() => onChange([])} className="text-sm underline">
+          <Button variant="ghost" size="sm" onClick={() => onChange([])}>
             Clear
-          </button>
+          </Button>
         )}
       </div>
-      {/* Portalled: it renders inside the sticky z-10 filter bar, which would keep it under the z-30 tab bar. */}
-      {open && createPortal(
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Library tags"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.stopPropagation();
-                close();
-              }
-            }}
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-raised p-4 sm:rounded"
-          >
-            {groups.map((g) => (
-              <fieldset key={g.category} className="mb-3">
-                <legend className="text-sm font-medium">{g.label}</legend>
-                {g.tags.map((t) => (
-                  <label key={t.id} className="flex items-center gap-2 py-1 text-sm">
-                    <input type="checkbox" checked={selected.includes(t.id)} onChange={(e) => toggle(t.id, e.target.checked)} />
-                    {t.label}
-                  </label>
-                ))}
-              </fieldset>
-            ))}
-            <div className="flex gap-2">
-              <button type="button" onClick={() => onChange([])} className="rounded border px-3 py-2">
-                Clear
-              </button>
-              <button ref={closeRef} type="button" onClick={close} className="rounded border px-3 py-2">
+      {open && (
+        <Sheet
+          label="Library tags"
+          onClose={() => setOpen(false)}
+          initialFocus={closeRef}
+          footer={
+            <>
+              <Button onClick={() => onChange([])}>Clear</Button>
+              <Button ref={closeRef} onClick={() => setOpen(false)}>
                 Close
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
+              </Button>
+            </>
+          }
+        >
+          {groups.map((g) => (
+            <fieldset key={g.category} className="mb-3">
+              <legend className="text-sm font-medium">{g.label}</legend>
+              {g.tags.map((t) => (
+                <label key={t.id} className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9">
+                  <input type="checkbox" checked={selected.includes(t.id)} onChange={(e) => toggle(t.id, e.target.checked)} />
+                  {t.label}
+                </label>
+              ))}
+            </fieldset>
+          ))}
+        </Sheet>
       )}
     </>
   );

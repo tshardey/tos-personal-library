@@ -4,6 +4,8 @@ const TONE = {
   accent: "bg-accent text-on-accent",
   success: "bg-control text-success",
   muted: "bg-control text-muted",
+  overlay: "bg-surface/85 text-fg",
+  "overlay-success": "bg-surface/85 text-success",
 };
 
 export function Badge({

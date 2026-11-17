@@ -137,6 +137,94 @@ const STATES: { name: string; open(page: Page, ctx: Ctx): Promise<void>; after?(
       await expect(page.getByRole("heading", { name: "Covers to review" })).toBeVisible();
     },
   },
+  // Plan 9 PR 2: the library toolbar, Filters (the sheet at 390, the panel at 1280), select mode,
+  // the smallest and largest cover sizes, and a series wall.
+  {
+    name: "library-filters-open",
+    async open(page) {
+      await library(page);
+      await page.getByRole("button", { name: /^Filters/ }).click();
+      await expect(page.getByRole("group", { name: "Owner & Copy" })).toBeVisible();
+    },
+    async after(page) {
+      if ((await page.getByRole("dialog", { name: "Filters" }).count()) > 0) await closeOverlays(page);
+      else await page.getByRole("button", { name: /^Filters/ }).click();
+      await expect(page.getByRole("group", { name: "Owner & Copy" })).toHaveCount(0);
+    },
+  },
+  {
+    // With a filter on, so the Filters button carries its count badge beside the search box.
+    name: "library-select",
+    async open(page) {
+      await library(page);
+      await page.getByRole("button", { name: /^Filters/ }).click();
+      await page.getByRole("button", { name: "Deluxe", exact: true }).click();
+      const sheet = page.getByRole("dialog", { name: "Filters" });
+      if ((await sheet.count()) > 0) await sheet.getByRole("button", { name: "Done" }).click();
+      else await page.getByRole("button", { name: /^Filters/ }).click();
+      await expect(count(page)).toHaveText("7 books");
+      await page.getByRole("button", { name: "Select", exact: true }).click();
+      const cards = page.locator("[data-book-id]");
+      for (let i = 0; i < 3; i++) await cards.nth(i).getByRole("checkbox").check();
+      await expect(page.getByRole("region", { name: "Selection" }).getByText("3 selected")).toBeVisible();
+    },
+    async after(page) {
+      await page.getByRole("region", { name: "Selection" }).getByRole("button", { name: "Done" }).click();
+      await page.getByRole("button", { name: "Remove filter: Deluxe" }).click();
+      await expect(count(page)).toHaveText("36 books");
+    },
+  },
+  ...(
+    [
+      ["library-size-1", "Smaller covers", 3],
+      ["library-size-5", "Larger covers", 1],
+    ] as const
+  ).map(([name, step, times]) => ({
+    name,
+    async open(page: Page) {
+      await library(page);
+      const phone = (page.viewportSize()?.width ?? 0) < 640;
+      if (phone) await page.getByRole("button", { name: /^Filters/ }).click();
+      for (let i = 0; i < times; i++) await page.getByRole("button", { name: step }).click();
+      if (phone) await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" }).click();
+      await expect(page.locator(".cover-grid")).toHaveAttribute("data-cover-size", name.slice(-1));
+    },
+    async after(page: Page) {
+      // Back to the default size, so the states after this one see the usual wall.
+      await page.evaluate(() => window.localStorage.removeItem("tpl_cover_size"));
+      await page.reload();
+      await expect(page.locator(".cover-grid")).toHaveAttribute("data-cover-size", "4");
+    },
+  })),
+  {
+    // Four of the shelf's books put in one invented series, volumes in reverse title order.
+    name: "library-series",
+    async open(page) {
+      const { supabaseEnv } = await import("./supabase");
+      const { url, key } = supabaseEnv();
+      for (const [i, book] of books.slice(0, 4).entries()) {
+        const res = await fetch(`${url}/rest/v1/books?id=eq.${book.id}`, {
+          method: "PATCH",
+          headers: {
+            apikey: key,
+            Authorization: `Bearer ${owner.accessToken}`,
+            "Content-Type": "application/json",
+            "Content-Profile": "library",
+          },
+          body: JSON.stringify({ series_name: "The Lantern Cycle", series_volume: 4 - i }),
+        });
+        expect(res.ok, `series PATCH answered ${res.status}`).toBe(true);
+      }
+      await page.goto(`#/series/${encodeURIComponent("The Lantern Cycle")}`);
+      // A reload, so the catalog is read again with the series in it.
+      await page.reload();
+      await expect(count(page)).toHaveText("4 books");
+    },
+    async after(page) {
+      await page.goto("#/");
+      await expect(count(page)).toHaveText("36 books");
+    },
+  },
   {
     // The camera view is up; it covers the tab bar.
     name: "scan-camera",

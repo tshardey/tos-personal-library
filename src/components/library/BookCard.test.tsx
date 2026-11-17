@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import BookCard from "./BookCard";
 import type { BookWithCopies } from "@/lib/types";
@@ -8,8 +8,8 @@ function make(coverUrl: string | null): BookWithCopies {
   return {
     id: "b1",
     householdId: "h",
-    title: "Slewfoot",
-    authors: ["Brom", "Other"],
+    title: "Glass Orchard",
+    authors: ["Petra Wynnecombe", "Other"],
     synopsis: null,
     coverUrl,
     isbn13: [],
@@ -34,39 +34,39 @@ describe("BookCard", () => {
     render(<BookCard book={make(null)} />);
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     const ph = screen.getByTestId("cover-placeholder");
-    expect(ph).toHaveTextContent("Slewfoot");
-    expect(ph).toHaveTextContent("Brom");
+    expect(ph).toHaveTextContent("Glass Orchard");
+    expect(ph).toHaveTextContent("Petra Wynnecombe");
     expect(screen.queryByText("Other")).not.toBeInTheDocument();
   });
   it("renders the cover image when present, with visible title and first author", () => {
     render(<BookCard book={make("http://x/c.jpg")} />);
-    expect(screen.getByAltText("Slewfoot cover")).toHaveAttribute("src", "http://x/c.jpg");
-    expect(screen.getByText("Slewfoot")).toBeVisible();
-    expect(screen.getByText("Brom")).toBeVisible();
+    expect(screen.getByAltText("Glass Orchard cover")).toHaveAttribute("src", "http://x/c.jpg");
+    expect(screen.getByText("Glass Orchard")).toBeVisible();
+    expect(screen.getByText("Petra Wynnecombe")).toBeVisible();
     expect(screen.queryByText("Other")).not.toBeInTheDocument();
   });
   it("falls back to the placeholder when the cover fails to load", () => {
     render(<BookCard book={make("http://x/broken.jpg")} />);
-    fireEvent.error(screen.getByAltText("Slewfoot cover"));
+    fireEvent.error(screen.getByAltText("Glass Orchard cover"));
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     const ph = screen.getByTestId("cover-placeholder");
-    expect(ph).toHaveTextContent("Slewfoot");
-    expect(ph).toHaveTextContent("Brom");
+    expect(ph).toHaveTextContent("Glass Orchard");
+    expect(ph).toHaveTextContent("Petra Wynnecombe");
   });
   it("shows our copy's photo when there is no stock cover", () => {
     render(<BookCard book={make(null)} photoUrl="http://x/p.jpg" />);
-    expect(screen.getByAltText("Slewfoot, photo of our copy")).toHaveAttribute("src", "http://x/p.jpg");
+    expect(screen.getByAltText("Glass Orchard, photo of our copy")).toHaveAttribute("src", "http://x/p.jpg");
     expect(screen.queryByTestId("cover-placeholder")).not.toBeInTheDocument();
   });
   it("prefers the stock cover over the photo", () => {
     render(<BookCard book={make("http://x/c.jpg")} photoUrl="http://x/p.jpg" />);
-    expect(screen.getByAltText("Slewfoot cover")).toBeInTheDocument();
-    expect(screen.queryByAltText("Slewfoot, photo of our copy")).not.toBeInTheDocument();
+    expect(screen.getByAltText("Glass Orchard cover")).toBeInTheDocument();
+    expect(screen.queryByAltText("Glass Orchard, photo of our copy")).not.toBeInTheDocument();
   });
   it("falls back to the photo when the stock cover fails to load", () => {
     render(<BookCard book={make("http://x/broken.jpg")} photoUrl="http://x/p.jpg" />);
-    fireEvent.error(screen.getByAltText("Slewfoot cover"));
-    expect(screen.getByAltText("Slewfoot, photo of our copy")).toBeInTheDocument();
+    fireEvent.error(screen.getByAltText("Glass Orchard cover"));
+    expect(screen.getByAltText("Glass Orchard, photo of our copy")).toBeInTheDocument();
   });
   it("tags its link with the book id", () => {
     render(<BookCard book={make(null)} />);
@@ -81,5 +81,45 @@ describe("BookCard", () => {
     unmount();
     render(<BookCard book={bookFixture("B", [copyFixture({ unhauledAt: "2026-11-12T20:00:00" })])} />);
     expect(screen.getByText("Unhauled")).toBeInTheDocument();
+  });
+  it("shows the viewer's read state inside the link", () => {
+    const { unmount } = render(<BookCard book={make(null)} readState="read" />);
+    expect(within(screen.getByRole("link")).getByText("✓ Read")).toBeInTheDocument();
+    // Readable over the grey placeholder: the corner badge has its own surface.
+    expect(screen.getByText("✓ Read")).toHaveClass("bg-surface/85", "text-success");
+    unmount();
+    const dnf = render(<BookCard book={make(null)} readState="dnf" />);
+    expect(within(screen.getByRole("link")).getByText("DNF")).toBeInTheDocument();
+    dnf.unmount();
+    render(<BookCard book={make(null)} />);
+    expect(screen.queryByText("✓ Read")).not.toBeInTheDocument();
+    expect(screen.queryByText("DNF")).not.toBeInTheDocument();
+  });
+  it("shows Deluxe and Signed as cover badges inside the card", () => {
+    const { container } = render(
+      <BookCard book={bookFixture("A", [copyFixture({ deluxe: true, signed: true })])} />,
+    );
+    const card = container.querySelector<HTMLElement>("[data-book-id]")!;
+    expect(within(card).getByText("Deluxe", { exact: true })).toBeInTheDocument();
+    expect(within(card).getByText("Signed", { exact: true })).toBeInTheDocument();
+  });
+  it("hides the text visually at showText=false but keeps the link name", () => {
+    render(<BookCard book={make("http://x/c.jpg")} showText={false} />);
+    expect(screen.getByText("Glass Orchard", { selector: "p" })).toHaveClass("sr-only");
+    expect(screen.getByRole("link")).toHaveAccessibleName(/Glass Orchard/);
+  });
+  it("keeps the placeholder to a short title at showText=false, so a small cover isn't overfilled", () => {
+    render(<BookCard book={make(null)} showText={false} />);
+    const ph = screen.getByTestId("cover-placeholder");
+    expect(ph).toHaveTextContent("Glass Orchard");
+    expect(ph).not.toHaveTextContent("Petra Wynnecombe");
+    expect(within(ph).getByText("Glass Orchard")).toHaveClass("text-xs", "line-clamp-3");
+  });
+  it("outlines a selected cover and keeps the checkbox name", () => {
+    const { container } = render(
+      <BookCard book={make("http://x/c.jpg")} selection={{ selected: true, onToggle: () => {} }} />,
+    );
+    expect(container.querySelector(".ring-accent")).not.toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Select Glass Orchard" })).toBeInTheDocument();
   });
 });

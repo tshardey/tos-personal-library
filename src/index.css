@@ -21,7 +21,8 @@
 
 :root {
   color-scheme: dark;
-  --nav-bottom: calc(56px + env(safe-area-inset-bottom));
+  /* 56px tab bar plus its 1px top border. */
+  --nav-bottom: calc(57px + env(safe-area-inset-bottom));
   --toolbar-top: 0px;
 }
 

@@ -40,8 +40,12 @@ test("renaming a label into another merges them and the Edition filter follows",
   await page.goto("#/");
   const count = page.locator("p[aria-live='polite']");
   await expect(count).toHaveText("5 books");
+  const filters = page.getByRole("button", { name: /^Filters/ });
+  const done = page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" });
   const edition = page.getByLabel("Edition", { exact: true });
+  await filters.click();
   await edition.selectOption("Lantern Box Edition");
+  await done.click();
   await expect(count).toHaveText("2 books");
 
   await page.getByRole("button", { name: "More" }).click();
@@ -68,6 +72,7 @@ test("renaming a label into another merges them and the Edition filter follows",
   expect(copies.filter((c) => c.user_edited_fields.includes("editionNote"))).toHaveLength(2);
 
   await page.getByRole("link", { name: "Back to library" }).click();
+  await filters.click();
   await expect(edition).toHaveValue("Lantern Box");
   await expect(edition.locator("option")).toHaveText(["All editions", "Harbor Press", "Lantern Box"]);
   await expect(count).toHaveText("4 books");

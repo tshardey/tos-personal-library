@@ -80,7 +80,9 @@ test("mass edit sets a label and Deluxe on the selected books' ticked copies", a
     await expect(page.locator(`[data-book-id="${id(title)}"]`).getByText("Deluxe", { exact: true })).toBeVisible();
   }
   await page.getByRole("searchbox", { name: "Search books" }).fill("");
+  await page.getByRole("button", { name: /^Filters/ }).click();
   await page.getByLabel("Edition", { exact: true }).selectOption("Lantern Box");
+  await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" }).click();
   await expect(count).toHaveText("4 books");
 
   const copies = await rest<CopyRow[]>(
