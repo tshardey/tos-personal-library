@@ -48,7 +48,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="block w-full rounded border p-2 text-left text-sm disabled:opacity-50"
+        className="block min-h-11 w-full rounded border p-2 text-left text-sm disabled:opacity-50"
       >
         {`${label}: ${valueText ?? value ?? "none"}`}
       </button>
