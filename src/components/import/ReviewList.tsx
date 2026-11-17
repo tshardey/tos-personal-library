@@ -37,12 +37,12 @@ export default function ReviewList({ items, catalog, onChoose }: Props) {
   const titles = new Map(catalog.map((b) => [b.id, b.title]));
   return (
     <section aria-labelledby="import-review" className="mb-4">
-      <h3 id="import-review" className="mb-2 font-semibold">
+      <h3 id="import-review" className="mb-2 font-semibold text-fg-strong">
         To review
       </h3>
       <ul className="space-y-3">
         {items.map((item) => (
-          <li key={item.libibId} className="rounded border p-3">
+          <li key={item.libibId} className="rounded-md border border-line bg-raised p-3">
             <p className="font-medium">{item.title}</p>
             {item.authors.length > 0 && <p className="text-sm text-muted">{item.authors.join(", ")}</p>}
             <p className="mb-2 text-sm text-muted">{REASON_TEXT[item.reason]}</p>

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { isbnFromTyped } from "@/lib/scan/isbn-input";
+import { Button, Sheet } from "../ui";
 
 interface Props {
   /** A valid ISBN-13 (an ISBN-10 is converted); the parent closes the sheet. */
@@ -12,10 +13,6 @@ export default function TypeIsbnSheet({ onAdd, onClose }: Props) {
   const [invalid, setInvalid] = useState(false);
   const fieldRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fieldRef.current?.focus();
-  }, []);
-
   function submit() {
     const isbn13 = isbnFromTyped(text);
     if (isbn13 === null) {
@@ -26,52 +23,37 @@ export default function TypeIsbnSheet({ onAdd, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Type ISBN"
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.stopPropagation();
-            onClose();
-          }
+    <Sheet label="Type ISBN" onClose={onClose} initialFocus={fieldRef}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
         }}
-        className="w-full max-w-lg rounded-t bg-raised p-4 text-fg-strong sm:rounded"
       >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
+        <label htmlFor="scan-typed-isbn" className="mb-1 block text-sm">
+          ISBN
+        </label>
+        <input
+          ref={fieldRef}
+          id="scan-typed-isbn"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setInvalid(false);
           }}
-        >
-          <label htmlFor="scan-typed-isbn" className="mb-1 block text-sm">
-            ISBN
-          </label>
-          <input
-            ref={fieldRef}
-            id="scan-typed-isbn"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              setInvalid(false);
-            }}
-            className="mb-2 block w-full rounded border p-2"
-          />
-          {invalid && <p className="mb-2 text-sm text-danger">That isn't a valid ISBN. Check the digits.</p>}
-          <div className="flex gap-2">
-            <button type="submit" className="rounded bg-accent px-3 py-2 text-on-accent">
-              Add
-            </button>
-            <button type="button" onClick={onClose} className="rounded border px-3 py-2">
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          className="mb-2 block min-h-11 w-full rounded-md border border-field bg-control px-3 text-sm text-fg sm:min-h-9"
+        />
+        {invalid && <p className="mb-2 text-sm text-danger">That isn't a valid ISBN. Check the digits.</p>}
+        <div className="flex gap-2">
+          <Button type="submit" variant="primary">
+            Add
+          </Button>
+          <Button onClick={onClose}>Cancel</Button>
+        </div>
+      </form>
+    </Sheet>
   );
 }

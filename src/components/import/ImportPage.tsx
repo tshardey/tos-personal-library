@@ -14,6 +14,7 @@ import {
 import { libibStore, listBooks, listLibibLedger } from "@/lib/library-repo";
 import { routeToHash } from "@/lib/router";
 import type { BookWithCopies } from "@/lib/types";
+import { Button, buttonClass } from "../ui";
 import ImportPreview from "./ImportPreview";
 
 const LOAD_FAILED = "Couldn't read the library, so nothing was imported.";
@@ -220,9 +221,9 @@ export default function ImportPage() {
       return (
         <div className="mb-2">
           <p>{failedPrefix}</p>
-          <button type="button" onClick={() => void runLookup()} className="mt-1 rounded border px-3 py-1">
+          <Button size="sm" onClick={() => void runLookup()} className="mt-1">
             Try again
-          </button>
+          </Button>
         </div>
       );
     }
@@ -236,8 +237,8 @@ export default function ImportPage() {
 
   if (stage.name === "pick") {
     return (
-      <div className="p-4">
-        <h2 className="mb-3 text-lg font-semibold">Import from libib</h2>
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+        <h2 className="mb-3 text-xl font-semibold text-fg-strong">Import from libib</h2>
         <p className="mb-3">In libib, use Export, then upload the .csv it gives you.</p>
         {stage.error && (
           <p role="alert" className="mb-3 text-danger">
@@ -256,30 +257,25 @@ export default function ImportPage() {
             e.target.value = "";
             if (picked) void onPick(picked);
           }}
-          className="block w-full"
+          className="block w-full text-sm text-fg file:mr-3 file:min-h-11 file:rounded-md file:border file:border-field file:bg-control file:px-3 file:text-sm file:text-fg sm:file:min-h-9"
         />
         <p className="mb-2 mt-6 text-sm">
           Already imported? This looks up ISBNs on {sources} to fill in missing covers and descriptions.
         </p>
-        <button
-          type="button"
-          disabled={lookup.status === "running"}
-          onClick={() => void runLookup()}
-          className="mb-2 rounded border px-3 py-2 disabled:opacity-50"
-        >
+        <Button disabled={lookup.status === "running"} onClick={() => void runLookup()} className="mb-2">
           Find missing covers
-        </button>
+        </Button>
         {lookupStatus(`The ${sources} lookup didn't finish.`)}
       </div>
     );
   }
 
-  if (stage.name === "loading") return <p className="p-6">Reading the file and the library…</p>;
+  if (stage.name === "loading") return <p className="mx-auto max-w-3xl px-4 py-6 sm:px-6">Reading the file and the library…</p>;
 
   if (stage.name === "writing") {
     const { progress } = stage;
     return (
-      <div className="p-6" role="status">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6" role="status">
         <p className="mb-2">{progress ? `Importing… ${progress.done} of ${progress.total}` : "Importing…"}</p>
         <progress className="w-full" value={progress?.done} max={progress?.total} />
       </div>
@@ -289,8 +285,8 @@ export default function ImportPage() {
   if (stage.name === "done") {
     const { summary, result } = stage;
     return (
-      <div className="p-4">
-        <h2 className="mb-2 text-lg font-semibold">Import complete</h2>
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
+        <h2 className="mb-2 text-xl font-semibold text-fg-strong">Import complete</h2>
         <p className="mb-2">
           {`Added ${summary.newBooks} ${summary.newBooks === 1 ? "new book" : "new books"} and ${summary.newCopies} extra ${summary.newCopies === 1 ? "copy" : "copies"}.`}
         </p>
@@ -305,7 +301,7 @@ export default function ImportPage() {
           </div>
         )}
         {lookupStatus(`Your import is complete, but the ${sources} lookup didn't finish.`)}
-        <a href={routeToHash({ name: "library" })} className="underline">
+        <a href={routeToHash({ name: "library" })} className={`${buttonClass("ghost")} underline`}>
           Back to the library
         </a>
       </div>
@@ -314,7 +310,7 @@ export default function ImportPage() {
 
   if (stage.name === "failed") {
     return (
-      <div className="p-4">
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
         <p role="alert" className="mb-3 text-danger">
           {FAILED}
         </p>
@@ -323,13 +319,9 @@ export default function ImportPage() {
             {stage.error}
           </p>
         )}
-        <button
-          type="button"
-          onClick={() => file && void load(file, true)}
-          className="rounded bg-accent px-3 py-2 text-on-accent"
-        >
+        <Button variant="primary" onClick={() => file && void load(file, true)}>
           Run it again
-        </button>
+        </Button>
       </div>
     );
   }

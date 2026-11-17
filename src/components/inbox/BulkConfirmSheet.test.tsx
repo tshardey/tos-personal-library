@@ -42,8 +42,6 @@ describe("BulkConfirmSheet", () => {
     expect(list.className).toContain("overflow-y-auto");
     expect(list.contains(screen.getByRole("button", { name: "Cancel" }))).toBe(false);
     expect(screen.getByRole("dialog").className).toContain("flex-col");
-    expect(screen.getByRole("button", { name: "Cancel" }).parentElement?.parentElement?.className).toContain(
-      "safe-area-inset-bottom",
-    );
+    expect(screen.getByRole("dialog").className).toContain("safe-area-inset-bottom");
   });
 });
