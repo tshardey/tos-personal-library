@@ -33,9 +33,6 @@ const sheet = (page: Page) => page.getByRole("dialog", { name: "Filters" });
 const pinned = (page: Page) => page.locator("div.sticky").filter({ has: search(page) });
 const cards = (page: Page) => page.locator("[data-book-id]");
 const selection = (page: Page) => page.getByRole("region", { name: "Selection" });
-// BottomBar sits at --nav-bottom (56px) and the tab bar is 56px plus its 1px top border, so the two
-// borders share one pixel row; anything more is an overlap.
-const SEAM = 1;
 
 async function open(page: Page) {
   await routeFakeCovers(page);
@@ -147,7 +144,7 @@ test.describe("phone (390px)", () => {
     await expect(selection(page).getByText("3 selected")).toBeVisible();
     const bar = await box(selection(page));
     const tabs = await box(nav(page));
-    expect(bar.y + bar.height).toBeLessThanOrEqual(tabs.y + SEAM + 0.5);
+    expect(bar.y + bar.height).toBeLessThanOrEqual(tabs.y + 0.5);
 
     await scrollToEnd(page);
     const last = await box(cards(page).last());
@@ -166,7 +163,7 @@ test.describe("phone (390px)", () => {
     const footer = page.locator("div.fixed").filter({ has: page.getByRole("button", { name: "Find covers" }) });
     const bar = await box(footer);
     const tabs = await box(nav(page));
-    expect(bar.y + bar.height).toBeLessThanOrEqual(tabs.y + SEAM + 0.5);
+    expect(bar.y + bar.height).toBeLessThanOrEqual(tabs.y + 0.5);
 
     await scrollToEnd(page);
     const last = await box(cards(page).last());
