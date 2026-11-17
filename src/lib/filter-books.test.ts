@@ -52,17 +52,17 @@ function book(title: string, authors: string[], owners: (string | null)[] = []):
   };
 }
 
-const slewfoot = book("Slewfoot", ["Brom"], ["u1"]);
-const jade = book("Jade City", ["Fonda Lee"], [null]);
+const hollowmere = book("Hollowmere", ["Ansel Brack"], ["u1"]);
+const copper = book("Copper Harbour", ["Ilsa Venn"], [null]);
 const poete = book("Poète Empress", ["Someone"], ["u2"]);
 const multi = book("Co-written", ["First Author", "Second Writer"], ["u1", null]);
 const none = book("Orphan", ["Nobody"]);
-const all = [slewfoot, jade, poete, multi, none];
+const all = [hollowmere, copper, poete, multi, none];
 
 describe("filterBooks", () => {
   it("matches author case-insensitively", () => {
-    expect(filterBooks(all, { query: "brom", owner: "all" })).toEqual([slewfoot]);
-    expect(filterBooks(all, { query: "lee", owner: "all" })).toEqual([jade]);
+    expect(filterBooks(all, { query: "brack", owner: "all" })).toEqual([hollowmere]);
+    expect(filterBooks(all, { query: "venn", owner: "all" })).toEqual([copper]);
   });
   it("is accent-insensitive", () => {
     expect(filterBooks(all, { query: "poete", owner: "all" })).toEqual([poete]);
@@ -79,10 +79,10 @@ describe("filterBooks", () => {
     expect(filterBooks(all, { query: "", owner: "all" })).toEqual(all);
   });
   it("filters shared", () => {
-    expect(filterBooks(all, { query: "", owner: "shared" })).toEqual([jade, multi]);
+    expect(filterBooks(all, { query: "", owner: "shared" })).toEqual([copper, multi]);
   });
   it("filters by member", () => {
-    expect(filterBooks(all, { query: "", owner: "u1" })).toEqual([slewfoot, multi]);
+    expect(filterBooks(all, { query: "", owner: "u1" })).toEqual([hollowmere, multi]);
   });
   it("all keeps books with zero copies", () => {
     expect(filterBooks(all, { query: "orphan", owner: "all" })).toEqual([none]);

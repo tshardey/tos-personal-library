@@ -19,21 +19,21 @@ describe("normalize", () => {
 
   it("normalizeBookInput trims and turns blanks into null", () => {
     const n = normalizeBookInput({
-      title: "  Jade City ",
-      authors: [" Fonda Lee ", ""],
+      title: "  Copper Harbour ",
+      authors: [" Ilsa Venn ", ""],
       synopsis: "",
       coverUrl: "  ",
       isbn13: [],
       isbn10: [],
       pageCount: 5,
-      publisher: " Orbit ",
+      publisher: " Tidewater Press ",
       publishDate: null,
     });
-    expect(n.title).toBe("Jade City");
-    expect(n.authors).toEqual(["Fonda Lee"]);
+    expect(n.title).toBe("Copper Harbour");
+    expect(n.authors).toEqual(["Ilsa Venn"]);
     expect(n.synopsis).toBeNull();
     expect(n.coverUrl).toBeNull();
-    expect(n.publisher).toBe("Orbit");
+    expect(n.publisher).toBe("Tidewater Press");
   });
 
   it("normalizeCopyInput trims and nulls blanks", () => {
@@ -56,8 +56,8 @@ describe("normalize", () => {
 
   it("only a real change is marked edited when imported values are untidy", () => {
     const raw: BookInput = {
-      title: "  Jade City ",
-      authors: ["Fonda Lee"],
+      title: "  Copper Harbour ",
+      authors: ["Ilsa Venn"],
       synopsis: "",
       coverUrl: null,
       isbn13: [],
