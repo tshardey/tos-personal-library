@@ -3,6 +3,8 @@ import type { BookWithCopies } from "@/lib/types";
 import { useCopyPhotoUrls } from "@/hooks/useCopyPhotoUrls";
 import { COVER_STEPS, DEFAULT_COVER_SIZE, type CoverSize } from "@/lib/cover-size";
 import { saveScrollAnchor } from "@/lib/library-view";
+import { useReading } from "@/contexts/ReadingContext";
+import { stateFor } from "@/lib/reading/status";
 import BookCard from "./BookCard";
 
 /** Select mode: which books are ticked, and how a tap toggles one. */
@@ -30,6 +32,12 @@ export default function CoverWall({
     "--cover-gap": `${step.gapPx}px`,
   } as CSSProperties;
   const photoUrls = useCopyPhotoUrls(books);
+  const reading = useReading();
+  function readStateOf(bookId: string): "read" | "dnf" | undefined {
+    if (!reading.available || !reading.userId) return undefined;
+    const state = stateFor(reading.byBook, bookId, reading.userId);
+    return state === "read" || state === "dnf" ? state : undefined;
+  }
   // D9: where the clicked card sits, so going back can put it there again. A tap in select mode
   // ticks the card and opens nothing, so there is nowhere to come back from.
   function onClickCapture(e: MouseEvent<HTMLDivElement>) {
@@ -52,6 +60,7 @@ export default function CoverWall({
           book={b}
           photoUrl={photoUrls.get(b.id)}
           showText={step.showText}
+          readState={readStateOf(b.id)}
           selection={selection ? { selected: selection.ids.has(b.id), onToggle: () => selection.toggle(b.id) } : undefined}
         />
       ))}

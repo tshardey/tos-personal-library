@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import BookCard from "./BookCard";
 import type { BookWithCopies } from "@/lib/types";
@@ -81,5 +81,36 @@ describe("BookCard", () => {
     unmount();
     render(<BookCard book={bookFixture("B", [copyFixture({ unhauledAt: "2026-11-12T20:00:00" })])} />);
     expect(screen.getByText("Unhauled")).toBeInTheDocument();
+  });
+  it("shows the viewer's read state inside the link", () => {
+    const { unmount } = render(<BookCard book={make(null)} readState="read" />);
+    expect(within(screen.getByRole("link")).getByText("✓ Read")).toBeInTheDocument();
+    unmount();
+    const dnf = render(<BookCard book={make(null)} readState="dnf" />);
+    expect(within(screen.getByRole("link")).getByText("DNF")).toBeInTheDocument();
+    dnf.unmount();
+    render(<BookCard book={make(null)} />);
+    expect(screen.queryByText("✓ Read")).not.toBeInTheDocument();
+    expect(screen.queryByText("DNF")).not.toBeInTheDocument();
+  });
+  it("shows Deluxe and Signed as cover badges inside the card", () => {
+    const { container } = render(
+      <BookCard book={bookFixture("A", [copyFixture({ deluxe: true, signed: true })])} />,
+    );
+    const card = container.querySelector<HTMLElement>("[data-book-id]")!;
+    expect(within(card).getByText("Deluxe", { exact: true })).toBeInTheDocument();
+    expect(within(card).getByText("Signed", { exact: true })).toBeInTheDocument();
+  });
+  it("hides the text visually at showText=false but keeps the link name", () => {
+    render(<BookCard book={make("http://x/c.jpg")} showText={false} />);
+    expect(screen.getByText("Slewfoot", { selector: "p" })).toHaveClass("sr-only");
+    expect(screen.getByRole("link")).toHaveAccessibleName(/Slewfoot/);
+  });
+  it("outlines a selected cover and keeps the checkbox name", () => {
+    const { container } = render(
+      <BookCard book={make("http://x/c.jpg")} selection={{ selected: true, onToggle: () => {} }} />,
+    );
+    expect(container.querySelector(".ring-accent")).not.toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Select Slewfoot" })).toBeInTheDocument();
   });
 });

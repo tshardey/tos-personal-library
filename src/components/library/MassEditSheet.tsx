@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
+import { Sheet } from "@/components/ui";
 import EditionPicker from "@/components/edition/EditionPicker";
 import LibraryTagPicker from "@/components/tags/LibraryTagPicker";
 import RetagConfirm from "@/components/tags/RetagConfirm";
@@ -89,14 +90,6 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const [refreshFailed, setRefreshFailed] = useState(false);
   /** Changes written so far, across the first run and any retries. */
   const [totals, setTotals] = useState({ copies: 0, books: 0, tags: 0, reads: 0 });
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  // Focus moves into the sheet on open (so Escape and Tab start there) and back on close.
-  useEffect(() => {
-    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogRef.current?.focus();
-    return () => before?.focus();
-  }, []);
   const locationList = useId();
   const seriesList = useId();
 
@@ -216,22 +209,64 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
   const choice = "mt-1 block w-full rounded border p-2";
   const field = "block text-sm";
 
+  // Focus starts on the dialog itself (as before), so Escape and Tab begin there rather than on the first field.
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const footer = (
+    <div className="w-full">
+          {result ? (
+            <button type="button" disabled={busy} onClick={onClose} className="min-h-10 rounded border px-3">
+              Close
+            </button>
+          ) : confirming && !nothing ? (
+            <div role="group" aria-label="Confirm" className="space-y-2">
+              <p className="text-sm font-medium">{`This will change ${describeCounts(copyCount, bookCount, tagCount, readCount)}. There is no undo.`}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void run(targets)}
+                  className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
+                >
+                  {busy ? "Saving…" : "Confirm"}
+                </button>
+                <button type="button" disabled={busy} onClick={() => setConfirming(false)} className="min-h-10 rounded border px-3">
+                  Back
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={nothing || blank !== null}
+                onClick={() => setConfirming(true)}
+                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
+              >
+                Save
+              </button>
+              <button type="button" onClick={onClose} className="min-h-10 rounded border px-3">
+                Cancel
+              </button>
+              <p className="text-sm text-muted">
+                {blank ?? (nothing ? "Nothing to change yet." : describeCounts(copyCount, bookCount, tagCount, readCount))}
+              </p>
+            </div>
+          )}
+        </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <div
-        ref={dialogRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Edit selected books"
-        onKeyDown={(e) => {
-          if (e.key !== "Escape" || busy) return;
-          if (confirming) setConfirming(false);
-          else onClose();
-        }}
-        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t bg-raised sm:rounded"
-      >
-        <div className="overflow-y-auto p-4">
+    <Sheet
+      label="Edit selected books"
+      onClose={() => {
+        if (busy) return;
+        if (confirming) setConfirming(false);
+        else onClose();
+      }}
+      footer={footer}
+      initialFocus={dialogRef}
+    >
+      <div ref={(el) => { dialogRef.current = el?.closest<HTMLElement>('[role="dialog"]') ?? null; }}>
           <h2 className="text-lg font-semibold">{`Edit ${selected.length} ${selected.length === 1 ? "book" : "books"}`}</h2>
           <p className="mb-3 text-sm text-muted">Each field starts as no change. Only what you change is saved.</p>
 
@@ -503,48 +538,6 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
           )}
         </div>
 
-        <div className="border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {result ? (
-            <button type="button" disabled={busy} onClick={onClose} className="min-h-10 rounded border px-3">
-              Close
-            </button>
-          ) : confirming && !nothing ? (
-            <div role="group" aria-label="Confirm" className="space-y-2">
-              <p className="text-sm font-medium">{`This will change ${describeCounts(copyCount, bookCount, tagCount, readCount)}. There is no undo.`}</p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void run(targets)}
-                  className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
-                >
-                  {busy ? "Saving…" : "Confirm"}
-                </button>
-                <button type="button" disabled={busy} onClick={() => setConfirming(false)} className="min-h-10 rounded border px-3">
-                  Back
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={nothing || blank !== null}
-                onClick={() => setConfirming(true)}
-                className="min-h-10 rounded bg-accent px-3 text-on-accent disabled:bg-control disabled:text-muted"
-              >
-                Save
-              </button>
-              <button type="button" onClick={onClose} className="min-h-10 rounded border px-3">
-                Cancel
-              </button>
-              <p className="text-sm text-muted">
-                {blank ?? (nothing ? "Nothing to change yet." : describeCounts(copyCount, bookCount, tagCount, readCount))}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

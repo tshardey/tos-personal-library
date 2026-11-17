@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { Sheet } from "@/components/ui";
 import { canonicalLabel, MAX_LABEL } from "@/lib/editions";
 
 interface Props {
@@ -18,10 +19,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
   const filterRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (open) filterRef.current?.focus();
-  }, [open]);
-
+  // Sheet also returns focus to the opener on unmount; this covers browsers that do not focus a clicked button.
   function close() {
     setOpen(false);
     setTyped("");
@@ -53,19 +51,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
         {`${label}: ${valueText ?? value ?? "none"}`}
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={label}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.stopPropagation();
-                close();
-              }
-            }}
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t bg-raised p-4 sm:rounded"
-          >
+        <Sheet label={label} onClose={close} initialFocus={filterRef}>
             <input
               ref={filterRef}
               type="text"
@@ -111,8 +97,7 @@ export default function EditionPicker({ value, labels, onChange, label = "Editio
             <button type="button" onClick={close} className="mt-3 rounded border px-3 py-2">
               Close
             </button>
-          </div>
-        </div>
+        </Sheet>
       )}
     </>
   );
