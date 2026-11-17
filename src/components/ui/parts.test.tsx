@@ -32,6 +32,11 @@ describe("shared parts", () => {
     expect(screen.getByRole("button", { name: "Owned" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("Chip is at least 44px wide on the phone, so a short label is still a full target", () => {
+    render(<Chip label="All" pressed={false} onClick={() => {}} />);
+    expect(screen.getByRole("button", { name: "All" })).toHaveClass("min-w-11", "min-h-11");
+  });
+
   it("Badge renders its children", () => {
     render(<Badge tone="success">Read</Badge>);
     expect(screen.getByText("Read")).toBeInTheDocument();
