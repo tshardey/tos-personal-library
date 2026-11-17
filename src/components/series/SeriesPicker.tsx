@@ -123,7 +123,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
               )}
             </ul>
             {tooLong && <p className="mt-2 text-sm text-danger">{`Series names are at most ${MAX_SERIES} characters.`}</p>}
-            <button type="button" onClick={dismiss} className="mt-3 rounded border px-3 py-2">
+            <button type="button" onClick={dismiss} className="mt-3 min-h-11 rounded border px-3 py-2 sm:min-h-9">
               Close
             </button>
           </div>

@@ -318,17 +318,19 @@ export default function BookDetail({ id }: { id: string }) {
     <div className="mx-auto grid max-w-5xl gap-6 p-4 md:grid-cols-[240px_1fr] md:gap-8">
       <div className="space-y-3">
         <Cover key={book.coverUrl ?? ""} book={book} photoUrl={photoUrls.get(book.id)} />
-        <div className="mx-auto flex w-40 flex-col gap-2 md:w-full">
+        <div role="group" aria-label="Book actions" className="mx-auto flex w-40 flex-col gap-2 md:w-full">
           <Button variant="secondary" onClick={() => setEditing(true)}>
             Edit book
           </Button>
           {coverFinderAvailable && <FindCoverPanel book={book} />}
-          <MarkReadButton reading={reading} onShowReading={showReading} />
+          {/* While editing, the tabs are hidden, so these would act out of sight; they wait for Save or Cancel. */}
+          <MarkReadButton reading={reading} onShowReading={showReading} disabled={editing} />
           <Menu label="More actions" button={<DotsIcon className="size-5" />}>
             {(close) => (
               <div className="flex flex-col gap-1">
                 <Button
                   variant="ghost"
+                  disabled={editing}
                   onClick={() => {
                     close();
                     startAddCopy();

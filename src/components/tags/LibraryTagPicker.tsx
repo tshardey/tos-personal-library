@@ -60,32 +60,28 @@ export default function LibraryTagPicker({
           onClose={close}
           initialFocus={doneRef}
           footer={
-            <button ref={doneRef} type="button" onClick={close} className="min-h-10 rounded border px-3">
+            <button ref={doneRef} type="button" onClick={close} className="min-h-11 rounded border px-3 sm:min-h-9">
               Done
             </button>
           }
         >
-          <div>
-            <div>
-              {groups.length === 0 && <p className="text-sm text-muted">No tags to choose.</p>}
-              {groups.map((g) => (
-                <fieldset key={g.category} className="mb-3">
-                  <legend className="text-sm font-medium">{g.label}</legend>
-                  {g.tags.map((t) => (
-                    <label key={t.id} className="flex min-h-10 items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selected.includes(t.id)}
-                        onChange={(e) => toggle(t.id, e.target.checked)}
-                        className="h-5 w-5 accent-accent"
-                      />
-                      {t.label}
-                    </label>
-                  ))}
-                </fieldset>
+          {groups.length === 0 && <p className="text-sm text-muted">No tags to choose.</p>}
+          {groups.map((g) => (
+            <fieldset key={g.category} className="mb-3">
+              <legend className="text-sm font-medium">{g.label}</legend>
+              {g.tags.map((t) => (
+                <label key={t.id} className="flex min-h-10 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(t.id)}
+                    onChange={(e) => toggle(t.id, e.target.checked)}
+                    className="h-5 w-5 accent-accent"
+                  />
+                  {t.label}
+                </label>
               ))}
-            </div>
-          </div>
+            </fieldset>
+          ))}
         </Sheet>
       )}
     </div>

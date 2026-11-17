@@ -1,12 +1,21 @@
 import { Button, CheckIcon } from "@/components/ui";
 import type { YourReading } from "./useYourReading";
 
-export default function MarkReadButton({ reading, onShowReading }: { reading: YourReading; onShowReading(): void }) {
+export default function MarkReadButton({
+  reading,
+  onShowReading,
+  disabled = false,
+}: {
+  reading: YourReading;
+  onShowReading(): void;
+  disabled?: boolean;
+}) {
   if (!reading.available) return null;
   const { state } = reading.shown;
+  const off = disabled || reading.busy;
   if (state === "unread") {
     return (
-      <Button variant="secondary" disabled={reading.busy} onClick={() => reading.choose("read")}>
+      <Button variant="secondary" disabled={off} onClick={() => reading.choose("read")}>
         Mark read
       </Button>
     );
@@ -16,7 +25,7 @@ export default function MarkReadButton({ reading, onShowReading }: { reading: Yo
     <Button
       variant="secondary"
       aria-label={`Your reading: ${label}`}
-      disabled={reading.busy}
+      disabled={off}
       onClick={onShowReading}
     >
       {state === "read" && <CheckIcon className="size-4" />}

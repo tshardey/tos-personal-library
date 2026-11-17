@@ -22,7 +22,7 @@ export function YourReadingControl({ reading }: { reading: YourReading }) {
             aria-pressed={shown.state === state}
             disabled={busy}
             onClick={() => reading.choose(state)}
-            className={`rounded border px-3 py-2 text-sm ${
+            className={`min-h-11 rounded border px-3 py-2 text-sm sm:min-h-9 ${
               shown.state === state ? "border-accent bg-accent text-on-accent" : "border-field"
             }`}
           >
@@ -41,7 +41,7 @@ export function YourReadingControl({ reading }: { reading: YourReading }) {
               className="rounded border border-field px-2 py-1"
             />
           </label>
-          <button type="button" disabled={busy} onClick={reading.clearDate} className="underline">
+          <button type="button" disabled={busy} onClick={reading.clearDate} className="min-h-11 underline sm:min-h-9">
             Clear date
           </button>
         </div>

@@ -98,10 +98,12 @@ describe("BookDetail series and tags", () => {
     window.location.hash = "";
   });
 
-  it("hides Library tags when tagging is unavailable", () => {
+  it("hides Library tags on the Tags tab when tagging is unavailable", () => {
     setCatalog([book()]);
     render(<BookDetail id="b1" />);
+    selectTab("Tags");
     expect(screen.queryByText("Library tags")).not.toBeInTheDocument();
+    expect(screen.getByText("Library tags aren't available yet.")).toBeInTheDocument();
   });
 
   it("Library tags are on the Tags tab", () => {
@@ -253,13 +255,6 @@ describe("BookDetail tabs", () => {
     expect(within(panel).getByRole("button", { name: "Add copy" })).toBeInTheDocument();
   });
 
-  it("says Library tags aren't available yet while tagging is off", () => {
-    setCatalog([book()]);
-    render(<BookDetail id="b1" />);
-    selectTab("Tags");
-    expect(screen.getByText("Library tags aren't available yet.")).toBeInTheDocument();
-  });
-
   it("shows Tome of Secrets tags unavailable when the tags failed", () => {
     setCatalog([book()], { tags: new Map(), tagsError: "failed" });
     render(<BookDetail id="b1" />);
@@ -359,6 +354,31 @@ describe("BookDetail left column and menu", () => {
     const panel = screen.getByRole("tabpanel");
     expect(within(panel).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     expect(vi.mocked(addCopy)).not.toHaveBeenCalled();
+  });
+
+  it("disables Mark read and the menu's Add copy while editing, keeping the form", () => {
+    h.reading = { ...h.reading, available: true, userId: "u1" };
+    setCatalog([book()]);
+    render(<BookDetail id="b1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit book" }));
+    expect(screen.getByRole("button", { name: "Mark read" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.getByRole("button", { name: "Add copy" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete book" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save book" })).toBeInTheDocument();
+  });
+
+  it("disables Your reading: Read while editing", () => {
+    h.reading = {
+      ...h.reading,
+      available: true,
+      userId: "u1",
+      byBook: new Map([["b1", new Map([["u1", { state: "read", finishedOn: "2026-11-01" }]])]]),
+    };
+    setCatalog([book()]);
+    render(<BookDetail id="b1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit book" }));
+    expect(screen.getByRole("button", { name: "Your reading: Read" })).toBeDisabled();
   });
 
   it("More actions > Delete book asks to confirm", async () => {
