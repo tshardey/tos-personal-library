@@ -237,6 +237,13 @@ describe("BookDetail tabs", () => {
     ]);
     expect(tab("Overview")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("A salt caravan.")).toBeInTheDocument();
+    expect(screen.queryByText("No synopsis yet.")).not.toBeInTheDocument();
+  });
+
+  it("says so when Overview would be empty: no synopsis and reading unavailable", () => {
+    setCatalog([book({ copies: twoCopies() })]);
+    render(<BookDetail id="b1" />);
+    expect(screen.getByText("No synopsis yet.")).toHaveClass("text-muted");
   });
 
   it("holds the Your reading group on Overview", () => {

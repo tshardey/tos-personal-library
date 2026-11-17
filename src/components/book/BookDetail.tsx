@@ -233,7 +233,11 @@ export default function BookDetail({ id }: { id: string }) {
     if (which === "overview") {
       return (
         <div className="space-y-4 pt-4">
-          {b.synopsis && <p className="text-base">{b.synopsis}</p>}
+          {b.synopsis ? (
+            <p className="text-base">{b.synopsis}</p>
+          ) : (
+            !reading.available && <p className="text-sm text-muted">No synopsis yet.</p>
+          )}
           <YourReadingControl reading={reading} />
         </div>
       );
