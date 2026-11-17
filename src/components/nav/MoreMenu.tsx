@@ -12,7 +12,7 @@ interface Props {
   onNavigate(): void;
 }
 
-/** The More list (D7), shared by the phone sheet and the desktop menu. Mounted only while open. */
+/** The More list (D7; Photos and Import live only under Add since 2026-11-17), shared by the phone sheet and the desktop menu. Mounted only while open. */
 export function MoreContent({ email, onSignOut, onNavigate }: Props) {
   const { available: taggingAvailable } = useTagging();
   const { available: readingAvailable } = useReading();
@@ -21,8 +21,6 @@ export function MoreContent({ email, onSignOut, onNavigate }: Props) {
     readingAvailable && { href: "#/reading", label: "Reading history" },
     taggingAvailable && { href: "#/tags", label: "Tag suggestions" },
     { href: "#/editions", label: "Edition labels" },
-    { href: "#/import", label: "Import" },
-    { href: "#/inbox", label: "Photos" },
   ].filter((l) => l !== false);
 
   return (
