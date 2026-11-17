@@ -58,10 +58,11 @@ export default function BookCard({
         ) : (
           <div
             data-testid="cover-placeholder"
-            className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center"
+            className="flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden p-2 text-center"
           >
-            <span className="line-clamp-4 text-sm font-semibold">{book.title}</span>
-            {author && <span className="line-clamp-2 text-xs text-muted">{author}</span>}
+            {/* At the smallest size the cover is about 64px wide: a short title only, so nothing is cut mid-line. */}
+            <span className={`line-clamp-3 font-semibold ${showText ? "text-sm" : "text-xs"}`}>{book.title}</span>
+            {author && showText && <span className="line-clamp-1 text-xs text-muted">{author}</span>}
           </div>
         )}
         {badgeLabels.length > 0 && (

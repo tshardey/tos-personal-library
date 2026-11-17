@@ -106,6 +106,13 @@ describe("BookCard", () => {
     expect(screen.getByText("Slewfoot", { selector: "p" })).toHaveClass("sr-only");
     expect(screen.getByRole("link")).toHaveAccessibleName(/Slewfoot/);
   });
+  it("keeps the placeholder to a short title at showText=false, so a small cover isn't overfilled", () => {
+    render(<BookCard book={make(null)} showText={false} />);
+    const ph = screen.getByTestId("cover-placeholder");
+    expect(ph).toHaveTextContent("Slewfoot");
+    expect(ph).not.toHaveTextContent("Brom");
+    expect(within(ph).getByText("Slewfoot")).toHaveClass("text-xs", "line-clamp-3");
+  });
   it("outlines a selected cover and keeps the checkbox name", () => {
     const { container } = render(
       <BookCard book={make("http://x/c.jpg")} selection={{ selected: true, onToggle: () => {} }} />,
