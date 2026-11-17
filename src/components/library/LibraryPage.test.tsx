@@ -520,7 +520,8 @@ describe("LibraryPage pinned toolbar (Task 10)", () => {
     render(<LibraryPage />);
     const pinned = screen.getByLabelText("Search books").closest(".sticky") as HTMLElement;
     expect(pinned).not.toBeNull();
-    expect(pinned.className).toBe("sticky top-[var(--toolbar-top)] z-20 bg-surface/95 border-b border-line");
+    expect(pinned).toHaveClass("sticky", "top-[var(--toolbar-top)]", "z-20", "bg-surface/95", "border-b", "border-line");
+    expect(pinned.className).not.toMatch(/backdrop/);
     expect(pinned).toContainElement(document.querySelector("p[aria-live='polite']") as HTMLElement);
     expect(document.querySelectorAll("p[aria-live='polite']")).toHaveLength(1);
   });
