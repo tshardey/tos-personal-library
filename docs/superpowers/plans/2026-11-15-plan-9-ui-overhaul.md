@@ -189,7 +189,7 @@ Contrast, computed with the WCAG 2.x formula (Task 1's test pins these):
   - `Import` → `#/import`, hint `A libib CSV export`.
 - **More** (sheet title `More`, or the desktop menu), top to bottom:
   - the read summary `You've read {read} of {owned} ({pct}%)`, today's `AccountMenu` rule;
-  - links `Reading history` (when reading is available), `Tag suggestions` (when tagging is available), `Edition labels`, `Import`, `Photos`;
+  - links `Reading history` (when reading is available), `Tag suggestions` (when tagging is available), `Edition labels`, `Import`, `Photos`; *(2026-11-17: `Import` and `Photos` left More; they are only under Add. See the spec §3.2 note.)*
   - then an account block: the email, `InviteCode`, and a `Sign out` button.
   - `AccountMenu.tsx` is deleted. The invite code leaves the top of the library page (§3.2 "account (email, invite code if relevant…)").
 - **Covers tab:** always present. When `available && reviewCount > 0` it carries a `Badge` with the count, and its accessible name is `Covers, {n} to review` (the visible number is `aria-hidden`). `CoversBadge.tsx` is deleted.
@@ -486,7 +486,7 @@ CoversTab(props: { variant: "bar" | "top"; current: boolean })
     - one `navigation` named `Main` with links `Library`, `Scan`, `Covers` and buttons `Add`, `More`;
     - on `#/inbox` the `Add` button has `aria-current="page"`;
     - **Add chooser:** `Add` opens dialog `Add books` with links `Type it in` → `#/add`, `Photos` → `#/inbox`, `Import` → `#/import`; clicking one closes it; Escape closes it and focuses `Add`.
-    - **More:** `More` opens dialog `More`, holding in order `Reading history` (reading available), `Tag suggestions` (tagging available), `Edition labels`, `Import`, `Photos`, the email, the invite code `abc123`, and `Sign out`. Sign out calls `onSignOut`.
+    - **More:** `More` opens dialog `More`, holding in order `Reading history` (reading available), `Tag suggestions` (tagging available), `Edition labels`, `Import`, `Photos`, the email, the invite code `abc123`, and `Sign out`. Sign out calls `onSignOut`. *(2026-11-17: `Import` and `Photos` left More; they are only under Add. See the spec §3.2 note.)*
     - **Covers tab states:**
       - with the finder available and `reviewCount` 3, link `Covers, 3 to review` → `#/covers`;
       - with 0, link `Covers` and no badge;
@@ -987,7 +987,7 @@ Run this once PRs 1–4 are all open (PR 1 may already be merged).
 ## User checks after each merge
 
 Hard-refresh first (Pages caches JS for about 10 minutes).
-1. **PR 1:** every screen is dark and readable. Phone: the bottom bar shows Library, Add, Scan, Covers and More; Covers shows a count when covers wait; More has Reading history, Tag suggestions, Edition labels, Import, Photos and Sign out. The camera is full-screen.
+1. **PR 1:** every screen is dark and readable. Phone: the bottom bar shows Library, Add, Scan, Covers and More; Covers shows a count when covers wait; More has Reading history, Tag suggestions, Edition labels, Import, Photos and Sign out. *(Since 2026-11-17, Import and Photos are only under Add.)* The camera is full-screen.
 2. **PR 2:** while scrolling the library, search, Filters and Select stay at the top. Smaller covers fit more books, and the size and the sort are still set after a reload. Active filters show as chips.
 3. **PR 3:** on the computer, the book page has the cover on the left and tabs on the right. Tagging several books in a row stays on the Tags tab. Mark read marks the book read today.
 4. **PR 4:** the other screens look like the rest of the app and work as before.
@@ -1087,3 +1087,11 @@ Hard-refresh first (Pages caches JS for about 10 minutes).
 5. **Task 16, icons need a size.** The shared `Svg` has no default size, so an icon rendered without `className` collapses to nothing. `More actions` uses `DotsIcon className="size-5"` and the read check uses `CheckIcon className="size-4"`. Later PRs should always size icons.
 6. **Task 16, extra visual states:** `book-read`, `book-find-cover` and `book-find-cover-results`. The last one answers the `cover_searches` read with a synthetic row through `page.route`, with no network or API spend.
 7. **Behaviour note:** SeriesPicker on `Sheet` treats a scrim click like Escape, so a valid changed volume draft is saved. Before, an outside click did nothing.
+
+**2026-11-17, Task 20 (whole-scope review, `tshardey/ui-overhaul-final`).**
+
+1. **Nav change (Tierra):** Photos and Import left More (phone sheet and computer menu); Add is their only nav entry and is highlighted on `#/inbox` and `#/import`.
+2. **Review fixes:** D11 44px phone targets on the Selection bar, `Find covers`, the library-tag and series pickers, the Tags/ToS edit controls, `Show the rest of this series` and the Retry/Add-a-book buttons (new e2e tap checks for the Selection bar and the mass-edit sheet); a stored owner filter naming a member who left reads as All (Review Focus 3); `BottomBar` pads clear of the raised Scan circle on the phone; `Sheet`'s Tab trap skips fieldset-disabled controls; the cover-size buttons hand focus over at an end.
+3. **Parked PR 1 items, done:** `Menu` closes when focus Tabs out; `Sheet` focus return checks `isConnected`; `Tabs` `aria-controls` only on the selected tab; `Sheet`'s no-op transition classes are gone.
+4. **Also:** a muted `No synopsis yet.` on an otherwise empty Overview; a meta description; the last real-looking book data in tests replaced with invented names.
+5. **`scan.spec` test 4 (environmental):** the local stack's storage schema (migrated by storage-api v1.84.19) is ahead of the storage-api it now runs (v1.48.20, pinned by the ToS checkout's gitignored `supabase/.temp/storage-version`), so every storage upload fails with Postgres 42P10. The test and the app are correct; recreating the local DB volume with the pinned version fixes it.
