@@ -1,5 +1,6 @@
 import { useId, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/ui";
+import MassCoverSection from "@/components/covers/MassCoverSection";
 import EditionPicker from "@/components/edition/EditionPicker";
 import LibraryTagPicker from "@/components/tags/LibraryTagPicker";
 import RetagConfirm from "@/components/tags/RetagConfirm";
@@ -537,6 +538,9 @@ export default function MassEditSheet({ selected, catalog, labels, members, refr
             />
           </div>
         )}
+
+        {/* Hidden while the cover finder isn't available, like the Library's batch footer. */}
+        <MassCoverSection selected={selected} disabled={busy || result !== null} />
       </div>
 
     </Sheet>
