@@ -16,7 +16,7 @@ const isAre = (n: number) => (n === 1 ? "is" : "are");
  * nothing-found ones explicitly, as the single book's Try again does.
  */
 export default function MassCoverSection({ selected, disabled = false }: { selected: BookWithCopies[]; disabled?: boolean }) {
-  const { available, latest, budget, markMany, findMany } = useCoverFinder();
+  const { available, marks, latest, budget, markMany, findMany } = useCoverFinder();
   const [reasons, setReasons] = useState<CoverReason[]>([]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,6 +24,7 @@ export default function MassCoverSection({ selected, disabled = false }: { selec
   const [retry, setRetry] = useState(false);
   const [marked, setMarked] = useState<number | null>(null);
   const [markFailed, setMarkFailed] = useState(0);
+  const [kept, setKept] = useState(0);
   const [queued, setQueued] = useState<number | null>(null);
   const [findFailed, setFindFailed] = useState(false);
   const inFlight = useRef(false);
@@ -34,6 +35,9 @@ export default function MassCoverSection({ selected, disabled = false }: { selec
   const findCount = t.eligible.length + (retry ? t.nothingFound.length : 0);
   const covered = budget !== null && !usedUp ? booksCovered(budget) : null;
   const off = disabled || busy;
+  // A blank mark (nothing ticked or typed) would wipe a book's own reasons and note, so it only marks unmarked books.
+  const blank = reasons.length === 0 && note.trim() === "";
+  const toMark = blank ? t.eligible.filter((id) => !marks.has(id)) : t.eligible;
 
   if (!available) return null;
 
@@ -42,6 +46,7 @@ export default function MassCoverSection({ selected, disabled = false }: { selec
   function clearMessages() {
     setMarked(null);
     setMarkFailed(0);
+    setKept(0);
     setQueued(null);
     setFindFailed(false);
   }
@@ -66,12 +71,13 @@ export default function MassCoverSection({ selected, disabled = false }: { selec
   const addToBatch = () =>
     once(async () => {
       try {
-        const out = await markMany(t.eligible, reasons, sentNote());
+        setKept(t.eligible.length - toMark.length);
+        const out = await markMany(toMark, reasons, sentNote());
         setMarked(out.marked);
         setMarkFailed(out.failed);
       } catch (err) {
         console.error("Cover mark failed", err instanceof Error ? err.name : "unknown");
-        setMarkFailed(t.eligible.length);
+        setMarkFailed(toMark.length);
       }
     });
 
@@ -132,7 +138,7 @@ export default function MassCoverSection({ selected, disabled = false }: { selec
       </div>
       {!confirming && (
         <div className="flex flex-wrap gap-2">
-          <Button disabled={off || t.eligible.length === 0} onClick={() => void addToBatch()}>
+          <Button disabled={off || toMark.length === 0} onClick={() => void addToBatch()}>
             Add to batch
           </Button>
           <Button
@@ -189,6 +195,7 @@ export default function MassCoverSection({ selected, disabled = false }: { selec
           .
         </p>
       )}
+      {kept > 0 && <p>{`${kept} already marked kept ${kept === 1 ? "its" : "their"} reasons and note.`}</p>}
       {markFailed > 0 && (
         <p role="alert" className="text-danger">{`Couldn't mark ${booksWord(markFailed)}. Try again.`}</p>
       )}

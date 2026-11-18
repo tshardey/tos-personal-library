@@ -98,6 +98,34 @@ describe("MassCoverSection", () => {
       expect(await within(section()).findByRole("alert")).toHaveTextContent("Couldn't mark 2 books. Try again.");
     });
 
+    it("with nothing ticked or typed, leaves existing marks alone and marks only the rest", async () => {
+      markMany.mockResolvedValue({ marked: 1, failed: 0 });
+      setup({ marks: new Map([["a", { bookId: "a", reasons: ["wrong_language"], note: "the Spanish edition" }]]) });
+      fireEvent.click(button("Add to batch"));
+      expect(markMany).toHaveBeenCalledWith(["b"], [], null);
+      expect(await within(section()).findByText(/^Marked 1 book\./)).toBeInTheDocument();
+      expect(within(section()).getByText("1 already marked kept its reasons and note.")).toBeInTheDocument();
+    });
+
+    it("with reasons, updates existing marks too", () => {
+      setup({ marks: new Map([["a", { bookId: "a", reasons: ["wrong_language"], note: null }]]) });
+      fireEvent.click(button("Placeholder"));
+      fireEvent.click(button("Add to batch"));
+      expect(markMany).toHaveBeenCalledWith(["a", "b"], ["placeholder"], null);
+    });
+
+    it("with nothing ticked and every book already marked, is off", () => {
+      setup({
+        marks: new Map([
+          ["a", { bookId: "a", reasons: [], note: null }],
+          ["b", { bookId: "b", reasons: [], note: null }],
+        ]),
+      });
+      expect(button("Add to batch")).toBeDisabled();
+      fireEvent.click(button("Low quality"));
+      expect(button("Add to batch")).toBeEnabled();
+    });
+
     it("is off when no selected book can be marked", () => {
       setup({}, [selected[2], selected[3]]);
       expect(button("Add to batch")).toBeDisabled();

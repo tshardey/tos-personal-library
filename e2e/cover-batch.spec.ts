@@ -150,10 +150,12 @@ test("Find covers now confirms first, and can retry nothing-found books", async 
   await expect(confirm.getByText("Find covers for 3 books · under $0.01")).toBeVisible();
   await confirm.getByRole("button", { name: "Confirm" }).click();
   await expect(covers.getByText(/^Searching 3 books\./)).toBeVisible();
-  // The retries replaced the ended searches: three dismissed, three new.
+  // The retries retired the ended searches and started new ones: three dismissed, three new that end as nothing found.
   await expect
-    .poll(async () => (await rest<SearchRow[]>(user, "cover_searches?select=status")).length, { timeout: 30_000 })
-    .toBe(6);
+    .poll(async () => (await rest<SearchRow[]>(user, "cover_searches?select=status")).map((s) => s.status).sort(), {
+      timeout: 30_000,
+    })
+    .toEqual(["dismissed", "dismissed", "dismissed", "nothing_found", "nothing_found", "nothing_found"]);
 });
 
 test("tap targets: the Covers tab's lines and the sheet's Covers section are 44px or more", async ({ page }) => {

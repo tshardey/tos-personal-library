@@ -165,6 +165,23 @@ describe("findMany", () => {
   });
 });
 
+describe("findMany partial failure", () => {
+  it("still reloads and drains when the retry request fails after the first went through", async () => {
+    repo.requestCoverSearches
+      .mockResolvedValueOnce(new Map([["b1", "queued"]]))
+      .mockRejectedValueOnce(new Error("network"));
+    const ref = grab();
+    await flush();
+    const loads = repo.listCoverSearches.mock.calls.length;
+    const drains = drain.mock.calls.length;
+    await act(async () => {
+      await expect(ref.api.findMany(["b1"], ["n1"], [], null)).rejects.toThrow("network");
+    });
+    expect(repo.listCoverSearches.mock.calls.length).toBeGreaterThan(loads);
+    expect(drain.mock.calls.length).toBeGreaterThan(drains);
+  });
+});
+
 describe("without a provider", () => {
   it("both calls do nothing", async () => {
     const { UNAVAILABLE_COVER_FINDER: u } = await import("./CoverFinderContext");

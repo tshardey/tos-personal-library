@@ -407,14 +407,18 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
       if (householdId === null || bookIds.length + retryIds.length === 0) return counts;
       // The search copies the mark's reasons and note when it's queued, so mark first (as findNow does).
       // With neither, existing marks stay as they are and unmarked books search as a batch would.
-      if (reasons.length > 0 || (note ?? "").trim() !== "") {
-        for (const id of [...bookIds, ...retryIds]) await d.markForCover(id, reasons, note);
+      try {
+        if (reasons.length > 0 || (note ?? "").trim() !== "") {
+          for (const id of [...bookIds, ...retryIds]) await d.markForCover(id, reasons, note);
+        }
+        const batch = d.newBatchId();
+        if (bookIds.length > 0) countOutcomes(await d.requestCoverSearches(householdId, bookIds, batch, false), counts);
+        // Manual, as the single book's Try again: it retires the ended search and starts a new one.
+        if (retryIds.length > 0) countOutcomes(await d.requestCoverSearches(householdId, retryIds, batch, true), counts);
+      } finally {
+        // Even after a failure part way, what did get written is loaded and any queued search starts.
+        await afterRequest();
       }
-      const batch = d.newBatchId();
-      if (bookIds.length > 0) countOutcomes(await d.requestCoverSearches(householdId, bookIds, batch, false), counts);
-      // Manual, as the single book's Try again: it retires the ended search and starts a new one.
-      if (retryIds.length > 0) countOutcomes(await d.requestCoverSearches(householdId, retryIds, batch, true), counts);
-      await afterRequest();
       return counts;
     },
     [afterRequest, d, householdId],
