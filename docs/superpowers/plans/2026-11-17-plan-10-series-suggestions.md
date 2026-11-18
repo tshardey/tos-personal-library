@@ -480,6 +480,35 @@ export interface Tagger { tag(input: TagInput): Promise<TagCall>; findSeries(inp
 
 ---
 
+### Build notes — ToS PR (#157), 2026-11-17
+
+- **Worktree:** the ToS worker used the Orca worktree `plan10-tos` instead of `tome-of-secrets-plan10`. Its local branch `tshardey/plan10-tos` was pushed as `library-series-suggestions`.
+- **The reserve change moved to Task 1.** `TAG_RESERVE_MICRO` went from 71,000 to 82,000 in Task 1, not Task 3. `ceilingMicro` had to count the household block for Task 1's tests to stay green, and Task 2 set SQL to 82,000. The existing pgTAP literals changed to match:
+  - in `library_tagging` and `library_cover_motifs*`: 71000 → 82000;
+  - the budget-edge value: 1929001 → 1918001.
+- **Import cycle:** `REQUEST_OVERHEAD_TOKENS` moved to `series.ts` and is re-exported from `prompt.ts`. This avoids a circular-import TDZ error.
+- **Approve lock order:** `approve_series_suggestion` locks the suggestion's books (in id order) before the suggestion `FOR UPDATE`. That matches finish's book-then-suggestion order and avoids a deadlock. D9 didn't specify an order.
+- **Reserves need no amendment.** Task 3's computed reserves matched the provisional values exactly: series 27,000 and full 82,000.
+- **Quoted key in `.env`:** Task 4's first attempt got 401 on every call ($0, nothing billed). The key in `.env` is quoted, and `docker --env-file` keeps the quotes, so the harness stripped them in memory. Production isn't affected; there the key is a Supabase secret.
+- **Series-check card text:** in Task 4 the card summary was the full job's generated summary (the production order), and the cover line was the fixture's `coverDescription`.
+- **Task 4 measurement (approved, $0.50 bound): spent $0.062.**
+  - Full job: 0 wrong, 0 missed; mean 2,919.8 µ$, max 9,857.
+  - Series check: 0 wrong, 0 missed; mean 2,255.3 µ$, max 2,967.
+  - `SERIES_PER_BOOK_ESTIMATE_MICRO` = 3400. `TAG_PER_BOOK_ESTIMATE_MICRO` stays 4300.
+- **`ai_budget.reserve_micro`** still reports the full-job reserve (82,000), not the series one.
+- **Deferred minor review items (left as they are):**
+  - `round2` can produce `-0`;
+  - no case-dedupe in Deno (SQL groups names already);
+  - a theoretical deadlock window in approve;
+  - a stale comment in the old migration;
+  - `series_suggestion_books.household_id` isn't constrained to the suggestion's household;
+  - the log test doesn't assert what `console.error` prints;
+  - the `RawSeries` type is duplicated;
+  - `SERIES_SYSTEM_PROMPT` mentions household names even when none are sent;
+  - `p_volumes` keys must be lowercase;
+  - optional extra pgTAP cases.
+- **Production (2026-11-18 00:3x UTC, coordinator, with Tierra's go-ahead):** `db push` applied `20261117223339_library-series-suggestions.sql`, and `library-tagger` was deployed (v4, verify_jwt true; an unauthenticated POST returns 401).
+
 ## Library PR
 
 The library side never needs production. Repo functions are tested by mocking `@/lib/supabase`, as `tagging-repo.test.ts` does. Components are tested with `src/components/tags/testkit.ts`. The local stack is `<tos-wt>`'s after `db reset`.
