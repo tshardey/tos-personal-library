@@ -433,6 +433,17 @@ describe("TaggingProvider", () => {
       warn.mockRestore();
     });
 
+    it("a hung series read does not hold up loading, availability or the drain", async () => {
+      const deps = fakeDeps({
+        listSeriesSuggestions: vi.fn(() => new Promise<never>(() => {})),
+      });
+      mount(deps);
+      await flush();
+      expect(latest.loading).toBe(false);
+      expect(latest.available).toBe(true);
+      expect(deps.drain).toHaveBeenCalled();
+    });
+
     it("pendingCount is tag suggestions plus series suggestions", async () => {
       mount(
         fakeDeps({

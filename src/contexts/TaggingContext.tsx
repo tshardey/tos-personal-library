@@ -259,6 +259,8 @@ export function TaggingProvider(props: {
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedRef = useRef(false);
   const seriesLoadedRef = useRef(false);
+  /** Only the newest loadSeries call applies its results. */
+  const seriesSeqRef = useRef(0);
   const availableRef = useRef(false);
   const drainingRef = useRef(false);
   const againRef = useRef(false);
@@ -291,12 +293,13 @@ export function TaggingProvider(props: {
    */
   const loadSeries = useCallback(async (): Promise<void> => {
     if (householdId === null) return;
+    const seq = ++seriesSeqRef.current;
     try {
       const [list, checked] = await Promise.all([
         d.listSeriesSuggestions(householdId),
         d.listSeriesChecked(householdId),
       ]);
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || seq !== seriesSeqRef.current) return;
       setSeriesSuggestions(list);
       setSeriesChecked(checked);
       seriesLoadedRef.current = true;
@@ -305,6 +308,7 @@ export function TaggingProvider(props: {
       console.warn("series load failed", errorCode(err));
       if (
         mountedRef.current &&
+        seq === seriesSeqRef.current &&
         (!seriesLoadedRef.current || isSeriesMissing(err))
       )
         setSeriesAvailable(false);
@@ -335,7 +339,7 @@ export function TaggingProvider(props: {
       loadedRef.current = true;
       availableRef.current = true;
       setAvailable(true);
-      await loadSeries();
+      void loadSeries();
       return j;
     } catch (err) {
       console.warn("tagging load failed", errorCode(err));
