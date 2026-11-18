@@ -3,7 +3,9 @@ import { BottomBar, Button } from "@/components/ui";
 import { useCoverFinder } from "@/contexts/CoverFinderContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { formatUsd } from "@/lib/covers/cost";
+import { applyCoverFilter } from "@/lib/covers/eligibility";
 import { buildReviewRows, pickedCount, planApply, type ReviewRow as Row, type RowChoice } from "@/lib/covers/review";
+import CoverBatch from "./CoverBatch";
 import ReviewRow from "./ReviewRow";
 
 interface Summary {
@@ -28,7 +30,7 @@ function effectiveChoice(row: Row, explicit: RowChoice | undefined, failed: Read
 }
 
 export default function CoverReviewPage() {
-  const { available, searches, budget, runReview, retry } = useCoverFinder();
+  const { available, searches, budget, marks, latest, runReview, retry } = useCoverFinder();
   const { books, reload } = useCatalog();
   const [choices, setChoices] = useState<Map<string, RowChoice>>(new Map());
   const [failed, setFailed] = useState<Map<string, Set<string>>>(new Map());
@@ -39,6 +41,9 @@ export default function CoverReviewPage() {
   const busy = useRef(false);
 
   const rows = useMemo(() => buildReviewRows(searches, books), [searches, books]);
+  // The same sets as the Library's No cover and Marked filters.
+  const noCover = useMemo(() => applyCoverFilter(books, "no_cover", marks, latest), [books, marks, latest]);
+  const marked = useMemo(() => applyCoverFilter(books, "marked", marks, latest), [books, marks, latest]);
   const none: ReadonlySet<string> = useMemo(() => new Set<string>(), []);
   const effective = useMemo(() => {
     const m = new Map<string, RowChoice | null>();
@@ -117,10 +122,19 @@ export default function CoverReviewPage() {
 
   return (
     <div className={`mx-auto max-w-3xl px-4 py-4 sm:px-6 ${hasFooter ? "pb-32" : ""}`}>
-      <h2 className="text-xl font-semibold text-fg-strong">Covers to review</h2>
-      {budget && (
-        <p className="text-sm text-muted">{`This month: ${formatUsd(budget.spentMicro)} of ${formatUsd(budget.budgetMicro)} used.`}</p>
-      )}
+      <section aria-labelledby="find-covers-heading">
+        <h2 id="find-covers-heading" className="text-xl font-semibold text-fg-strong">
+          Find covers
+        </h2>
+        {budget && (
+          <p className="text-sm text-muted">{`This month: ${formatUsd(budget.spentMicro)} of ${formatUsd(budget.budgetMicro)} used.`}</p>
+        )}
+        <div className="mt-2 space-y-3">
+          <CoverBatch title="Books without a cover" books={noCover} />
+          <CoverBatch title="Marked for a new cover" books={marked} />
+        </div>
+      </section>
+      <h2 className="mt-6 text-xl font-semibold text-fg-strong">Covers to review</h2>
       {rows.length === 0 ? (
         <div className="mt-4 space-y-2">
           <p>No covers to review.</p>

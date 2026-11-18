@@ -38,6 +38,12 @@ export const POLL_IDLE_MS = 120_000;
 
 const ACTIVE = new Set(["queued", "gathered", "processing"]);
 
+export interface BatchCounts {
+  queued: number;
+  alreadyOpen: number;
+  nothingFound: number;
+}
+
 export interface CoverFinderState {
   available: boolean;
   loading: boolean;
@@ -53,7 +59,14 @@ export interface CoverFinderState {
   mark(bookId: string, reasons: CoverReason[], note: string | null): Promise<void>;
   unmark(bookId: string): Promise<void>;
   findNow(bookId: string, reasons: CoverReason[], note: string | null): Promise<RequestOutcome>;
-  requestBatch(bookIds: string[]): Promise<{ queued: number; alreadyOpen: number; nothingFound: number }>;
+  requestBatch(bookIds: string[]): Promise<BatchCounts>;
+  /** Marks many books with one set of reasons and note (a book already marked is updated). Keeps going past a failure. */
+  markMany(bookIds: string[], reasons: CoverReason[], note: string | null): Promise<{ marked: number; failed: number }>;
+  /**
+   * Searches many books now: `bookIds` by the batch rules, `retryIds` as manual retries of ended searches.
+   * With reasons or a note, every requested book is marked first so its search carries them; a failed mark throws before any request.
+   */
+  findMany(bookIds: string[], retryIds: string[], reasons: CoverReason[], note: string | null): Promise<BatchCounts>;
   /** A manual request. */
   retry(bookId: string): Promise<RequestOutcome>;
   runReview(actions: ReviewAction[]): Promise<{ applied: number; changed: number; gone: number }>;
@@ -125,6 +138,8 @@ export const UNAVAILABLE_COVER_FINDER: CoverFinderState = {
   unmark: async () => {},
   findNow: async () => "not_found",
   requestBatch: async () => ({ queued: 0, alreadyOpen: 0, nothingFound: 0 }),
+  markMany: async () => ({ marked: 0, failed: 0 }),
+  findMany: async () => ({ queued: 0, alreadyOpen: 0, nothingFound: 0 }),
   retry: async () => "not_found",
   runReview: async () => ({ applied: 0, changed: 0, gone: 0 }),
   clearStop: () => {},
@@ -135,6 +150,14 @@ const CoverFinderContext = createContext<CoverFinderState | null>(null);
 
 const errorCode = (err: unknown): string =>
   (err as { code?: unknown } | null)?.code?.toString() ?? (err instanceof Error ? err.name : "unknown");
+
+function countOutcomes(out: Map<string, RequestOutcome>, counts: BatchCounts): void {
+  for (const outcome of out.values()) {
+    if (outcome === "queued") counts.queued += 1;
+    else if (outcome === "already_open") counts.alreadyOpen += 1;
+    else if (outcome === "nothing_found") counts.nothingFound += 1;
+  }
+}
 
 function countForReview(searches: CoverSearch[]): number {
   return searches.filter(
@@ -352,12 +375,50 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
       const counts = { queued: 0, alreadyOpen: 0, nothingFound: 0 };
       if (householdId === null || bookIds.length === 0) return counts;
       const out = await d.requestCoverSearches(householdId, bookIds, d.newBatchId(), false);
-      for (const outcome of out.values()) {
-        if (outcome === "queued") counts.queued += 1;
-        else if (outcome === "already_open") counts.alreadyOpen += 1;
-        else if (outcome === "nothing_found") counts.nothingFound += 1;
-      }
+      countOutcomes(out, counts);
       await afterRequest();
+      return counts;
+    },
+    [afterRequest, d, householdId],
+  );
+
+  const markMany = useCallback(
+    async (bookIds: string[], reasons: CoverReason[], note: string | null) => {
+      const out = { marked: 0, failed: 0 };
+      // One at a time, like the single mark: there is no bulk mark call.
+      for (const id of bookIds) {
+        try {
+          await d.markForCover(id, reasons, note);
+          out.marked += 1;
+        } catch (err) {
+          console.warn("cover mark failed", errorCode(err));
+          out.failed += 1;
+        }
+      }
+      await load();
+      return out;
+    },
+    [d, load],
+  );
+
+  const findMany = useCallback(
+    async (bookIds: string[], retryIds: string[], reasons: CoverReason[], note: string | null) => {
+      const counts = { queued: 0, alreadyOpen: 0, nothingFound: 0 };
+      if (householdId === null || bookIds.length + retryIds.length === 0) return counts;
+      // The search copies the mark's reasons and note when it's queued, so mark first (as findNow does).
+      // With neither, existing marks stay as they are and unmarked books search as a batch would.
+      try {
+        if (reasons.length > 0 || (note ?? "").trim() !== "") {
+          for (const id of [...bookIds, ...retryIds]) await d.markForCover(id, reasons, note);
+        }
+        const batch = d.newBatchId();
+        if (bookIds.length > 0) countOutcomes(await d.requestCoverSearches(householdId, bookIds, batch, false), counts);
+        // Manual, as the single book's Try again: it retires the ended search and starts a new one.
+        if (retryIds.length > 0) countOutcomes(await d.requestCoverSearches(householdId, retryIds, batch, true), counts);
+      } finally {
+        // Even after a failure part way, what did get written is loaded and any queued search starts.
+        await afterRequest();
+      }
       return counts;
     },
     [afterRequest, d, householdId],
@@ -411,6 +472,8 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
       unmark,
       findNow,
       requestBatch,
+      markMany,
+      findMany,
       retry: requestOne,
       runReview,
       clearStop,
@@ -429,6 +492,8 @@ export function CoverFinderProvider(props: { children: ReactNode; deps?: Partial
       unmark,
       findNow,
       requestBatch,
+      markMany,
+      findMany,
       requestOne,
       runReview,
       clearStop,

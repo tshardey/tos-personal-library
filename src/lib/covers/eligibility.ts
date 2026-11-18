@@ -45,20 +45,34 @@ export function applyCoverFilter(
   }
 }
 
+export interface SelectionTargets {
+  /** Books a batch would search. */
+  eligible: string[];
+  /** Off the shelf: a batch skips them (D5). */
+  unhauled: string[];
+  /** Queued, being searched, or with results waiting for review. */
+  alreadyOpen: string[];
+  /** The last search found nothing (or failed); only an explicit retry searches again. */
+  nothingFound: string[];
+}
+
+/** Sorts books by the batch rules, keeping their order. */
+export function selectionTargets(books: BookWithCopies[], latest: Map<string, CoverSearch>): SelectionTargets {
+  const out: SelectionTargets = { eligible: [], unhauled: [], alreadyOpen: [], nothingFound: [] };
+  for (const b of books) {
+    const s = latest.get(b.id);
+    if (!b.onShelf) out.unhauled.push(b.id);
+    else if (s && OPEN_STATUSES.has(s.status)) out.alreadyOpen.push(b.id);
+    else if (isNothingFound(s)) out.nothingFound.push(b.id);
+    else out.eligible.push(b.id);
+  }
+  return out;
+}
+
 export function batchSelection(
   books: BookWithCopies[],
   latest: Map<string, CoverSearch>,
 ): { eligible: string[]; alreadyOpen: number; nothingFound: number } {
-  const eligible: string[] = [];
-  let alreadyOpen = 0;
-  let nothingFound = 0;
-  for (const b of books) {
-    if (!b.onShelf) continue;
-    const s = latest.get(b.id);
-    if (!s) eligible.push(b.id);
-    else if (OPEN_STATUSES.has(s.status)) alreadyOpen += 1;
-    else if (isNothingFound(s)) nothingFound += 1;
-    else eligible.push(b.id);
-  }
-  return { eligible, alreadyOpen, nothingFound };
+  const t = selectionTargets(books, latest);
+  return { eligible: t.eligible, alreadyOpen: t.alreadyOpen.length, nothingFound: t.nothingFound.length };
 }
