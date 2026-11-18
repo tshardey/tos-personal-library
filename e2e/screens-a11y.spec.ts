@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { CONTROLS, expectTapTargets } from "./a11y";
-import { newUserWithHousehold, signIn } from "./supabase";
+import { newUserWithHousehold, rest, signIn } from "./supabase";
+import { finishOpenJobsWith, insert, type JobRow } from "./tag-jobs";
 
 /** Tap targets (D11) on the main content of the PR 4 screens, at phone width. */
 
@@ -55,6 +56,25 @@ test("the restyled screens keep 44px tap targets", async ({ page }) => {
       console.log(`tap targets: ${hash} measured`);
     });
   }
+});
+
+test("the Tag suggestions page keeps 44px tap targets with a series suggestion waiting", async ({ page }) => {
+  const user = await newUserWithHousehold("Tester");
+  const books = await insert<{ id: string }>(
+    user,
+    "books",
+    ["Saltglass One", "Saltglass Two"].map((title) => ({ household_id: user.householdId, title, authors: ["Ines Dravenholt"] })),
+  );
+  const jobs = await rest<JobRow[]>(user, `tag_jobs?select=id,book_id,reason,status&book_id=in.(${books.map((b) => b.id).join(",")})`);
+  await finishOpenJobsWith(user, jobs, (bookId) => ({
+    series: { name: "Saltglass Archive", volume: bookId === books[0].id ? 1 : null, why: "Named on the cover." },
+  }));
+  await signIn(page, user);
+  await page.goto("#/tags");
+  await expect(
+    page.getByRole("region", { name: "Series", exact: true }).getByRole("listitem", { name: "Saltglass Archive" }),
+  ).toBeVisible();
+  await expectTapTargets(page, main(page));
 });
 
 test("the sign-in page keeps 44px tap targets", async ({ browser, baseURL }) => {

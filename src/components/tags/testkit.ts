@@ -3,6 +3,7 @@ import type { TaggingState } from "@/contexts/TaggingContext";
 import type { AiBudget, LibraryTag, TagJob } from "@/lib/tagging/types";
 
 export const tagFns = { setBookLibraryTag: vi.fn(), retag: vi.fn(), retagMany: vi.fn() };
+export const seriesFns = { findSeries: vi.fn(), approveSeries: vi.fn(), dismissSeries: vi.fn() };
 
 export const mkTag = (id: string, label: string, category: LibraryTag["category"], active = true): LibraryTag => ({
   id,
@@ -48,6 +49,10 @@ export function taggingState(over: Partial<TaggingState> = {}): TaggingState {
     jobs: [],
     latestJob: new Map(),
     suggestions: [],
+    seriesAvailable: false,
+    seriesSuggestions: [],
+    seriesChecked: new Set<string>(),
+    pendingCount: 0,
     budgets: { tagging: null, ask: null },
     stop: null,
     runId: null,
@@ -61,6 +66,7 @@ export function taggingState(over: Partial<TaggingState> = {}): TaggingState {
     clearStop: vi.fn(),
     reload: vi.fn(),
     ...tagFns,
+    ...seriesFns,
     ...over,
   } as TaggingState;
 }

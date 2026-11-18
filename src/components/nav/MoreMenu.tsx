@@ -2,7 +2,7 @@ import { useReading } from "@/contexts/ReadingContext";
 import { useTagging } from "@/contexts/TaggingContext";
 import InviteCode from "@/components/household/InviteCode";
 import ReadSummary from "@/components/reading/ReadSummary";
-import { Button, Sheet } from "@/components/ui";
+import { Badge, Button, Sheet } from "@/components/ui";
 
 const linkClass = "flex min-h-11 items-center rounded-md px-3 text-sm text-fg hover:bg-control";
 
@@ -14,7 +14,7 @@ interface Props {
 
 /** The More list (D7; Photos and Import live only under Add since 2026-11-17), shared by the phone sheet and the desktop menu. Mounted only while open. */
 export function MoreContent({ email, onSignOut, onNavigate }: Props) {
-  const { available: taggingAvailable } = useTagging();
+  const { available: taggingAvailable, pendingCount } = useTagging();
   const { available: readingAvailable } = useReading();
 
   const links = [
@@ -28,8 +28,16 @@ export function MoreContent({ email, onSignOut, onNavigate }: Props) {
       <ReadSummary className="px-3 text-sm text-muted" />
       <div className="flex flex-col gap-1">
         {links.map((l) => (
-          <a key={l.href} href={l.href} onClick={onNavigate} className={linkClass}>
+          <a
+            key={l.href}
+            href={l.href}
+            aria-label={l.href === "#/tags" && pendingCount > 0 ? `${l.label}, ${pendingCount} waiting` : undefined} onClick={onNavigate} className={linkClass}>
             {l.label}
+            {l.href === "#/tags" && pendingCount > 0 && (
+              <Badge tone="accent" className="ml-2 min-w-5 justify-center px-1">
+                {pendingCount}
+              </Badge>
+            )}
           </a>
         ))}
       </div>

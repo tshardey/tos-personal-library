@@ -12,6 +12,7 @@ import type {
   TagJob,
   TagJobOutcome,
   TagJobStatus,
+  SeriesSuggestion,
   TagSuggestion,
 } from "./types";
 
@@ -174,7 +175,7 @@ export type TagRequestOutcome = "queued" | "already_open" | "skipped" | "not_fou
 export async function requestTagging(
   householdId: string,
   bookIds: string[],
-  reason: "run" | "manual" | "new_tags",
+  reason: "run" | "manual" | "new_tags" | "series",
   runId: string | null,
 ): Promise<Map<string, TagRequestOutcome>> {
   const out = new Map<string, TagRequestOutcome>();
@@ -253,6 +254,67 @@ export async function approveSuggestion(id: string, label: string, category: Lib
 
 export async function dismissSuggestion(id: string): Promise<void> {
   const { error } = await supabase.rpc("dismiss_tag_suggestion", { p_suggestion: id });
+  if (error) throw error;
+}
+
+/** Pending series suggestions with their books (volume arrives as a numeric string such as "2.50"). */
+export async function listSeriesSuggestions(householdId: string): Promise<SeriesSuggestion[]> {
+  const rows = await readAllPages<RawRow>(
+    (from, to) =>
+      supabase
+        .from("series_suggestions")
+        .select("id, name, books:series_suggestion_books(book_id, volume, why)")
+        .eq("household_id", householdId)
+        .eq("status", "pending")
+        .order("created_at")
+        .order("id")
+        .range(from, to) as unknown as Page,
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+    books: ((r.books ?? []) as { book_id: string; volume: unknown; why: unknown }[]).map((b) => ({
+      bookId: b.book_id,
+      volume: b.volume === null || b.volume === undefined ? null : Number(b.volume),
+      why: str(b.why),
+    })),
+  }));
+}
+
+/** Books whose series check has run; any page's error rejects, so a partial set is never returned. */
+export async function listSeriesChecked(householdId: string): Promise<Set<string>> {
+  const rows = await readAllPages<RawRow>(
+    (from, to) =>
+      supabase
+        .from("book_cards")
+        .select("book_id")
+        .eq("household_id", householdId)
+        .not("series_checked_at", "is", null)
+        .order("book_id")
+        .range(from, to) as unknown as Page,
+  );
+  return new Set(rows.map((r) => r.book_id as string));
+}
+
+/** Volumes are keyed by book id exactly as the database returned it. Returns the number of books filled. */
+export async function approveSeriesSuggestion(
+  id: string,
+  name: string,
+  volumes: Record<string, number | null>,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("approve_series_suggestion", {
+    p_suggestion: id,
+    p_name: name,
+    p_volumes: volumes,
+  });
+  if (error) throw error;
+  if (typeof data !== "number") throw new UnexpectedReplyError("approve_series_suggestion");
+  return data;
+}
+
+/** A suggestion that is no longer pending ("not_pending") is already gone, so it is not an error. */
+export async function dismissSeriesSuggestion(id: string): Promise<void> {
+  const { error } = await supabase.rpc("dismiss_series_suggestion", { p_suggestion: id });
   if (error) throw error;
 }
 

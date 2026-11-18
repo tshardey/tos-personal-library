@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Sheet } from "@/components/ui";
-import { canonicalSeries, MAX_SERIES } from "@/lib/series";
+import { canonicalSeries, MAX_SERIES, parseVolume } from "@/lib/series";
 
 interface Props {
   value: string | null;
@@ -29,9 +29,7 @@ export default function SeriesPicker({ value, volume, names, onChange, disabled 
   }
   /** null for a blank field; undefined for text that is not a valid volume (it never overwrites the saved one). */
   function parsedVolume(): number | null | undefined {
-    if (vol.trim() === "") return null;
-    const n = Number(vol);
-    return Number.isFinite(n) && n >= 0 && n <= 9999.5 ? n : undefined;
+    return parseVolume(vol);
   }
   const volumeInvalid = parsedVolume() === undefined;
   function pick(next: string | null) {

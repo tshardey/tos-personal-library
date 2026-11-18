@@ -1,3 +1,4 @@
+import { isSeriesHandSet } from "../series";
 import type { BookWithCopies } from "../types";
 import type { BookCardMeta, TagJob } from "./types";
 
@@ -60,6 +61,40 @@ export function newTagsEligible(
     if (card.vocabVersion < version && !active.has(bookId) && newest.get(bookId)?.status !== "failed") out.push(bookId);
   }
   return out;
+}
+
+/**
+ * Books a series check would queue: carded, no series, neither series field hand-set, not yet checked,
+ * no active job and newest job not failed. Shelf or not. Catalogue order.
+ */
+export function seriesEligible(
+  books: BookWithCopies[],
+  cards: Map<string, BookCardMeta>,
+  checked: Set<string>,
+  jobs: TagJob[],
+): string[] {
+  const active = new Set(jobs.filter(isActive).map((j) => j.bookId));
+  const newest = newestJobByBook(jobs);
+  return books
+    .filter(
+      (b) =>
+        cards.has(b.id) &&
+        b.seriesName === null &&
+        !isSeriesHandSet(b) &&
+        !checked.has(b.id) &&
+        !active.has(b.id) &&
+        newest.get(b.id)?.status !== "failed",
+    )
+    .map((b) => b.id);
+}
+
+/** Finished over total for the newest series run that still has a queued or processing job; null when none is open. */
+export function seriesProgress(jobs: TagJob[]): { done: number; total: number } | null {
+  const series = jobs.filter((j) => j.kind === "series" && j.runId !== null);
+  const open = series.filter(isActive);
+  if (open.length === 0) return null;
+  const newest = open.reduce((a, b) => (isNewer(b, a) ? b : a));
+  return runProgress(series, newest.runId);
 }
 
 /** Finished (done or failed) over total for a run's jobs; null when there is no run or no jobs. */

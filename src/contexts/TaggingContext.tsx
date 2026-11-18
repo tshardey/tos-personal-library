@@ -25,13 +25,17 @@ import {
 import { tagIdFromLabel } from "@/lib/tagging/slug";
 import {
   addLibraryTag,
+  approveSeriesSuggestion,
   approveSuggestion,
   ask as askRepo,
   createLibraryTag,
+  dismissSeriesSuggestion,
   dismissSuggestion,
   getAiBudget,
   listCardMeta,
   listLibraryTagsByBook,
+  listSeriesChecked,
+  listSeriesSuggestions,
   listSuggestions,
   listTagJobs,
   listVocabulary,
@@ -45,6 +49,7 @@ import type {
   BookCardMeta,
   LibraryTag,
   LibraryTagCategory,
+  SeriesSuggestion,
   TagJob,
   TagSuggestion,
 } from "@/lib/tagging/types";
@@ -62,6 +67,13 @@ export interface TaggingState {
   jobs: TagJob[];
   latestJob: Map<string, TagJob>;
   suggestions: TagSuggestion[];
+  /** False when the series tables or column are missing; tagging is unaffected. */
+  seriesAvailable: boolean;
+  seriesSuggestions: SeriesSuggestion[];
+  /** Book ids a series check has already covered. */
+  seriesChecked: Set<string>;
+  /** Tag suggestions plus (when series is available) series suggestions. */
+  pendingCount: number;
   budgets: { tagging: AiBudget | null; ask: AiBudget | null };
   stop: TagStop;
   runId: string | null;
@@ -73,6 +85,13 @@ export interface TaggingState {
   retagMany(bookIds: string[]): Promise<number>;
   tagAll(bookIds: string[]): Promise<number>;
   checkNewTags(bookIds: string[]): Promise<number>;
+  findSeries(bookIds: string[]): Promise<number>;
+  approveSeries(
+    id: string,
+    name: string,
+    volumes: Record<string, number | null>,
+  ): Promise<number>;
+  dismissSeries(id: string): Promise<void>;
   approve(
     id: string,
     label: string,
@@ -101,6 +120,10 @@ export interface TaggingDeps {
   runTagJob: typeof runTagJob;
   approveSuggestion: typeof approveSuggestion;
   dismissSuggestion: typeof dismissSuggestion;
+  listSeriesSuggestions: typeof listSeriesSuggestions;
+  listSeriesChecked: typeof listSeriesChecked;
+  approveSeriesSuggestion: typeof approveSeriesSuggestion;
+  dismissSeriesSuggestion: typeof dismissSeriesSuggestion;
   createLibraryTag: typeof createLibraryTag;
   ask: typeof askRepo;
   loadTosTags: typeof loadTosTags;
@@ -123,6 +146,10 @@ function defaultDeps(): TaggingDeps {
     runTagJob,
     approveSuggestion,
     dismissSuggestion,
+    listSeriesSuggestions,
+    listSeriesChecked,
+    approveSeriesSuggestion,
+    dismissSeriesSuggestion,
     createLibraryTag,
     ask: askRepo,
     loadTosTags,
@@ -135,6 +162,7 @@ function defaultDeps(): TaggingDeps {
 const EMPTY_TAGS: Map<string, string[]> = new Map();
 const EMPTY_CARDS: Map<string, BookCardMeta> = new Map();
 const EMPTY_JOBS: Map<string, TagJob> = new Map();
+const EMPTY_SERIES_CHECKED: Set<string> = new Set();
 const NO_BUDGETS: TaggingState["budgets"] = { tagging: null, ask: null };
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -148,6 +176,10 @@ export const UNAVAILABLE_TAGGING: TaggingState = {
   jobs: [],
   latestJob: EMPTY_JOBS,
   suggestions: [],
+  seriesAvailable: false,
+  seriesSuggestions: [],
+  seriesChecked: EMPTY_SERIES_CHECKED,
+  pendingCount: 0,
   budgets: NO_BUDGETS,
   stop: null,
   runId: null,
@@ -157,6 +189,9 @@ export const UNAVAILABLE_TAGGING: TaggingState = {
   retagMany: async () => 0,
   tagAll: async () => 0,
   checkNewTags: async () => 0,
+  findSeries: async () => 0,
+  approveSeries: async () => 0,
+  dismissSeries: async () => {},
   approve: async () => 0,
   dismiss: async () => {},
   createTag: async () => "exists",
@@ -170,6 +205,10 @@ const TaggingContext = createContext<TaggingState | null>(null);
 const errorCode = (err: unknown): string =>
   (err as { code?: unknown } | null)?.code?.toString() ??
   (err instanceof Error ? err.name : "unknown");
+
+/** Series reads fail soft: only a missing table or column (42703) hides the series UI. */
+const isSeriesMissing = (err: unknown): boolean =>
+  isMissingFeature(err) || errorCode(err) === "42703";
 
 const isOpen = (j: TagJob) =>
   j.status === "queued" || j.status === "processing";
@@ -204,6 +243,12 @@ export function TaggingProvider(props: {
   const [cards, setCards] = useState<Map<string, BookCardMeta>>(EMPTY_CARDS);
   const [jobs, setJobs] = useState<TagJob[]>([]);
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
+  const [seriesAvailable, setSeriesAvailable] = useState(false);
+  const [seriesSuggestions, setSeriesSuggestions] = useState<
+    SeriesSuggestion[]
+  >([]);
+  const [seriesChecked, setSeriesChecked] =
+    useState<Set<string>>(EMPTY_SERIES_CHECKED);
   const [budgets, setBudgets] = useState<TaggingState["budgets"]>(NO_BUDGETS);
   const [stop, setStopState] = useState<TagStop>(null);
   const [tagsVersion, setTagsVersion] = useState(0);
@@ -213,6 +258,9 @@ export function TaggingProvider(props: {
   const pausedRef = useRef(false);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedRef = useRef(false);
+  const seriesLoadedRef = useRef(false);
+  /** Only the newest loadSeries call applies its results. */
+  const seriesSeqRef = useRef(0);
   const availableRef = useRef(false);
   const drainingRef = useRef(false);
   const againRef = useRef(false);
@@ -239,6 +287,34 @@ export function TaggingProvider(props: {
     [d, householdId],
   );
 
+  /**
+   * Series reads live outside load()'s Promise.all, so a server without the series
+   * tables or column only turns seriesAvailable off. Never throws.
+   */
+  const loadSeries = useCallback(async (): Promise<void> => {
+    if (householdId === null) return;
+    const seq = ++seriesSeqRef.current;
+    try {
+      const [list, checked] = await Promise.all([
+        d.listSeriesSuggestions(householdId),
+        d.listSeriesChecked(householdId),
+      ]);
+      if (!mountedRef.current || seq !== seriesSeqRef.current) return;
+      setSeriesSuggestions(list);
+      setSeriesChecked(checked);
+      seriesLoadedRef.current = true;
+      setSeriesAvailable(true);
+    } catch (err) {
+      console.warn("series load failed", errorCode(err));
+      if (
+        mountedRef.current &&
+        seq === seriesSeqRef.current &&
+        (!seriesLoadedRef.current || isSeriesMissing(err))
+      )
+        setSeriesAvailable(false);
+    }
+  }, [d, householdId]);
+
   /** Lists everything. Null when the lists failed. */
   const load = useCallback(async (): Promise<TagJob[] | null> => {
     if (householdId === null) return null;
@@ -263,6 +339,7 @@ export function TaggingProvider(props: {
       loadedRef.current = true;
       availableRef.current = true;
       setAvailable(true);
+      void loadSeries();
       return j;
     } catch (err) {
       console.warn("tagging load failed", errorCode(err));
@@ -275,7 +352,7 @@ export function TaggingProvider(props: {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [d, householdId, readBudget]);
+  }, [d, householdId, loadSeries, readBudget]);
 
   /** Loads, then drains unless a stop is set. At most one at a time; a request during one runs once after it. */
   const run = useCallback(async (): Promise<void> => {
@@ -392,7 +469,7 @@ export function TaggingProvider(props: {
   const queue = useCallback(
     async (
       bookIds: string[],
-      reason: "run" | "manual" | "new_tags",
+      reason: "run" | "manual" | "new_tags" | "series",
       runId: string | null,
     ): Promise<number> => {
       if (householdId === null || bookIds.length === 0) return 0;
@@ -422,6 +499,33 @@ export function TaggingProvider(props: {
   const checkNewTags = useCallback(
     (bookIds: string[]) => queue(bookIds, "new_tags", null),
     [queue],
+  );
+
+  const findSeries = useCallback(
+    (bookIds: string[]) => queue(bookIds, "series", d.newRunId()),
+    [d, queue],
+  );
+
+  const approveSeries = useCallback(
+    async (
+      id: string,
+      name: string,
+      volumes: Record<string, number | null>,
+    ) => {
+      const n = await d.approveSeriesSuggestion(id, name, volumes);
+      await loadSeries();
+      if (mountedRef.current) setTagsVersion((v) => v + 1);
+      return n;
+    },
+    [d, loadSeries],
+  );
+
+  const dismissSeries = useCallback(
+    async (id: string) => {
+      await d.dismissSeriesSuggestion(id);
+      await loadSeries();
+    },
+    [d, loadSeries],
   );
 
   const approve = useCallback(
@@ -494,6 +598,11 @@ export function TaggingProvider(props: {
       jobs,
       latestJob: newestJobByBook(jobs),
       suggestions,
+      seriesAvailable,
+      seriesSuggestions,
+      seriesChecked,
+      pendingCount:
+        suggestions.length + (seriesAvailable ? seriesSuggestions.length : 0),
       budgets,
       stop,
       runId: currentRunId(jobs),
@@ -503,6 +612,9 @@ export function TaggingProvider(props: {
       retagMany,
       tagAll,
       checkNewTags,
+      findSeries,
+      approveSeries,
+      dismissSeries,
       approve,
       dismiss,
       createTag,
@@ -518,6 +630,9 @@ export function TaggingProvider(props: {
       cards,
       jobs,
       suggestions,
+      seriesAvailable,
+      seriesSuggestions,
+      seriesChecked,
       budgets,
       stop,
       tagsVersion,
@@ -526,6 +641,9 @@ export function TaggingProvider(props: {
       retagMany,
       tagAll,
       checkNewTags,
+      findSeries,
+      approveSeries,
+      dismissSeries,
       approve,
       dismiss,
       createTag,

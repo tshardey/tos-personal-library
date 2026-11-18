@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { routeFakeCovers, seedShelf } from "./a11y";
 import { installFakeCamera } from "./fake-camera";
 import { routeCatalogs } from "./routes";
-import { newMemberOf, newUserWithHousehold, newUserWithoutHousehold, signIn, type TestUser } from "./supabase";
+import { newMemberOf, newUserWithHousehold, newUserWithoutHousehold, rest, signIn, supabaseEnv, type TestUser } from "./supabase";
+import { finishOpenJobsWith, type JobRow } from "./tag-jobs";
 
 /**
  * Screenshots for a by-eye check against the mockups (Plan 9). Skipped unless E2E_SCREENSHOTS=1.
@@ -200,20 +201,8 @@ const STATES: { name: string; open(page: Page, ctx: Ctx): Promise<void>; after?(
     // Four of the shelf's books put in one invented series, volumes in reverse title order.
     name: "library-series",
     async open(page) {
-      const { supabaseEnv } = await import("./supabase");
-      const { url, key } = supabaseEnv();
       for (const [i, book] of books.slice(0, 4).entries()) {
-        const res = await fetch(`${url}/rest/v1/books?id=eq.${book.id}`, {
-          method: "PATCH",
-          headers: {
-            apikey: key,
-            Authorization: `Bearer ${owner.accessToken}`,
-            "Content-Type": "application/json",
-            "Content-Profile": "library",
-          },
-          body: JSON.stringify({ series_name: "The Lantern Cycle", series_volume: 4 - i }),
-        });
-        expect(res.ok, `series PATCH answered ${res.status}`).toBe(true);
+        await patchBook(book.id, { series_name: "The Lantern Cycle", series_volume: 4 - i });
       }
       await page.goto(`#/series/${encodeURIComponent("The Lantern Cycle")}`);
       // A reload, so the catalog is read again with the series in it.
@@ -223,6 +212,26 @@ const STATES: { name: string; open(page: Page, ctx: Ctx): Promise<void>; after?(
     async after(page) {
       await page.goto("#/");
       await expect(count(page)).toHaveText("36 books");
+    },
+  },
+  {
+    // Plan 10: one pending series suggestion with two books (seeded in beforeAll). The name is typed
+    // in another case of a series the household has, so the item shows its "Joins your series" hint.
+    name: "series-suggestions",
+    async open(page) {
+      await patchBook(books[33].id, { series_name: "Thornmere Cycle", series_volume: 1 });
+      await page.goto("#/tags");
+      // A reload, so the catalog is read again with the series in it.
+      await page.reload();
+      const item = page.getByRole("region", { name: "Series", exact: true }).getByRole("listitem", { name: "Saltglass Archive" });
+      await item.getByLabel("Series name").fill("thornmere cycle");
+      await expect(item.getByText('Joins your series "Thornmere Cycle".')).toBeVisible();
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      // Clear of the desktop's sticky top bar.
+      await page.getByRole("heading", { name: "Series", exact: true }).evaluate((el) => {
+        el.scrollIntoView({ block: "start" });
+        window.scrollBy(0, -80);
+      });
     },
   },
   {
@@ -430,7 +439,33 @@ test.beforeAll(async () => {
   owner = await newUserWithHousehold("Member A");
   await newMemberOf(owner, "Member B");
   books = await seedShelf(owner, 36);
+  // The series-suggestions state: the shelf's last two books suggest one new series, one volume left blank.
+  const pair = [books[34].id, books[35].id];
+  const jobs = await rest<JobRow[]>(owner, `tag_jobs?select=id,book_id,reason,status&book_id=in.(${pair.join(",")})`);
+  await finishOpenJobsWith(owner, jobs, (bookId) => ({
+    series: {
+      name: "Saltglass Archive",
+      volume: bookId === pair[0] ? 1 : null,
+      why: bookId === pair[0] ? "The cover names the Saltglass Archive." : "Same archive, same keeper.",
+    },
+  }));
 });
+
+/** Sets columns on one of the owner's books (local stack, RLS applies). */
+async function patchBook(id: string, body: Record<string, unknown>) {
+  const { url, key } = supabaseEnv();
+  const res = await fetch(`${url}/rest/v1/books?id=eq.${id}`, {
+    method: "PATCH",
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${owner.accessToken}`,
+      "Content-Type": "application/json",
+      "Content-Profile": "library",
+    },
+    body: JSON.stringify(body),
+  });
+  expect(res.ok, `book PATCH answered ${res.status}`).toBe(true);
+}
 
 for (const width of WIDTHS) {
   test(`screenshots at ${width}px`, async ({ page }) => {

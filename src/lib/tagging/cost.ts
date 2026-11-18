@@ -5,6 +5,8 @@ import type { AiBudget } from "./types";
 export const TAG_PER_BOOK_ESTIMATE_MICRO = 4300;
 // Measured on Sonnet 5.5, mean × 1.5 (Plan 7 Task 2).
 export const NEW_TAGS_PER_BOOK_ESTIMATE_MICRO = 3600;
+// Measured on Sonnet 5.5, mean × 1.5 (Plan 10 Task 4).
+export const SERIES_PER_BOOK_ESTIMATE_MICRO = 3400;
 
 /** How many books the remaining budget covers. Each claim needs the per-call reserve free, so the last book still needs `reserveMicro` left: 0 below the reserve, else floor((remaining - reserve) / perBook) + 1. */
 export function booksCoveredBy(b: AiBudget, perBook: number): number {

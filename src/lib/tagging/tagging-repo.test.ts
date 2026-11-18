@@ -21,7 +21,7 @@ vi.mock("@/lib/supabase", () => ({
           else reject(new Error("no result queued"));
         },
       };
-      for (const method of ["select", "eq", "or", "order", "range", "in", "upsert", "delete"]) {
+      for (const method of ["select", "eq", "or", "order", "range", "in", "not", "upsert", "delete"]) {
         builder[method] = (...args: unknown[]) => {
           query.steps.push([method, args]);
           return builder;
@@ -40,13 +40,17 @@ vi.mock("@/lib/supabase", () => ({
 import { formatUsd, remainingMicro, budgetUsedUp } from "@/lib/covers/cost";
 import {
   addLibraryTag,
+  approveSeriesSuggestion,
   approveSuggestion,
   ask,
   createLibraryTag,
+  dismissSeriesSuggestion,
   dismissSuggestion,
   getAiBudget,
   listCardMeta,
   listLibraryTagsByBook,
+  listSeriesChecked,
+  listSeriesSuggestions,
   listSuggestions,
   listTagJobs,
   listVocabulary,
@@ -402,5 +406,87 @@ describe("ask", () => {
     const err = new FunctionsFetchError(new Error("offline"));
     h.invoke.mockResolvedValue({ data: null, error: err });
     await expect(ask(HOUSEHOLD, "x", [BOOK])).rejects.toBe(err);
+  });
+});
+
+describe("series suggestions", () => {
+  const SUGGESTION = "00000000-0000-4000-8000-0000000000a1";
+
+  it("maps snake_case rows, volumes via Number and keeps nulls; pending only", async () => {
+    h.results.push({
+      data: [
+        {
+          id: SUGGESTION,
+          name: "Thornmere Cycle",
+          books: [
+            { book_id: BOOK, volume: "2.50", why: "same arc" },
+            { book_id: JOB, volume: null, why: null },
+          ],
+        },
+      ],
+      error: null,
+    });
+    h.results.push({ data: [], error: null });
+    const out = await listSeriesSuggestions(HOUSEHOLD);
+    expect(out).toEqual([
+      {
+        id: SUGGESTION,
+        name: "Thornmere Cycle",
+        books: [
+          { bookId: BOOK, volume: 2.5, why: "same arc" },
+          { bookId: JOB, volume: null, why: null },
+        ],
+      },
+    ]);
+    const q = h.queries[0];
+    expect(q.table).toBe("series_suggestions");
+    expect(q.steps).toContainEqual(["select", ["id, name, books:series_suggestion_books(book_id, volume, why)"]]);
+    expect(q.steps).toContainEqual(["eq", ["status", "pending"]]);
+    expect(q.steps).toContainEqual(["eq", ["household_id", HOUSEHOLD]]);
+  });
+
+  it("keeps the error code on a failed read", async () => {
+    h.results.push({ data: null, error: { code: "42703" } });
+    await expect(listSeriesSuggestions(HOUSEHOLD)).rejects.toMatchObject({ code: "42703" });
+    h.results.push({ data: null, error: { code: "PGRST205" } });
+    await expect(listSeriesSuggestions(HOUSEHOLD)).rejects.toMatchObject({ code: "PGRST205" });
+  });
+
+  it("lists the books whose series check has run", async () => {
+    h.results.push({ data: [{ book_id: BOOK }], error: null });
+    h.results.push({ data: [], error: null });
+    const set = await listSeriesChecked(HOUSEHOLD);
+    expect([...set]).toEqual([BOOK]);
+    expect(h.queries[0].table).toBe("book_cards");
+    expect(h.queries[0].steps).toContainEqual(["not", ["series_checked_at", "is", null]]);
+  });
+
+  it("rejects listSeriesChecked when a page fails", async () => {
+    h.results.push({ data: null, error: { code: "42703" } });
+    await expect(listSeriesChecked(HOUSEHOLD)).rejects.toMatchObject({ code: "42703" });
+  });
+
+  it("approves with the volumes keyed by book id and returns the count", async () => {
+    h.rpcResults.push({ data: 2, error: null });
+    expect(await approveSeriesSuggestion(SUGGESTION, "Thornmere Cycle", { [BOOK]: 1, [JOB]: null })).toBe(2);
+    expect(h.rpcCalls[0]).toEqual([
+      "approve_series_suggestion",
+      { p_suggestion: SUGGESTION, p_name: "Thornmere Cycle", p_volumes: { [BOOK]: 1, [JOB]: null } },
+    ]);
+  });
+
+  it("rejects approve with the code, and on a non-number reply", async () => {
+    h.rpcResults.push({ data: null, error: { code: "22023" } });
+    await expect(approveSeriesSuggestion(SUGGESTION, "", {})).rejects.toMatchObject({ code: "22023" });
+    h.rpcResults.push({ data: "x", error: null });
+    await expect(approveSeriesSuggestion(SUGGESTION, "A", {})).rejects.toMatchObject({ code: "unexpected_reply" });
+  });
+
+  it("dismisses, treating not_pending as done", async () => {
+    h.rpcResults.push({ data: "not_pending", error: null });
+    await dismissSeriesSuggestion(SUGGESTION);
+    expect(h.rpcCalls[0]).toEqual(["dismiss_series_suggestion", { p_suggestion: SUGGESTION }]);
+    h.rpcResults.push({ data: null, error: { code: "42501" } });
+    await expect(dismissSeriesSuggestion(SUGGESTION)).rejects.toMatchObject({ code: "42501" });
   });
 });

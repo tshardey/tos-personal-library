@@ -65,11 +65,29 @@ export async function closeOpenJobs(user: TestUser, jobs: JobRow[]): Promise<voi
 
 /** Claims and finishes each open job with a made-up summary and no tags, at no cost: the book is tagged (done, with a card). */
 export async function finishOpenJobs(user: TestUser, jobs: JobRow[]): Promise<void> {
+  await finishOpenJobsWith(user, jobs, () => ({}));
+}
+
+/**
+ * Like `finishOpenJobs`, with `resultFor(bookId)` merged into each job's result (a `series` key, say).
+ * The e2e stack's fake tagger: claimed and finished over RPC as the user, at no cost, with no function and no API.
+ */
+export async function finishOpenJobsWith(
+  user: TestUser,
+  jobs: JobRow[],
+  resultFor: (bookId: string) => object,
+): Promise<void> {
   for (const j of jobs) {
     await rpc(user, "finish_tag_job", {
       p_job: j.id,
       p_claim: await claim(user, j),
-      p_result: { summary: "An invented tale for the end-to-end tests.", tos: [], library: [], suggestions: [] },
+      p_result: {
+        summary: "An invented tale for the end-to-end tests.",
+        tos: [],
+        library: [],
+        suggestions: [],
+        ...resultFor(j.book_id),
+      },
       p_usage: null,
       p_cost_micro: 0,
       p_model: "e2e-fake",

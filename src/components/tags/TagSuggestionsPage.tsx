@@ -8,6 +8,7 @@ import { newTagsEligible, retagAllEligible, runEligible, runProgress } from "@/l
 import { tagIdFromLabel } from "@/lib/tagging/slug";
 import { LIBRARY_TAG_CATEGORIES, type LibraryTagCategory, type TagSuggestion } from "@/lib/tagging/types";
 import RetagConfirm from "./RetagConfirm";
+import SeriesSection from "./SeriesSection";
 import TagRunPanel from "./TagRunPanel";
 
 const categoryLabel = (c: LibraryTagCategory) => LIBRARY_TAG_CATEGORIES.find((x) => x.id === c)?.label ?? c;
@@ -271,6 +272,7 @@ export default function TagSuggestionsPage() {
               </ul>
             )}
           </section>
+          {tagging.seriesAvailable && !catalogLoading && <SeriesSection />}
           <AddTagForm createTag={tagging.createTag} />
         </>
       )}
