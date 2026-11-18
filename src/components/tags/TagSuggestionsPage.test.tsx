@@ -333,4 +333,14 @@ describe("TagSuggestionsPage", () => {
     fireEvent.change(within(form).getByLabelText("Label"), { target: { value: " -- " } });
     expect(within(form).getByRole("button", { name: "Add tag" })).toBeDisabled();
   });
+
+  it("shows the Series section between Suggestions and Add a tag only when series are available", () => {
+    const { unmount } = setup({ seriesAvailable: true });
+    const headings = screen.getAllByRole("heading", { level: 3 }).map((x) => x.textContent);
+    expect(headings.indexOf("Series")).toBe(headings.indexOf("Suggestions") + 1);
+    expect(headings.indexOf("Add a tag")).toBe(headings.indexOf("Series") + 1);
+    unmount();
+    setup({ seriesAvailable: false });
+    expect(screen.queryByRole("heading", { name: "Series" })).toBeNull();
+  });
 });

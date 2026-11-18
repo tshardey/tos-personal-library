@@ -115,4 +115,34 @@ describe("RetagConfirm", () => {
     spy.mockRestore();
     await waitFor(() => expect(button()).toBeEnabled());
   });
+
+  it("takes series wording, per-book figure and copy through props", async () => {
+    onRetag.mockResolvedValue(3);
+    render(
+      <RetagConfirm
+        label="Find series"
+        bookIds={["a", "b", "c"]}
+        budget={aiBudget(1_000_000)}
+        perBookMicro={3400}
+        verb="Check"
+        groupLabel="Confirm series check"
+        queuedText={(n) => `Queued ${n} ${n === 1 ? "book" : "books"} for a series check.`}
+        errorText="Couldn't queue the series check. Try again."
+        onRetag={onRetag}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Find series" }));
+    const g = screen.getByRole("group", { name: "Confirm series check" });
+    expect(within(g).getByText("Check 3 books · about $0.01")).toBeInTheDocument();
+    fireEvent.click(within(g).getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Queued 3 books for a series check.");
+  });
+
+  it("shows emptyText when there are no books", () => {
+    render(
+      <RetagConfirm label="Find series" bookIds={[]} budget={aiBudget(1_000_000)} emptyText="Nothing to check." onRetag={onRetag} />,
+    );
+    expect(screen.getByText("Nothing to check.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find series" })).toBeDisabled();
+  });
 });

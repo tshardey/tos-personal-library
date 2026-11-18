@@ -8,6 +8,11 @@ vi.mock("@/contexts/ReadingContext", async (importOriginal) => {
   const orig = await importOriginal<typeof import("@/contexts/ReadingContext")>();
   return { ...orig, useReading: () => reading.state ?? orig.UNAVAILABLE_READING };
 });
+const tagging = vi.hoisted(() => ({ pendingCount: 0 }));
+vi.mock("@/contexts/TaggingContext", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("@/contexts/TaggingContext")>();
+  return { ...orig, useTagging: () => ({ ...orig.UNAVAILABLE_TAGGING, available: true, pendingCount: tagging.pendingCount }) };
+});
 vi.mock("@/contexts/HouseholdContext", () => ({
   useHousehold: () => ({
     household: { id: "h1", name: "Home", inviteCode: "abc123", createdAt: "" },
@@ -59,6 +64,7 @@ function open() {
 
 beforeEach(() => {
   reading.state = null;
+  tagging.pendingCount = 0;
   clearCatalogCache();
 });
 afterEach(() => cleanup());
@@ -98,5 +104,22 @@ describe("More reading", () => {
     expect(more.getByRole("link", { name: "Edition labels" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Reading history" })).not.toBeInTheDocument();
     expect(screen.queryByText(/You've read/)).not.toBeInTheDocument();
+  });
+});
+
+describe("More tag suggestions count", () => {
+  it("names the count and shows a badge when suggestions wait", () => {
+    tagging.pendingCount = 3;
+    const more = open();
+    const link = more.getByRole("link", { name: "Tag suggestions, 3 waiting" });
+    expect(link).toHaveAttribute("href", "#/tags");
+    expect(within(link).getByText("3")).toBeInTheDocument();
+  });
+
+  it("has a plain name and no badge with none waiting", () => {
+    const more = open();
+    const link = more.getByRole("link", { name: "Tag suggestions" });
+    expect(within(link).queryByText("0")).toBeNull();
+    expect(link).not.toHaveAttribute("aria-label");
   });
 });

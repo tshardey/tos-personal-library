@@ -15,6 +15,12 @@ export default function RetagConfirm({
   budget,
   disabled = false,
   onRetag,
+  perBookMicro = TAG_PER_BOOK_ESTIMATE_MICRO,
+  verb = "Retag",
+  groupLabel = "Confirm retag",
+  queuedText = (n) => `Queued ${n} ${n === 1 ? "book" : "books"} for retagging.`,
+  errorText = "Couldn't queue the retag. Try again.",
+  emptyText,
 }: {
   label: string;
   /** The books Confirm queues, in order. */
@@ -25,6 +31,15 @@ export default function RetagConfirm({
   disabled?: boolean;
   /** Queues the books; resolves to how many were newly queued. */
   onRetag(bookIds: string[]): Promise<number>;
+  /** The per-book cost estimate, for the estimate and for how many books the budget covers. */
+  perBookMicro?: number;
+  /** The first word of the confirm line. */
+  verb?: string;
+  groupLabel?: string;
+  queuedText?(n: number): string;
+  errorText?: string;
+  /** Shown when there are no books. */
+  emptyText?: string;
 }) {
   const [step, setStep] = useState<"idle" | "confirm" | "queueing">("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -32,8 +47,8 @@ export default function RetagConfirm({
 
   const usedUp = budget !== null && budgetUsedUp(budget);
   const books = bookIds.length;
-  const covered = budget === null ? books : booksCoveredBy(budget, TAG_PER_BOOK_ESTIMATE_MICRO);
-  const estimate = formatUsd(books * TAG_PER_BOOK_ESTIMATE_MICRO);
+  const covered = budget === null ? books : booksCoveredBy(budget, perBookMicro);
+  const estimate = formatUsd(books * perBookMicro);
   const coverage =
     covered === 0
       ? books === 1
@@ -47,7 +62,7 @@ export default function RetagConfirm({
     setError(false);
     try {
       const queued = await onRetag(bookIds);
-      setMessage(`Queued ${queued} ${queued === 1 ? "book" : "books"} for retagging.`);
+      setMessage(queuedText(queued));
     } catch (err) {
       console.error("Failed to retag books", err instanceof Error ? err.name : "unknown");
       setError(true);
@@ -71,10 +86,11 @@ export default function RetagConfirm({
         </Button>
       )}
       {usedUp && <p className="text-sm text-muted">This month's tagging budget is used up.</p>}
+      {books === 0 && emptyText && <p className="text-sm text-muted">{emptyText}</p>}
       {step !== "idle" && (
-        <div role="group" aria-label="Confirm retag" className="space-y-2 rounded-md border border-line bg-raised p-2 text-sm">
+        <div role="group" aria-label={groupLabel} className="space-y-2 rounded-md border border-line bg-raised p-2 text-sm">
           <p className="font-medium">
-            {`Retag ${books} ${books === 1 ? "book" : "books"} · ${estimate.startsWith("under") ? "" : "about "}${estimate}`}
+            {`${verb} ${books} ${books === 1 ? "book" : "books"} · ${estimate.startsWith("under") ? "" : "about "}${estimate}`}
           </p>
           {budget !== null && <p>{`${formatUsd(remainingMicro(budget))} of this month's tagging budget left.`}</p>}
           {budget !== null && covered < books && <p>{coverage}</p>}
@@ -89,7 +105,7 @@ export default function RetagConfirm({
         </div>
       )}
       {message && <p role="status" className="text-sm">{message}</p>}
-      {error && <p role="alert" className="text-sm text-danger">Couldn't queue the retag. Try again.</p>}
+      {error && <p role="alert" className="text-sm text-danger">{errorText}</p>}
     </>
   );
 }
