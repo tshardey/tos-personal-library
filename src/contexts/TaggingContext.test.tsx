@@ -14,11 +14,18 @@ vi.mock("@/contexts/HouseholdContext", () => ({
 
 import TagStopBanner from "@/components/tags/TagStopBanner";
 import { drainTagging, TAG_PAUSE_MS } from "@/lib/tagging/drain";
-import type { AiBudget, LibraryTag, TagJob } from "@/lib/tagging/types";
+import type {
+  AiBudget,
+  LibraryTag,
+  SeriesSuggestion,
+  TagJob,
+  TagSuggestion,
+} from "@/lib/tagging/types";
 import {
   POLL_ACTIVE_MS,
   POLL_IDLE_MS,
   TaggingProvider,
+  UNAVAILABLE_TAGGING,
   useTagging,
   type TaggingDeps,
   type TaggingState,
@@ -75,6 +82,10 @@ function fakeDeps(over: Partial<TaggingDeps> = {}): TaggingDeps {
     runTagJob: vi.fn(async () => "done" as const),
     approveSuggestion: vi.fn(async () => 1),
     dismissSuggestion: vi.fn(async () => {}),
+    listSeriesSuggestions: vi.fn(async () => []),
+    listSeriesChecked: vi.fn(async () => new Set<string>()),
+    approveSeriesSuggestion: vi.fn(async () => 2),
+    dismissSeriesSuggestion: vi.fn(async () => {}),
     createLibraryTag: vi.fn(async () => 2),
     ask: vi.fn(async () => ({ outcome: "empty" as const })),
     loadTosTags: vi.fn(async () => ({
@@ -355,5 +366,146 @@ describe("TaggingProvider", () => {
       expect(await latest.retagMany(["b1", "b2", "b3"])).toBe(2);
     });
     expect(deps.requestTagging).toHaveBeenCalledWith("h1", ["b1", "b2", "b3"], "manual", null);
+  });
+
+  describe("series", () => {
+    const SERIES: SeriesSuggestion = {
+      id: "s1",
+      name: "Thornmere Cycle",
+      books: [{ bookId: "b1", volume: 1, why: null }],
+    };
+    const TAG_SUGGESTION = { id: "t1" } as unknown as TagSuggestion;
+
+    it("a missing series table hides only series; tagging and tag suggestions keep working", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mount(
+        fakeDeps({
+          listSuggestions: vi.fn(async () => [TAG_SUGGESTION]),
+          listSeriesSuggestions: vi.fn(async () =>
+            Promise.reject({ code: "PGRST205" }),
+          ),
+        }),
+      );
+      await flush();
+      expect(latest.available).toBe(true);
+      expect(latest.suggestions).toHaveLength(1);
+      expect(latest.seriesAvailable).toBe(false);
+      expect(latest.pendingCount).toBe(1);
+      warn.mockRestore();
+    });
+
+    it("a missing series_checked_at column (42703) hides only series", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mount(
+        fakeDeps({
+          listSuggestions: vi.fn(async () => [TAG_SUGGESTION]),
+          listSeriesChecked: vi.fn(async () =>
+            Promise.reject({ code: "42703" }),
+          ),
+        }),
+      );
+      await flush();
+      expect(latest.available).toBe(true);
+      expect(latest.seriesAvailable).toBe(false);
+      expect(latest.pendingCount).toBe(1);
+      warn.mockRestore();
+    });
+
+    it("after one success, a transient error keeps the lists; a missing feature hides them", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const list = vi
+        .fn<TaggingDeps["listSeriesSuggestions"]>()
+        .mockResolvedValueOnce([SERIES])
+        .mockRejectedValueOnce({ code: "57014" })
+        .mockRejectedValueOnce({ code: "42703" });
+      mount(fakeDeps({ listSeriesSuggestions: list }));
+      await flush();
+      expect(latest.seriesAvailable).toBe(true);
+      await act(async () => {
+        await latest.reload();
+      });
+      expect(latest.seriesAvailable).toBe(true);
+      expect(latest.seriesSuggestions).toEqual([SERIES]);
+      await act(async () => {
+        await latest.reload();
+      });
+      expect(latest.seriesAvailable).toBe(false);
+      warn.mockRestore();
+    });
+
+    it("pendingCount is tag suggestions plus series suggestions", async () => {
+      mount(
+        fakeDeps({
+          listSuggestions: vi.fn(async () => [TAG_SUGGESTION]),
+          listSeriesSuggestions: vi.fn(async () => [SERIES]),
+          listSeriesChecked: vi.fn(async () => new Set(["b1"])),
+        }),
+      );
+      await flush();
+      expect(latest.seriesAvailable).toBe(true);
+      expect(latest.seriesChecked).toEqual(new Set(["b1"]));
+      expect(latest.pendingCount).toBe(2);
+    });
+
+    it("findSeries queues under a new run id and returns the queued count", async () => {
+      const deps = fakeDeps({
+        requestTagging: vi.fn(
+          async () =>
+            new Map([
+              ["b1", "queued" as const],
+              ["b2", "already_open" as const],
+            ]),
+        ),
+      });
+      mount(deps);
+      await flush();
+      await act(async () => {
+        expect(await latest.findSeries(["b1", "b2"])).toBe(1);
+      });
+      expect(deps.requestTagging).toHaveBeenCalledWith(
+        "h1",
+        ["b1", "b2"],
+        "series",
+        "run-1",
+      );
+    });
+
+    it("approveSeries calls the repo, reloads series and bumps tagsVersion", async () => {
+      const deps = fakeDeps();
+      mount(deps);
+      await flush();
+      const before = vi.mocked(deps.listSeriesSuggestions).mock.calls.length;
+      await act(async () => {
+        expect(await latest.approveSeries("s1", "Thornmere Cycle", { b1: 1 })).toBe(2);
+      });
+      expect(deps.approveSeriesSuggestion).toHaveBeenCalledWith(
+        "s1",
+        "Thornmere Cycle",
+        { b1: 1 },
+      );
+      expect(vi.mocked(deps.listSeriesSuggestions).mock.calls.length).toBeGreaterThan(before);
+      expect(screen.getByTestId("version")).toHaveTextContent("1");
+    });
+
+    it("dismissSeries reloads the series lists", async () => {
+      const deps = fakeDeps();
+      mount(deps);
+      await flush();
+      const before = vi.mocked(deps.listSeriesSuggestions).mock.calls.length;
+      await act(async () => {
+        await latest.dismissSeries("s1");
+      });
+      expect(deps.dismissSeriesSuggestion).toHaveBeenCalledWith("s1");
+      expect(vi.mocked(deps.listSeriesSuggestions).mock.calls.length).toBeGreaterThan(before);
+    });
+
+    it("outside a provider the series defaults are unavailable and empty", async () => {
+      expect(UNAVAILABLE_TAGGING.seriesAvailable).toBe(false);
+      expect(UNAVAILABLE_TAGGING.seriesSuggestions).toEqual([]);
+      expect(UNAVAILABLE_TAGGING.seriesChecked.size).toBe(0);
+      expect(UNAVAILABLE_TAGGING.pendingCount).toBe(0);
+      expect(await UNAVAILABLE_TAGGING.findSeries(["b1"])).toBe(0);
+      expect(await UNAVAILABLE_TAGGING.approveSeries("s", "n", {})).toBe(0);
+    });
   });
 });
