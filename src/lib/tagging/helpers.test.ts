@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { mkBook } from "../covers/fixtures.test-util";
-import { booksCoveredBy, NEW_TAGS_PER_BOOK_ESTIMATE_MICRO, TAG_PER_BOOK_ESTIMATE_MICRO } from "./cost";
-import { newestJobByBook, newTagsEligible, retagAllEligible, runEligible, runProgress, vocabVersion } from "./eligibility";
+import {
+  booksCoveredBy,
+  NEW_TAGS_PER_BOOK_ESTIMATE_MICRO,
+  SERIES_PER_BOOK_ESTIMATE_MICRO,
+  TAG_PER_BOOK_ESTIMATE_MICRO,
+} from "./cost";
+import {
+  newestJobByBook,
+  newTagsEligible,
+  retagAllEligible,
+  runEligible,
+  runProgress,
+  seriesEligible,
+  seriesProgress,
+  vocabVersion,
+} from "./eligibility";
 import { groupLibraryTags } from "./group";
 import { tagIdFromLabel } from "./slug";
 import type { AiBudget, BookCardMeta, LibraryTag, TagJob } from "./types";
@@ -129,5 +143,55 @@ describe("groupLibraryTags", () => {
     expect(g[1].tags.map((t) => t.id)).toEqual(["dragon", "elf"]);
     expect(g[3]).toEqual({ category: "other", label: "Other", tags: [{ id: "mystery-id", label: "mystery-id" }] });
     expect(groupLibraryTags([], vocab)).toEqual([]);
+  });
+});
+
+describe("series eligibility", () => {
+  const sjob = (id: string, bookId: string, status: TagJob["status"], createdAt: string, runId: string | null = null): TagJob => ({
+    ...job(id, bookId, status, createdAt, runId), kind: "series", reason: "series",
+  });
+  const cards = new Map(
+    ["ok", "unhauled", "noseries", "nameset", "volset", "checked", "open", "failed"].map((id) => [id, card(id, 1)] as const),
+  );
+
+  it("estimate constant", () => {
+    expect(SERIES_PER_BOOK_ESTIMATE_MICRO).toBe(3400);
+  });
+
+  it("seriesEligible keeps carded, blank, unmarked, unchecked books in catalogue order", () => {
+    const books = [
+      mkBook("nocard"),
+      mkBook("ok"),
+      mkBook("noseries", { seriesName: "Wrenfold Tales" }),
+      mkBook("nameset", { userEditedFields: ["seriesName"] }),
+      mkBook("volset", { userEditedFields: ["seriesVolume"] }),
+      mkBook("checked"),
+      mkBook("open"),
+      mkBook("failed"),
+      mkBook("unhauled", { onShelf: false }),
+    ];
+    const jobs = [
+      sjob("1", "open", "processing", "2026-11-02T00:00:00Z"),
+      sjob("2", "failed", "failed", "2026-11-02T00:00:00Z"),
+    ];
+    expect(seriesEligible(books, cards, new Set(["checked"]), jobs)).toEqual(["ok", "unhauled"]);
+  });
+
+  it("seriesProgress counts done and failed of the newest open series run", () => {
+    const jobs = [
+      sjob("1", "a", "done", "2026-11-01T00:00:00Z", "old"),
+      sjob("2", "a", "queued", "2026-11-01T00:00:00Z", "old"),
+      sjob("3", "a", "done", "2026-11-03T00:00:00Z", "new"),
+      sjob("4", "b", "failed", "2026-11-03T00:00:00Z", "new"),
+      sjob("5", "c", "queued", "2026-11-03T00:00:00Z", "new"),
+      job("6", "d", "queued", "2026-11-04T00:00:00Z", "full-run"),
+    ];
+    expect(seriesProgress(jobs)).toEqual({ done: 2, total: 3 });
+  });
+
+  it("seriesProgress is null with no open series job", () => {
+    expect(seriesProgress([sjob("1", "a", "done", "2026-11-01T00:00:00Z", "r")])).toBeNull();
+    expect(seriesProgress([job("2", "a", "queued", "2026-11-01T00:00:00Z", "r")])).toBeNull();
+    expect(seriesProgress([])).toBeNull();
   });
 });

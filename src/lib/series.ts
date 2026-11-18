@@ -1,3 +1,4 @@
+import type { SeriesSuggestion } from "@/lib/tagging/types";
 import type { Book } from "@/lib/types";
 
 /** The books.series_name column limit (D5). */
@@ -28,4 +29,39 @@ export function canonicalSeries(typed: string, names: string[]): string | null {
   const text = typed.trim();
   if (text === "" || text.length > MAX_SERIES) return null;
   return names.find((n) => key(n) === key(text)) ?? text;
+}
+
+/** null for blank text; undefined for text that is not a valid volume (0 to 9999.5). */
+export function parseVolume(text: string): number | null | undefined {
+  if (text.trim() === "") return null;
+  const n = Number(text);
+  return Number.isFinite(n) && n >= 0 && n <= 9999.5 ? n : undefined;
+}
+
+/** True when the member set the book's series name or volume by hand, so a suggestion must not overwrite it. */
+export function isSeriesHandSet(book: Pick<Book, "userEditedFields">): boolean {
+  return book.userEditedFields.includes("seriesName") || book.userEditedFields.includes("seriesVolume");
+}
+
+/** The books a suggestion would fill: still present, no series, not hand-set, in the suggestion's order. */
+export function seriesFillTargets(
+  s: SeriesSuggestion,
+  books: Book[],
+): { book: Book; volume: number | null; why: string | null }[] {
+  const byId = new Map(books.map((b) => [b.id, b]));
+  const out: { book: Book; volume: number | null; why: string | null }[] = [];
+  for (const entry of s.books) {
+    const book = byId.get(entry.bookId);
+    if (book && book.seriesName === null && !isSeriesHandSet(book)) {
+      out.push({ book, volume: entry.volume, why: entry.why });
+    }
+  }
+  return out;
+}
+
+/** The existing spelling when the trimmed text matches a name only by case (canonicalSeries' rule); else null. */
+export function joinsExisting(typed: string, names: string[]): string | null {
+  const text = typed.trim();
+  const hit = names.find((n) => key(n) === key(text));
+  return hit !== undefined && hit !== text ? hit : null;
 }

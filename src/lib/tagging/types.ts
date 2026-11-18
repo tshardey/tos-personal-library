@@ -35,7 +35,7 @@ export interface TagJob {
   id: string;
   bookId: string;
   runId: string | null;
-  kind: "full" | "new_tags";
+  kind: "full" | "new_tags" | "series";
   reason: string;
   status: TagJobStatus;
   attempts: number;
@@ -57,6 +57,13 @@ export interface TagSuggestion {
   label: string;
   category: LibraryTagCategory;
   books: { bookId: string; why: string }[];
+}
+
+/** A pending "these books form a series" proposal; volume and why are the tagger's guesses. */
+export interface SeriesSuggestion {
+  id: string;
+  name: string;
+  books: { bookId: string; volume: number | null; why: string | null }[];
 }
 
 export type AiFeature = "tagging" | "ask";
