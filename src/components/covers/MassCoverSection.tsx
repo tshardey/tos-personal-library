@@ -183,7 +183,7 @@ export default function MassCoverSection({ selected, disabled = false }: { selec
       {marked !== null && marked > 0 && (
         <p role="status">
           {`Marked ${booksWord(marked)}. Find covers from the `}
-          <a href="#/covers" className="underline">
+          <a href="#/covers" className="inline-flex min-h-11 items-center underline sm:min-h-9">
             Covers tab
           </a>
           .
