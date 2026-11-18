@@ -196,6 +196,23 @@ describe("SeriesSection items", () => {
       mk("b2", { seriesName: "Wrenfold Tales" }),
     ]);
     expect(within(item()).getByText("These books have a series now.")).toBeInTheDocument();
+    expect(within(item()).getByRole("button", { name: "Approve" })).toBeEnabled();
+  });
+
+  it("still approves when no book is left to fill, so the name maps from now on", async () => {
+    setup({ seriesSuggestions: [suggestion] }, [
+      mk("b1", { seriesName: "Wrenfold Tales" }),
+      mk("b2", { seriesName: "Wrenfold Tales" }),
+    ]);
+    fn("approveSeries").mockResolvedValue(0);
+    fireEvent.click(within(item()).getByRole("button", { name: "Approve" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Approved Saltglass Archive. No books were left to fill.");
+    expect(fn("approveSeries")).toHaveBeenCalledWith("s1", "Saltglass Archive", {});
+  });
+
+  it("disables Approve for a blank name", () => {
+    withItem();
+    fireEvent.change(within(item()).getByLabelText("Series name"), { target: { value: "   " } });
     expect(within(item()).getByRole("button", { name: "Approve" })).toBeDisabled();
   });
 });

@@ -712,6 +712,10 @@ dismissSeries(id: string): Promise<void>;          // then reload series
 - **Step 5** ("not set up") is a committed Playwright test, using `page.route` to answer `series_suggestions` with a 404 `PGRST205`.
 - **PR timing:** the PR was opened after Task 10's review, not in Task 9, so its body carries the review outcome.
 - **Task 10 review:** no Critical or Important findings, so nothing was changed. The Minor items are listed in the PR body as follow-ups.
+- **2026-11-17, follow-up 1 applied (coordinator's call):**
+  - Approve stays enabled when every listed book already has a series. Only a blank name or an invalid number disables it.
+  - Approving then records `approved_as`, so the name maps to that series from now on. Dismissing the name, which suppresses it for good, is no longer the only way to clear the item. The server already skips books that are no longer eligible.
+  - With 0 books filled, the result line reads `Approved {name}. No books were left to fill.` This supersedes the second half of the "Approve is also disabled" note above.
 
 ### Task 10: Whole-scope review (most capable model)
 

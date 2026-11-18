@@ -103,7 +103,7 @@ export default function SeriesSuggestionItem({
         </ul>
       )}
       <div className="mt-2 flex gap-2">
-        <Button variant="primary" disabled={pending || anyInvalid || parsed.length === 0 || trimmed === ""} onClick={approve}>
+        <Button variant="primary" disabled={pending || anyInvalid || trimmed === ""} onClick={approve}>
           Approve
         </Button>
         <Button disabled={pending} onClick={() => void act(() => onDismiss(s.id), "Couldn't dismiss the series.")}>

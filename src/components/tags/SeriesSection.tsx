@@ -22,7 +22,8 @@ export default function SeriesSection() {
 
   async function approve(id: string, name: string, volumes: Record<string, number | null>) {
     const n = await tagging.approveSeries(id, name, volumes);
-    setMessage(`Added ${n} ${n === 1 ? "book" : "books"} to ${name}.`);
+    // Approving with no book left to fill still records the mapping, so the name is applied from now on.
+    setMessage(n === 0 ? `Approved ${name}. No books were left to fill.` : `Added ${n} ${n === 1 ? "book" : "books"} to ${name}.`);
     void refresh();
     heading.current?.focus();
   }
