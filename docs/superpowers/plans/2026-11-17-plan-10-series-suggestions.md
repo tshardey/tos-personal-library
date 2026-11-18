@@ -700,6 +700,19 @@ dismissSeries(id: string): Promise<void>;          // then reload series
   - Push `HEAD:tshardey/series-design` and open a PR to `main`, left unmerged.
   - **The body says** the ToS PR, the `db push` and the `library-tagger` deploy must all land first, the deploy before this merge (D1). It lists the e2e, Lighthouse and walkthrough results. No AI attribution.
 
+### Build notes — Library PR, 2026-11-17
+
+- **Estimate:** `SERIES_PER_BOOK_ESTIMATE_MICRO` = 3400, Task 4's measured value, not the provisional 4500.
+- **Find series coverage:** `RetagConfirm`'s `perBookMicro` feeds both the estimate and `booksCoveredBy(budget, perBookMicro)` as the per-book figure. The reserve term and the used-up check stay on `ai_budget.reserve_micro` (the full-job 82,000), because the app's drain itself stops below it.
+- **Series reads don't hold up tagging:** `load()` starts `loadSeries()` without awaiting it, so a slow series read can't keep `loading` true or delay the drain. A sequence counter means only the latest series read is applied. Approve and Dismiss still await their reload.
+- **Two small UI additions:**
+  - The Series section also waits for the catalogue to load, so it never says "Every tagged book has been checked" against an empty book list.
+  - Approve is also disabled when the name is blank or no listed book is still eligible.
+- **E2E functions env:** with `LIBRARY_TAGGER_FAKE=1` served, the existing Retag specs (`mass-edit`, `tag-suggestions`) fail, because the page finishes jobs before the assertions see them open. The full-suite gate therefore runs with `LIBRARY_INTAKE_FAKE_VISION=1` only, as main's baseline did. The tagger fake is used only for the Step 4 walkthrough.
+- **Step 5** ("not set up") is a committed Playwright test, using `page.route` to answer `series_suggestions` with a 404 `PGRST205`.
+- **PR timing:** the PR was opened after Task 10's review, not in Task 9, so its body carries the review outcome.
+- **Task 10 review:** no Critical or Important findings, so nothing was changed. The Minor items are listed in the PR body as follow-ups.
+
 ### Task 10: Whole-scope review (most capable model)
 
 - [ ] **Step 1:** Dispatch one fresh reviewer on the most capable model available (`model: "fable"` on the Agent tool, i.e. `claude-fable-5-1`). Give it the design, this plan, the ToS PR diff and the library PR diff. It checks:
