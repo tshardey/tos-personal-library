@@ -33,7 +33,7 @@ describe("RetagConfirm", () => {
     renderIt();
     fireEvent.click(button());
     expect(onRetag).not.toHaveBeenCalled();
-    expect(within(group()).getByText("Retag 3 books · about $0.02")).toBeInTheDocument();
+    expect(within(group()).getByText("Retag 3 books · about $0.05")).toBeInTheDocument();
     expect(within(group()).getByText("$1.00 of this month's tagging budget left.")).toBeInTheDocument();
     expect(within(group()).queryByText(/budget covers/)).toBeNull();
     fireEvent.click(within(group()).getByRole("button", { name: "Confirm" }));
@@ -47,13 +47,13 @@ describe("RetagConfirm", () => {
     onRetag.mockResolvedValue(1);
     renderIt({ bookIds: ["a"] });
     fireEvent.click(button());
-    expect(within(group()).getByText("Retag 1 book · under $0.01")).toBeInTheDocument();
+    expect(within(group()).getByText("Retag 1 book · about $0.02")).toBeInTheDocument();
     fireEvent.click(within(group()).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByText("Queued 1 book for retagging.")).toBeInTheDocument();
   });
 
   it("says how many the budget covers when it falls short", () => {
-    renderIt({ budget: aiBudget(10_000) });
+    renderIt({ budget: aiBudget(20_000) });
     fireEvent.click(button());
     expect(
       within(group()).getByText("This month's budget covers about 2 of these 3 books. The rest carry on next month."),

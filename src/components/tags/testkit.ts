@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import type { TaggingState } from "@/contexts/TaggingContext";
-import type { AiBudget, LibraryTag, TagJob } from "@/lib/tagging/types";
+import type { AiBudget, LibraryTag, SeriesSuggestion, TagJob } from "@/lib/tagging/types";
 
 export const tagFns = { setBookLibraryTag: vi.fn(), retag: vi.fn(), retagMany: vi.fn() };
 export const seriesFns = { findSeries: vi.fn(), approveSeries: vi.fn(), dismissSeries: vi.fn() };
@@ -26,6 +26,15 @@ export const mkJob = (bookId: string, status: TagJob["status"]): TagJob => ({
   retryAt: null,
   errorCode: null,
   createdAt: "2026-11-01T00:00:00Z",
+});
+
+/** A suggestion that joins a series the household already has. */
+export const existingSuggestion = (over: Partial<SeriesSuggestion> = {}): SeriesSuggestion => ({
+  id: "e1",
+  name: "Lantern Vale Cycle",
+  kind: "existing",
+  books: [{ bookId: "b1", volume: 3, why: "Third in the cycle" }],
+  ...over,
 });
 
 export const aiBudget = (remainingMicro: number, reserveMicro = 1): AiBudget => ({

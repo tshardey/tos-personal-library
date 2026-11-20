@@ -200,7 +200,13 @@ export default function MassCoverSection({ selected, disabled = false }: { selec
         <p role="alert" className="text-danger">{`Couldn't mark ${booksWord(markFailed)}. Try again.`}</p>
       )}
       {queued !== null && (
-        <p role="status">{`Searching ${booksWord(queued)}. It carries on whenever either of you has the app open.`}</p>
+        <p role="status">
+          {`Searching ${booksWord(queued)}. It carries on whenever either of you has the app open. You can close this. Covers show up in the `}
+          <a href="#/covers" className="inline-flex min-h-11 items-center underline sm:min-h-9">
+            Covers tab
+          </a>
+          {" when they're ready."}
+        </p>
       )}
       {findFailed && (
         <p role="alert" className="text-danger">

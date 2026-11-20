@@ -9,7 +9,8 @@ const h = vi.hoisted(() => ({ state: {} as unknown, catalog: {} as unknown }));
 vi.mock("@/contexts/TaggingContext", () => ({ useTagging: () => h.state }));
 vi.mock("@/hooks/useCatalog", () => ({ useCatalog: () => h.catalog }));
 import SeriesSection from "./SeriesSection";
-import { mkJob, taggingState } from "./testkit";
+import { existingSuggestion, mkJob, taggingState } from "./testkit";
+import { SERIES_PER_BOOK_ESTIMATE_MICRO } from "@/lib/tagging/cost";
 
 const budget = (spentMicro: number, budgetMicro: number, reserveMicro = 80_000): AiBudget => ({
   month: "2026-11",
@@ -26,6 +27,7 @@ const mk = (id: string, over: Partial<BookWithCopies> = {}) =>
 const suggestion: SeriesSuggestion = {
   id: "s1",
   name: "Saltglass Archive",
+  kind: "new",
   books: [
     { bookId: "b1", volume: 1, why: "Volume one of the arc" },
     { bookId: "b2", volume: 2, why: null },
@@ -67,6 +69,8 @@ describe("SeriesSection Find series", () => {
     fn("findSeries").mockResolvedValue(2);
     fireEvent.click(screen.getByRole("button", { name: "Find series" }));
     const g = screen.getByRole("group", { name: "Confirm series check" });
+    // Find series keeps the series estimate, not the full-tag one: 2 x 17,100 is about $0.03.
+    expect(SERIES_PER_BOOK_ESTIMATE_MICRO).toBe(17100);
     expect(within(g).getByText("Check 2 books · about $0.03")).toBeInTheDocument();
     fireEvent.click(within(g).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByText("Queued 2 books for a series check.")).toBeInTheDocument();
@@ -102,6 +106,16 @@ describe("SeriesSection Find series", () => {
     expect(
       screen.getByText(/Checked 1 of 3\. It carries on whenever either of you has the app open\./),
     ).toBeInTheDocument();
+  });
+
+  it("ignores a queued follow-up with no run when counting progress", () => {
+    const jobs: TagJob[] = [
+      { ...mkJob("b1", "done"), kind: "series", runId: "r1" },
+      { ...mkJob("b2", "queued"), kind: "series", runId: "r1" },
+      { ...mkJob("b3", "queued"), kind: "series", reason: "unsure", runId: null },
+    ];
+    setup({ cards, jobs }, books);
+    expect(screen.getByText(/Checked 1 of 2\./)).toBeInTheDocument();
   });
 
   it("shows a failure to queue", async () => {
@@ -214,5 +228,46 @@ describe("SeriesSection items", () => {
     withItem();
     fireEvent.change(within(item()).getByLabelText("Series name"), { target: { value: "   " } });
     expect(within(item()).getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+});
+
+describe("SeriesSection existing suggestions", () => {
+  const existing = () => screen.getByRole("listitem", { name: "Add to your series Lantern Vale Cycle" });
+  const withExisting = () => setup({ seriesSuggestions: [existingSuggestion()] });
+
+  it("shows the name as text, the joins hint and the books, with no name input", () => {
+    withExisting();
+    const li = within(existing());
+    expect(li.getAllByText("Add to your series Lantern Vale Cycle").length).toBeGreaterThan(0);
+    expect(li.getByText('Joins your series "Lantern Vale Cycle".')).toBeInTheDocument();
+    expect(li.queryByLabelText("Series name")).toBeNull();
+    expect(li.getByRole("link", { name: "Title b1" })).toHaveAttribute("href", "#/book/b1");
+    expect(li.getByLabelText("Number for Title b1")).toHaveValue("3");
+    expect(li.getByText("Third in the cycle")).toBeInTheDocument();
+  });
+
+  it("approves with the suggestion name and the volumes, then says how many were added", async () => {
+    withExisting();
+    fn("approveSeries").mockResolvedValue(1);
+    fireEvent.click(within(existing()).getByRole("button", { name: "Approve" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Added 1 book to Lantern Vale Cycle.");
+    expect(fn("approveSeries")).toHaveBeenCalledWith("e1", "Lantern Vale Cycle", { b1: 3 });
+    expect(screen.getByRole("heading", { name: "Series" })).toHaveFocus();
+  });
+
+  it("uses the plural for several books", async () => {
+    withExisting();
+    fn("approveSeries").mockResolvedValue(2);
+    fireEvent.click(within(existing()).getByRole("button", { name: "Approve" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Added 2 books to Lantern Vale Cycle.");
+  });
+
+  it("dismisses with its own line and moves focus to the heading", async () => {
+    withExisting();
+    fn("dismissSeries").mockResolvedValue(undefined);
+    fireEvent.click(within(existing()).getByRole("button", { name: "Dismiss" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Dismissed Lantern Vale Cycle for these books.");
+    expect(fn("dismissSeries")).toHaveBeenCalledWith("e1");
+    expect(screen.getByRole("heading", { name: "Series" })).toHaveFocus();
   });
 });

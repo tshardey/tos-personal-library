@@ -22,16 +22,22 @@ export default function SeriesSection() {
 
   async function approve(id: string, name: string, volumes: Record<string, number | null>) {
     const n = await tagging.approveSeries(id, name, volumes);
-    // Approving with no book left to fill still records the mapping, so the name is applied from now on.
-    setMessage(n === 0 ? `Approved ${name}. No books were left to fill.` : `Added ${n} ${n === 1 ? "book" : "books"} to ${name}.`);
+    // Approving a new name with no book left to fill still records the mapping, so the name is applied from now on.
+    const existing = seriesSuggestions.find((s) => s.id === id)?.kind === "existing";
+    setMessage(
+      n === 0 && !existing
+        ? `Approved ${name}. No books were left to fill.`
+        : `Added ${n} ${n === 1 ? "book" : "books"} to ${name}.`,
+    );
     void refresh();
     heading.current?.focus();
   }
 
   async function dismiss(id: string) {
-    const name = seriesSuggestions.find((s) => s.id === id)?.name ?? "the series";
+    const target = seriesSuggestions.find((s) => s.id === id);
+    const name = target?.name ?? "the series";
     await tagging.dismissSeries(id);
-    setMessage(`Dismissed ${name}.`);
+    setMessage(target?.kind === "existing" ? `Dismissed ${name} for these books.` : `Dismissed ${name}.`);
     heading.current?.focus();
   }
 
