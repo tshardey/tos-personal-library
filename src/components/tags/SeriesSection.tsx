@@ -47,7 +47,7 @@ export default function SeriesSection() {
         Series
       </h3>
       <p className="text-sm text-muted">
-        New series names wait here for you. Series you already have are filled in by themselves.
+        New series names wait here for you. So does a book for a series you already have when none of its authors has a book in that series yet. Otherwise series you already have are filled in by themselves.
       </p>
       <RetagConfirm
         label="Find series"

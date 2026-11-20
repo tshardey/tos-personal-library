@@ -583,6 +583,9 @@ export const FULL_TAG_PER_BOOK_ESTIMATE_MICRO: number;   // TAG + ceil(rate × s
 1. `TAG_PER_BOOK_ESTIMATE_MICRO` rises from 4,300 to 6,800 (ToS build note 12): the measured value is 58% above the old one, past the 10% threshold in Task 6 Step 6.
 2. `seriesProgress` already ignored jobs with a null `runId` before this plan (Plan 10). Task 8 adds the D12 tests and leaves the code as it is.
 3. The follow-up allowance assumes 30% of books need a searched check (`UNSURE_FOLLOWUP_RATE`). After launch the coordinator reads the real unsure rate from production usage, read-only and as counts only, and updates the constant.
+4. The brief's Reed Three dismiss example fills directly, because after Reed One and Reed Two are approved A. Reed is in the series. The e2e dismisses a Petra Wynnecombe book (Fenn Three) instead; its retag step retags Fenn Three, its same-author step finishes Holt Two (M. Holt), and its unsure step uses Mire One (A. Reed).
+5. The Find covers now note assertion lives in `e2e/cover-batch.spec.ts`, because `mass-edit.spec.ts` has no Find covers now flow.
+6. The server returns a suggestion's books in no fixed order, so the series e2e is order-insensitive. Sorting the books in the Series section is a follow-up.
 
 ## Open questions for the coordinator
 
