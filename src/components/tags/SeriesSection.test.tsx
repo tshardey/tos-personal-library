@@ -67,7 +67,7 @@ describe("SeriesSection Find series", () => {
     fn("findSeries").mockResolvedValue(2);
     fireEvent.click(screen.getByRole("button", { name: "Find series" }));
     const g = screen.getByRole("group", { name: "Confirm series check" });
-    expect(within(g).getByText(/^Check 2 books · under /)).toBeInTheDocument();
+    expect(within(g).getByText("Check 2 books · about $0.03")).toBeInTheDocument();
     fireEvent.click(within(g).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByText("Queued 2 books for a series check.")).toBeInTheDocument();
     expect(fn("findSeries")).toHaveBeenCalledWith(["b1", "b2"]);

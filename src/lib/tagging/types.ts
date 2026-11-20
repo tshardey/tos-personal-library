@@ -63,6 +63,7 @@ export interface TagSuggestion {
 export interface SeriesSuggestion {
   id: string;
   name: string;
+  kind: "new" | "existing";
   books: { bookId: string; volume: number | null; why: string | null }[];
 }
 

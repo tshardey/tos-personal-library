@@ -18,7 +18,7 @@ type Over = Parameters<typeof taggingState>[0];
 const retagMany = vi.fn();
 
 function setState(over: Over = {}) {
-  // 4300 µ$ a book: 3 books ≈ $0.01 (12900 µ$).
+  // 6800 µ$ a book: 3 books ≈ $0.02 (20400 µ$).
   h.state = taggingState({ budgets: { tagging: aiBudget(1_000_000), ask: null }, retagMany, ...over });
 }
 
@@ -65,7 +65,7 @@ describe("MassEditSheet Retag selected", () => {
   it("shows the estimate and what is left", () => {
     renderSheet();
     fireEvent.click(retagButton());
-    expect(within(confirmGroup()).getByText("Retag 3 books · about $0.01")).toBeInTheDocument();
+    expect(within(confirmGroup()).getByText("Retag 3 books · about $0.02")).toBeInTheDocument();
     expect(within(confirmGroup()).getByText("$1.00 of this month's tagging budget left.")).toBeInTheDocument();
     expect(within(confirmGroup()).queryByText(/budget covers about/)).toBeNull();
   });
@@ -77,8 +77,8 @@ describe("MassEditSheet Retag selected", () => {
   });
 
   it("says how many books the budget covers when it falls short", () => {
-    // 5000 µ$ left, reserve 1: floor(4999 / 4300) + 1 = 2 books.
-    setState({ budgets: { tagging: aiBudget(5_000), ask: null } });
+    // 10000 µ$ left, reserve 1: floor(9999 / 6800) + 1 = 2 books.
+    setState({ budgets: { tagging: aiBudget(10_000), ask: null } });
     renderSheet();
     fireEvent.click(retagButton());
     expect(
