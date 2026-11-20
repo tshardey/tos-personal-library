@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { mkBook } from "../covers/fixtures.test-util";
 import {
   booksCoveredBy,
+  FULL_TAG_PER_BOOK_ESTIMATE_MICRO,
   NEW_TAGS_PER_BOOK_ESTIMATE_MICRO,
   SERIES_PER_BOOK_ESTIMATE_MICRO,
+  SERIES_SEARCH_JOB_ESTIMATE_MICRO,
   TAG_PER_BOOK_ESTIMATE_MICRO,
+  UNSURE_FOLLOWUP_RATE,
 } from "./cost";
 import {
   newestJobByBook,
@@ -100,7 +103,7 @@ describe("cost", () => {
     globalSpentMicro: 0, globalBudgetMicro: 5_000_000, ...o,
   });
   it("exposes the measured estimates", () => {
-    expect(TAG_PER_BOOK_ESTIMATE_MICRO).toBe(4300);
+    expect(TAG_PER_BOOK_ESTIMATE_MICRO).toBe(6800);
     expect(NEW_TAGS_PER_BOOK_ESTIMATE_MICRO).toBe(3600);
   });
   it("booksCoveredBy floors, counts the last claim's reserve, and is 0 below it", () => {
@@ -155,7 +158,10 @@ describe("series eligibility", () => {
   );
 
   it("estimate constant", () => {
-    expect(SERIES_PER_BOOK_ESTIMATE_MICRO).toBe(3400);
+    expect(SERIES_PER_BOOK_ESTIMATE_MICRO).toBe(17100);
+    expect(SERIES_SEARCH_JOB_ESTIMATE_MICRO).toBe(36700);
+    expect(UNSURE_FOLLOWUP_RATE).toBe(0.3);
+    expect(FULL_TAG_PER_BOOK_ESTIMATE_MICRO).toBe(TAG_PER_BOOK_ESTIMATE_MICRO + Math.ceil(0.3 * SERIES_SEARCH_JOB_ESTIMATE_MICRO));
   });
 
   it("seriesEligible keeps carded, blank, unmarked, unchecked books in catalogue order", () => {
@@ -187,6 +193,17 @@ describe("series eligibility", () => {
       job("6", "d", "queued", "2026-11-04T00:00:00Z", "full-run"),
     ];
     expect(seriesProgress(jobs)).toEqual({ done: 2, total: 3 });
+  });
+
+  it("seriesProgress ignores a queued follow-up with no run", () => {
+    const followUp = sjob("f", "a", "queued", "2026-11-05T00:00:00Z", null);
+    expect(seriesProgress([followUp])).toBeNull();
+    const jobs = [
+      followUp,
+      sjob("1", "a", "done", "2026-11-03T00:00:00Z", "run"),
+      sjob("2", "b", "queued", "2026-11-03T00:00:00Z", "run"),
+    ];
+    expect(seriesProgress(jobs)).toEqual({ done: 1, total: 2 });
   });
 
   it("seriesProgress is null with no open series job", () => {

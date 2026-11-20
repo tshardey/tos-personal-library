@@ -32,7 +32,8 @@ export default function SeriesSuggestionItem({
   const text = (id: string, volume: number | null) => typed[id] ?? (volume === null ? "" : String(volume));
   const parsed = targets.map((t) => ({ ...t, text: text(t.book.id, t.volume) }));
   const anyInvalid = parsed.some((t) => parseVolume(t.text) === undefined);
-  const joins = joinsExisting(name, names);
+  const existing = s.kind === "existing";
+  const joins = existing ? s.name : joinsExisting(name, names);
   const trimmed = name.trim();
 
   async function act(run: () => Promise<unknown>, failure: string) {
@@ -58,17 +59,21 @@ export default function SeriesSuggestionItem({
   }
 
   return (
-    <li aria-label={s.name} className="rounded-xl border border-line bg-raised p-3">
-      <label className="block text-sm">
-        Series name
-        <input
-          type="text"
-          value={name}
-          maxLength={MAX_SERIES}
-          onChange={(e) => setName(e.target.value)}
-          className={input}
-        />
-      </label>
+    <li aria-label={existing ? `Add to your series ${s.name}` : s.name} className="rounded-xl border border-line bg-raised p-3">
+      {existing ? (
+        <p className="text-sm font-medium">{`Add to your series ${s.name}`}</p>
+      ) : (
+        <label className="block text-sm">
+          Series name
+          <input
+            type="text"
+            value={name}
+            maxLength={MAX_SERIES}
+            onChange={(e) => setName(e.target.value)}
+            className={input}
+          />
+        </label>
+      )}
       {joins && <p className="mt-1 text-sm text-muted">{`Joins your series "${joins}".`}</p>}
       {parsed.length === 0 ? (
         <p className="mt-2 text-sm text-muted">These books have a series now.</p>

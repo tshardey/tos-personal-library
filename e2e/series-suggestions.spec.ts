@@ -20,7 +20,10 @@ interface BookRow {
 const AUTHOR = "Ines Dravenholt";
 const SERIES_PATH = "series_suggestions?select=name,status";
 
-async function seed(user: TestUser, rows: { title: string; series_name?: string; series_volume?: number }[]) {
+async function seed(
+  user: TestUser,
+  rows: { title: string; authors?: string[]; series_name?: string; series_volume?: number }[],
+) {
   const books = await insert<BookRow>(
     user,
     "books",
@@ -86,7 +89,9 @@ test("series suggestions: filled, suggested, approved, dismissed, and Find serie
   const wrenfold = region.getByRole("listitem", { name: "Wrenfold Tales", exact: true });
   await expect(saltglass).toBeVisible();
   await expect(wrenfold).toBeVisible();
-  await expect(saltglass.getByRole("link")).toHaveText(["Saltglass One", "Saltglass Two"]);
+  // The server lists a suggestion's books in no fixed order, so the order is read from the page.
+  const shown = await saltglass.getByRole("link").allTextContents();
+  expect([...shown].sort()).toEqual(["Saltglass One", "Saltglass Two"]);
   await expect(wrenfold.getByRole("link")).toHaveText(["Wrenfold Hollow"]);
 
   await test.step("tap targets on the Series region", async () => {
@@ -98,10 +103,10 @@ test("series suggestions: filled, suggested, approved, dismissed, and Find serie
     await name.focus();
     const order = [
       saltglass.getByLabel("Series name"),
-      saltglass.getByRole("link", { name: "Saltglass One" }),
-      saltglass.getByLabel("Number for Saltglass One"),
-      saltglass.getByRole("link", { name: "Saltglass Two" }),
-      saltglass.getByLabel("Number for Saltglass Two"),
+      ...shown.flatMap((title) => [
+        saltglass.getByRole("link", { name: title }),
+        saltglass.getByLabel(`Number for ${title}`),
+      ]),
       saltglass.getByRole("button", { name: "Approve" }),
       saltglass.getByRole("button", { name: "Dismiss" }),
     ];
@@ -171,6 +176,131 @@ test("series suggestions: filled, suggested, approved, dismissed, and Find serie
     expect(queued).toHaveLength(1);
     const all = await jobs();
     expect(all.filter((j) => j.reason === "series")).toHaveLength(1);
+  });
+});
+
+test("Add to your series: cross-author books wait, same-author books fill", async ({ page }) => {
+  const user = await newUserWithHousehold("Member A");
+  const SERIES = "Lantern Vale Cycle";
+  const found = (volume: number) => ({ series: { name: "lantern vale cycle", volume, why: "w" }, seriesStatus: "found" });
+  const first = await seed(user, [
+    { title: "Lantern Dawn", authors: ["M. Holt"], series_name: SERIES, series_volume: 1 },
+    { title: "Reed One", authors: ["A. Reed"] },
+    { title: "Reed Two", authors: ["A. Reed"] },
+    { title: "Holt Two", authors: ["M. Holt"] },
+  ]);
+  // Every new book queued itself. Finish them all before the page opens (it would run them otherwise).
+  const opened = await first.jobs();
+  expect(opened).toHaveLength(4);
+  await finishOpenJobsWith(user, opened, (bookId) =>
+    bookId === first.id("Reed One") || bookId === first.id("Reed Two") ? found(2) : {},
+  );
+
+  // Another author's series waits: both Reed books are still blank, and so is Holt Two.
+  const waiting = (await first.bookRows()).filter((b) => b.title.startsWith("Reed"));
+  expect(waiting.map((b) => [b.title, b.series_name, b.series_volume])).toEqual([
+    ["Reed One", null, null],
+    ["Reed Two", null, null],
+  ]);
+
+  await signIn(page, user);
+  await page.goto("#/tags");
+  const region = page.getByRole("region", { name: "Series", exact: true });
+  const heading = region.getByRole("heading", { name: "Series", exact: true });
+  const item = region.getByRole("listitem", { name: `Add to your series ${SERIES}`, exact: true });
+  await expect(item).toBeVisible();
+  expect([...(await item.getByRole("link").allTextContents())].sort()).toEqual(["Reed One", "Reed Two"]);
+  await expect(item.getByText(`Joins your series "${SERIES}".`)).toBeVisible();
+  await expect(item.getByLabel("Series name")).toHaveCount(0);
+
+  await test.step("tap targets on the Series region", async () => {
+    await expectTapTargets(page, region);
+  });
+
+  await test.step("keyboard: each book link and number, Approve, Dismiss in order", async () => {
+    const shown = await item.getByRole("link").allTextContents();
+    await item.getByRole("link", { name: shown[0] }).focus();
+    const order = [
+      ...shown.flatMap((title) => [item.getByRole("link", { name: title }), item.getByLabel(`Number for ${title}`)]),
+      item.getByRole("button", { name: "Approve" }),
+      item.getByRole("button", { name: "Dismiss" }),
+    ];
+    for (const [i, target] of order.entries()) {
+      if (i > 0) await page.keyboard.press("Tab");
+      await expect(target).toBeFocused();
+    }
+  });
+
+  await test.step("Approve fills both books under the household's spelling", async () => {
+    await item.getByLabel("Number for Reed Two").fill("");
+    await item.getByRole("button", { name: "Approve" }).click();
+    await expect(region.getByRole("status")).toHaveText(`Added 2 books to ${SERIES}.`);
+    await expect(item).toHaveCount(0);
+    await expect(heading).toBeFocused();
+    const rows = (await first.bookRows()).filter((b) => b.title.startsWith("Reed"));
+    expect(rows.map((b) => [b.title, b.series_name, volume(b.series_volume)])).toEqual([
+      ["Reed One", SERIES, 2],
+      ["Reed Two", SERIES, null],
+    ]);
+  });
+
+  await test.step("Dismiss leaves a later cross-author book blank", async () => {
+    // Off the app, so the page doesn't run the new book's job first. This author has no book in the series (A. Reed now has), so it still waits.
+    await page.goto("about:blank");
+    const second = await seed(user, [{ title: "Fenn Three", authors: ["Petra Wynnecombe"] }]);
+    await finishOpenJobsWith(user, await second.jobs(), () => found(3));
+    expect((await second.bookRows()).map((b) => b.series_name)).toEqual([null]);
+    await page.goto("#/tags");
+    await expect(item).toBeVisible();
+    await expect(item.getByRole("link")).toHaveText(["Fenn Three"]);
+    await item.getByRole("button", { name: "Dismiss" }).click();
+    await expect(region.getByRole("status")).toHaveText(`Dismissed ${SERIES} for these books.`);
+    await expect(item).toHaveCount(0);
+    await expect(heading).toBeFocused();
+    expect((await second.bookRows()).map((b) => b.series_name)).toEqual([null]);
+
+    // A same-author book (M. Holt) still fills directly: the dismissal was Fenn Three's alone.
+    await page.goto("about:blank");
+    await rpc(user, "request_tagging", {
+      p_household: user.householdId,
+      p_book_ids: [first.id("Holt Two")],
+      p_reason: "manual",
+      p_run: null,
+    });
+    const holt = (await first.jobs()).filter((j) => j.reason === "manual" && j.status === "queued");
+    expect(holt).toHaveLength(1);
+    await finishOpenJobsWith(user, holt, () => found(2));
+    const holtRow = (await first.bookRows()).find((b) => b.title === "Holt Two")!;
+    expect([holtRow.series_name, volume(holtRow.series_volume)]).toEqual([SERIES, 2]);
+
+    // Retagging the dismissed book brings nothing back.
+    await rpc(user, "request_tagging", {
+      p_household: user.householdId,
+      p_book_ids: [second.id("Fenn Three")],
+      p_reason: "manual",
+      p_run: null,
+    });
+    const retag = (await second.jobs()).filter((j) => j.reason === "manual" && j.status === "queued");
+    expect(retag).toHaveLength(1);
+    await finishOpenJobsWith(user, retag, () => found(3));
+    expect((await second.bookRows()).map((b) => b.series_name)).toEqual([null]);
+    await page.goto("#/tags");
+    await expect(region.getByText("No series suggestions right now.")).toBeVisible();
+    await expect(item).toHaveCount(0);
+  });
+
+  await test.step("an unsure answer queues one series follow-up, not a Find series run", async () => {
+    await page.goto("about:blank");
+    const third = await seed(user, [{ title: "Mire One", authors: ["A. Reed"] }]);
+    await finishOpenJobsWith(user, await third.jobs(), () => ({ series: null, seriesStatus: "unsure" }));
+    const followUps = await rest<{ book_id: string; kind: string; reason: string; run_id: string | null }[]>(
+      user,
+      `tag_jobs?select=book_id,kind,reason,run_id&kind=eq.series&book_id=eq.${third.id("Mire One")}`,
+    );
+    expect(followUps).toEqual([{ book_id: third.id("Mire One"), kind: "series", reason: "unsure", run_id: null }]);
+    await page.goto("#/tags");
+    await expect(region.getByText("No series suggestions right now.")).toBeVisible();
+    await expect(region.getByText(/^Checked \d+ of \d+/)).toHaveCount(0);
   });
 });
 

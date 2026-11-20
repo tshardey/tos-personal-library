@@ -418,9 +418,10 @@ describe("series suggestions", () => {
         {
           id: SUGGESTION,
           name: "Thornmere Cycle",
+          kind: "new",
           books: [
-            { book_id: BOOK, volume: "2.50", why: "same arc" },
-            { book_id: JOB, volume: null, why: null },
+            { book_id: BOOK, volume: "2.50", why: "same arc", status: "pending" },
+            { book_id: JOB, volume: null, why: null, status: "pending" },
           ],
         },
       ],
@@ -432,6 +433,7 @@ describe("series suggestions", () => {
       {
         id: SUGGESTION,
         name: "Thornmere Cycle",
+        kind: "new",
         books: [
           { bookId: BOOK, volume: 2.5, why: "same arc" },
           { bookId: JOB, volume: null, why: null },
@@ -440,9 +442,35 @@ describe("series suggestions", () => {
     ]);
     const q = h.queries[0];
     expect(q.table).toBe("series_suggestions");
-    expect(q.steps).toContainEqual(["select", ["id, name, books:series_suggestion_books(book_id, volume, why)"]]);
+    expect(q.steps).toContainEqual(["select", ["id, name, kind, books:series_suggestion_books(book_id, volume, why, status)"]]);
     expect(q.steps).toContainEqual(["eq", ["status", "pending"]]);
     expect(q.steps).toContainEqual(["eq", ["household_id", HOUSEHOLD]]);
+  });
+
+  it("keeps only pending books, drops a decided existing row and keeps an empty new row", async () => {
+    h.results.push({
+      data: [
+        {
+          id: SUGGESTION, name: "Saltglass Archive", kind: "existing",
+          books: [
+            { book_id: BOOK, volume: "1", why: null, status: "pending" },
+            { book_id: JOB, volume: "2", why: null, status: "dismissed" },
+          ],
+        },
+        {
+          id: "e2", name: "Wrenfold Tales", kind: "existing",
+          books: [{ book_id: JOB, volume: null, why: null, status: "approved" }],
+        },
+        { id: "n1", name: "Ember Loom", kind: "new", books: [] },
+      ],
+      error: null,
+    });
+    h.results.push({ data: [], error: null });
+    const out = await listSeriesSuggestions(HOUSEHOLD);
+    expect(out).toEqual([
+      { id: SUGGESTION, name: "Saltglass Archive", kind: "existing", books: [{ bookId: BOOK, volume: 1, why: null }] },
+      { id: "n1", name: "Ember Loom", kind: "new", books: [] },
+    ]);
   });
 
   it("keeps the error code on a failed read", async () => {

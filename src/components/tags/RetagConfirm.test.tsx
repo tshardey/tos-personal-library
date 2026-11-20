@@ -33,7 +33,7 @@ describe("RetagConfirm", () => {
     renderIt();
     fireEvent.click(button());
     expect(onRetag).not.toHaveBeenCalled();
-    expect(within(group()).getByText("Retag 3 books · about $0.01")).toBeInTheDocument();
+    expect(within(group()).getByText("Retag 3 books · about $0.05")).toBeInTheDocument();
     expect(within(group()).getByText("$1.00 of this month's tagging budget left.")).toBeInTheDocument();
     expect(within(group()).queryByText(/budget covers/)).toBeNull();
     fireEvent.click(within(group()).getByRole("button", { name: "Confirm" }));
@@ -47,13 +47,13 @@ describe("RetagConfirm", () => {
     onRetag.mockResolvedValue(1);
     renderIt({ bookIds: ["a"] });
     fireEvent.click(button());
-    expect(within(group()).getByText("Retag 1 book · under $0.01")).toBeInTheDocument();
+    expect(within(group()).getByText("Retag 1 book · about $0.02")).toBeInTheDocument();
     fireEvent.click(within(group()).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByText("Queued 1 book for retagging.")).toBeInTheDocument();
   });
 
   it("says how many the budget covers when it falls short", () => {
-    renderIt({ budget: aiBudget(5_000) });
+    renderIt({ budget: aiBudget(20_000) });
     fireEvent.click(button());
     expect(
       within(group()).getByText("This month's budget covers about 2 of these 3 books. The rest carry on next month."),
@@ -123,7 +123,7 @@ describe("RetagConfirm", () => {
         label="Find series"
         bookIds={["a", "b", "c"]}
         budget={aiBudget(1_000_000)}
-        perBookMicro={3400}
+        perBookMicro={17100}
         verb="Check"
         groupLabel="Confirm series check"
         queuedText={(n) => `Queued ${n} ${n === 1 ? "book" : "books"} for a series check.`}
@@ -133,7 +133,7 @@ describe("RetagConfirm", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Find series" }));
     const g = screen.getByRole("group", { name: "Confirm series check" });
-    expect(within(g).getByText("Check 3 books · about $0.01")).toBeInTheDocument();
+    expect(within(g).getByText("Check 3 books · about $0.05")).toBeInTheDocument();
     fireEvent.click(within(g).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Queued 3 books for a series check.");
   });

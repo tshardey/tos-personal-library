@@ -371,6 +371,7 @@ describe("TaggingProvider", () => {
   describe("series", () => {
     const SERIES: SeriesSuggestion = {
       id: "s1",
+      kind: "new",
       name: "Thornmere Cycle",
       books: [{ bookId: "b1", volume: 1, why: null }],
     };

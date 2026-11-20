@@ -263,22 +263,28 @@ export async function listSeriesSuggestions(householdId: string): Promise<Series
     (from, to) =>
       supabase
         .from("series_suggestions")
-        .select("id, name, books:series_suggestion_books(book_id, volume, why)")
+        .select("id, name, kind, books:series_suggestion_books(book_id, volume, why, status)")
         .eq("household_id", householdId)
         .eq("status", "pending")
         .order("created_at")
         .order("id")
         .range(from, to) as unknown as Page,
   );
-  return rows.map((r) => ({
-    id: r.id as string,
-    name: r.name as string,
-    books: ((r.books ?? []) as { book_id: string; volume: unknown; why: unknown }[]).map((b) => ({
-      bookId: b.book_id,
-      volume: b.volume === null || b.volume === undefined ? null : Number(b.volume),
-      why: str(b.why),
-    })),
-  }));
+  return rows
+    .map((r): SeriesSuggestion => ({
+      id: r.id as string,
+      name: r.name as string,
+      kind: r.kind === "existing" ? "existing" : "new",
+      books: ((r.books ?? []) as { book_id: string; volume: unknown; why: unknown; status: unknown }[])
+        .filter((b) => b.status === "pending")
+        .map((b) => ({
+          bookId: b.book_id,
+          volume: b.volume === null || b.volume === undefined ? null : Number(b.volume),
+          why: str(b.why),
+        })),
+    }))
+    // An existing suggestion lives only while it has a pending book; a new one stays as before.
+    .filter((s) => s.kind === "new" || s.books.length > 0);
 }
 
 /** Books whose series check has run; any page's error rejects, so a partial set is never returned. */

@@ -145,9 +145,11 @@ describe("MassCoverSection", () => {
       expect(within(confirmGroup()).getByText("Find covers for 2 books · under $0.01")).toBeInTheDocument();
       fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Confirm" }));
       expect(findMany).toHaveBeenCalledWith(["a", "b"], [], [], null);
-      expect(
-        await within(section()).findByText("Searching 2 books. It carries on whenever either of you has the app open."),
-      ).toBeInTheDocument();
+      const status = await within(section()).findByText(/^Searching 2 books\./);
+      expect(status).toHaveTextContent(
+        "Searching 2 books. It carries on whenever either of you has the app open. You can close this. Covers show up in the Covers tab when they're ready.",
+      );
+      expect(within(status).getByRole("link", { name: "Covers tab" })).toHaveAttribute("href", "#/covers");
       expect(within(section()).queryByRole("group", { name: "Confirm find covers" })).toBeNull();
     });
 
@@ -213,6 +215,8 @@ describe("MassCoverSection", () => {
       fireEvent.click(button("Find covers now"));
       fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Confirm" }));
       expect(await within(section()).findByRole("alert")).toHaveTextContent("Couldn't start the search. Try again.");
+      expect(within(section()).queryByText(/^Searching/)).toBeNull();
+      expect(within(section()).queryByRole("link", { name: "Covers tab" })).toBeNull();
     });
 
     it("ignores a double tap on Confirm", () => {

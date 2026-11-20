@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui";
 import { budgetUsedUp, formatUsd, remainingMicro } from "@/lib/covers/cost";
-import { booksCoveredBy, TAG_PER_BOOK_ESTIMATE_MICRO } from "@/lib/tagging/cost";
+import { booksCoveredBy, FULL_TAG_PER_BOOK_ESTIMATE_MICRO } from "@/lib/tagging/cost";
 import type { AiBudget } from "@/lib/tagging/types";
 
 /**
@@ -15,7 +15,7 @@ export default function RetagConfirm({
   budget,
   disabled = false,
   onRetag,
-  perBookMicro = TAG_PER_BOOK_ESTIMATE_MICRO,
+  perBookMicro = FULL_TAG_PER_BOOK_ESTIMATE_MICRO,
   verb = "Retag",
   groupLabel = "Confirm retag",
   queuedText = (n) => `Queued ${n} ${n === 1 ? "book" : "books"} for retagging.`,
@@ -31,7 +31,7 @@ export default function RetagConfirm({
   disabled?: boolean;
   /** Queues the books; resolves to how many were newly queued. */
   onRetag(bookIds: string[]): Promise<number>;
-  /** The per-book cost estimate, for the estimate and for how many books the budget covers. */
+  /** The per-book cost estimate (default: a full tag plus the follow-up allowance), for the estimate and for how many books the budget covers. */
   perBookMicro?: number;
   /** The first word of the confirm line. */
   verb?: string;

@@ -58,6 +58,7 @@ describe("seriesFillTargets", () => {
     const s: SeriesSuggestion = {
       id: "s1",
       name: "Saltglass Archive",
+      kind: "new",
       books: [
         { bookId: "b3", volume: 3, why: "third" },
         { bookId: "gone", volume: 2, why: null },

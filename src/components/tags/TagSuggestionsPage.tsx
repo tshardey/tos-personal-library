@@ -3,7 +3,7 @@ import { Button, Select } from "@/components/ui";
 import { useTagging } from "@/contexts/TaggingContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { formatUsd } from "@/lib/covers/cost";
-import { NEW_TAGS_PER_BOOK_ESTIMATE_MICRO, TAG_PER_BOOK_ESTIMATE_MICRO } from "@/lib/tagging/cost";
+import { FULL_TAG_PER_BOOK_ESTIMATE_MICRO, NEW_TAGS_PER_BOOK_ESTIMATE_MICRO } from "@/lib/tagging/cost";
 import { newTagsEligible, retagAllEligible, runEligible, runProgress } from "@/lib/tagging/eligibility";
 import { tagIdFromLabel } from "@/lib/tagging/slug";
 import { LIBRARY_TAG_CATEGORIES, type LibraryTagCategory, type TagSuggestion } from "@/lib/tagging/types";
@@ -220,7 +220,7 @@ export default function TagSuggestionsPage() {
               <TagRunPanel
                 title="Tag all books"
                 eligible={runIds}
-                perBookMicro={TAG_PER_BOOK_ESTIMATE_MICRO}
+                perBookMicro={FULL_TAG_PER_BOOK_ESTIMATE_MICRO}
                 budget={budgets.tagging}
                 actions={[{ label: "Tag all books" }, { label: "Try 10 first", limit: 10 }]}
                 emptyText="Every book on the shelf is tagged."

@@ -73,14 +73,14 @@ describe("TagSuggestionsPage", () => {
       books,
     );
     // b2 open, b3 failed, b4 has a card: b1 and b5 remain.
-    expect(screen.getByText("2 books · under $0.01")).toBeInTheDocument();
+    expect(screen.getByText("2 books · about $0.04")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tag all books" }));
     await waitFor(() => expect(fn("tagAll")).toHaveBeenCalledWith(["b1", "b5"]));
   });
 
   it("Try 10 first queues the first 10 eligible in catalogue order", async () => {
     setup({ tagAll: vi.fn().mockResolvedValue(10) }, shelf(14));
-    expect(screen.getByText("14 books · about $0.06")).toBeInTheDocument();
+    expect(screen.getByText("14 books · about $0.25")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Try 10 first" }));
     await waitFor(() => expect(fn("tagAll")).toHaveBeenCalledTimes(1));
     expect(fn("tagAll").mock.calls[0][0]).toEqual(shelf(10).map((b) => b.id));
@@ -98,9 +98,9 @@ describe("TagSuggestionsPage", () => {
   });
 
   it("near the limit says how many the budget covers", () => {
-    // 100,000 µ$ left less the 80,000 reserve, covers about 5 of these 30 books at 4,300 each.
+    // 100,000 µ$ left less the 80,000 reserve, covers about 2 of these 30 books at 17,810 each.
     setup({ budgets: { tagging: budget(4_900_000, 5_000_000), ask: budget(0, 2_000_000) } }, shelf(30));
-    expect(screen.getByText("This month's budget covers about 5 of these 30 books.")).toBeInTheDocument();
+    expect(screen.getByText("This month's budget covers about 2 of these 30 books.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tag all books" })).toBeEnabled();
   });
 
@@ -173,7 +173,7 @@ describe("TagSuggestionsPage", () => {
       expect(check.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       fireEvent.click(within(section).getByRole("button", { name: "Retag all books (covers too)" }));
       expect(fn("retagMany")).not.toHaveBeenCalled();
-      expect(within(confirmGroup()).getByText("Retag 2 books · under $0.01")).toBeInTheDocument();
+      expect(within(confirmGroup()).getByText("Retag 2 books · about $0.04")).toBeInTheDocument();
       // 4,000,000 µ$ left of the 5,000,000 budget.
       expect(within(confirmGroup()).getByText("$4.00 of this month's tagging budget left.")).toBeInTheDocument();
       expect(within(confirmGroup()).queryByText(/budget covers about/)).toBeNull();
@@ -185,14 +185,14 @@ describe("TagSuggestionsPage", () => {
     });
 
     it("shows the about-estimate and the coverage line when the budget falls short", () => {
-      // 100,000 µ$ left less the 80,000 reserve covers about 5 of 30 at 4,300 each; 30 × 4,300 ≈ $0.13.
+      // 100,000 µ$ left less the 80,000 reserve covers about 2 of 30 at 17,810 each; 30 × 17,810 ≈ $0.53.
       setup({ budgets: { tagging: budget(4_900_000, 5_000_000), ask: budget(0, 2_000_000) } }, shelf(30));
       fireEvent.click(retagAll());
-      expect(within(confirmGroup()).getByText("Retag 30 books · about $0.13")).toBeInTheDocument();
+      expect(within(confirmGroup()).getByText("Retag 30 books · about $0.53")).toBeInTheDocument();
       expect(within(confirmGroup()).getByText("$0.10 of this month's tagging budget left.")).toBeInTheDocument();
       expect(
         within(confirmGroup()).getByText(
-          "This month's budget covers about 5 of these 30 books. The rest carry on next month.",
+          "This month's budget covers about 2 of these 30 books. The rest carry on next month.",
         ),
       ).toBeInTheDocument();
     });
