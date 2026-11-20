@@ -217,6 +217,20 @@ test("Add to your series: cross-author books wait, same-author books fill", asyn
     await expectTapTargets(page, region);
   });
 
+  await test.step("keyboard: each book link and number, Approve, Dismiss in order", async () => {
+    const shown = await item.getByRole("link").allTextContents();
+    await item.getByRole("link", { name: shown[0] }).focus();
+    const order = [
+      ...shown.flatMap((title) => [item.getByRole("link", { name: title }), item.getByLabel(`Number for ${title}`)]),
+      item.getByRole("button", { name: "Approve" }),
+      item.getByRole("button", { name: "Dismiss" }),
+    ];
+    for (const [i, target] of order.entries()) {
+      if (i > 0) await page.keyboard.press("Tab");
+      await expect(target).toBeFocused();
+    }
+  });
+
   await test.step("Approve fills both books under the household's spelling", async () => {
     await item.getByLabel("Number for Reed Two").fill("");
     await item.getByRole("button", { name: "Approve" }).click();
