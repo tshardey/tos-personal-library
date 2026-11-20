@@ -77,6 +77,25 @@ test("the Tag suggestions page keeps 44px tap targets with a series suggestion w
   await expectTapTargets(page, main(page));
 });
 
+test("the Tag suggestions page keeps 44px tap targets with an existing-series suggestion waiting", async ({ page }) => {
+  const user = await newUserWithHousehold("Tester");
+  const books = await insert<{ id: string; title: string }>(user, "books", [
+    { household_id: user.householdId, title: "Lantern Dawn", authors: ["M. Holt"], series_name: "Lantern Vale Cycle", series_volume: 1 },
+    { household_id: user.householdId, title: "Reed One", authors: ["A. Reed"], series_name: null, series_volume: null },
+  ]);
+  const reed = books.find((b) => b.title === "Reed One")!;
+  const jobs = await rest<JobRow[]>(user, `tag_jobs?select=id,book_id,reason,status&book_id=in.(${books.map((b) => b.id).join(",")})`);
+  await finishOpenJobsWith(user, jobs, (bookId) =>
+    bookId === reed.id ? { series: { name: "Lantern Vale Cycle", volume: 2, why: "w" }, seriesStatus: "found" } : {},
+  );
+  await signIn(page, user);
+  await page.goto("#/tags");
+  await expect(
+    page.getByRole("region", { name: "Series", exact: true }).getByRole("listitem", { name: "Add to your series Lantern Vale Cycle" }),
+  ).toBeVisible();
+  await expectTapTargets(page, main(page));
+});
+
 test("the sign-in page keeps 44px tap targets", async ({ browser, baseURL }) => {
   const context = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 } });
   const page = await context.newPage();

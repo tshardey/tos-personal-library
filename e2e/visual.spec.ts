@@ -235,6 +235,55 @@ const STATES: { name: string; open(page: Page, ctx: Ctx): Promise<void>; after?(
     },
   },
   {
+    // Plan 11: an existing-series suggestion ("Add to your series", seeded in beforeAll) above the new
+    // Saltglass Archive one, scrolled to the Series heading.
+    name: "series-existing",
+    async open(page) {
+      await page.goto("#/tags");
+      const region = page.getByRole("region", { name: "Series", exact: true });
+      await expect(region.getByRole("listitem", { name: "Add to your series Lantern Vale Cycle" })).toBeVisible();
+      await expect(region.getByRole("listitem", { name: "Saltglass Archive" })).toBeVisible();
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await page.getByRole("heading", { name: "Series", exact: true }).evaluate((el) => {
+        el.scrollIntoView({ block: "start" });
+        window.scrollBy(0, -80);
+      });
+    },
+  },
+  {
+    // Plan 11: Edit selected after Find covers now, with the note that points to the Covers tab. The
+    // sources answer empty from routes, so no real search leaves the machine.
+    name: "find-covers-note",
+    async open(page, { width }) {
+      await page.route(/^https:\/\/openlibrary\.org\//, (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ numFound: 0, docs: [] }) }),
+      );
+      await page.route(/^https:\/\/www\.googleapis\.com\//, (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ totalItems: 0 }) }),
+      );
+      await library(page);
+      await page.getByRole("button", { name: "Select", exact: true }).click();
+      const cards = page.locator("[data-book-id]");
+      // Each width takes its own three books: a book searched at the first width is "tried before" at the next.
+      const from = width < 640 ? 0 : 3;
+      for (let i = from; i < from + 3; i++) await cards.nth(i).getByRole("checkbox").check();
+      const bar = page.getByRole("region", { name: "Selection" });
+      await expect(bar.getByText("3 selected")).toBeVisible();
+      await bar.getByRole("button", { name: "Edit" }).click();
+      const covers = page.getByRole("dialog", { name: "Edit selected books" }).getByRole("region", { name: "Covers" });
+      await covers.getByRole("button", { name: "Find covers now" }).click();
+      await covers.getByRole("group", { name: "Confirm find covers" }).getByRole("button", { name: "Confirm" }).click();
+      await expect(covers.getByRole("link", { name: "Covers tab" })).toBeVisible();
+      await covers.scrollIntoViewIfNeeded();
+    },
+    async after(page) {
+      await page.unroute(/^https:\/\/openlibrary\.org\//);
+      await page.unroute(/^https:\/\/www\.googleapis\.com\//);
+      await page.getByRole("dialog", { name: "Edit selected books" }).getByRole("button", { name: "Cancel" }).click();
+      await page.getByRole("region", { name: "Selection" }).getByRole("button", { name: "Done" }).click();
+    },
+  },
+  {
     // The camera view is up; it covers the tab bar.
     name: "scan-camera",
     async open(page) {
@@ -448,6 +497,19 @@ test.beforeAll(async () => {
       volume: bookId === pair[0] ? 1 : null,
       why: bookId === pair[0] ? "The cover names the Saltglass Archive." : "Same archive, same keeper.",
     },
+  }));
+  // Plan 11 (series-existing): the household already has one Lantern Vale Cycle book, by another author,
+  // so two more suggest joining it and wait as "Add to your series".
+  await patchBook(books[29].id, { series_name: "Lantern Vale Cycle", series_volume: 1 });
+  const joiners = [books[30].id, books[31].id];
+  const joinJobs = await rest<JobRow[]>(owner, `tag_jobs?select=id,book_id,reason,status&book_id=in.(${joiners.join(",")})`);
+  await finishOpenJobsWith(owner, joinJobs, (bookId) => ({
+    series: {
+      name: "Lantern Vale Cycle",
+      volume: bookId === joiners[0] ? 2 : 3,
+      why: "Same lantern-lit vale as the first book.",
+    },
+    seriesStatus: "found",
   }));
 });
 

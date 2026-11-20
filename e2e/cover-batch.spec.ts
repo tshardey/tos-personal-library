@@ -132,7 +132,10 @@ test("Find covers now confirms first, and can retry nothing-found books", async 
   let confirm = covers.getByRole("group", { name: "Confirm find covers" });
   await expect(confirm.getByText("Find covers for 3 books · under $0.01")).toBeVisible();
   await confirm.getByRole("button", { name: "Confirm" }).click();
-  await expect(covers.getByText("Searching 3 books. It carries on whenever either of you has the app open.")).toBeVisible();
+  await expect(covers.getByRole("status")).toHaveText(
+    "Searching 3 books. It carries on whenever either of you has the app open. You can close this. Covers show up in the Covers tab when they're ready.",
+  );
+  await expect(covers.getByRole("link", { name: "Covers tab" })).toHaveAttribute("href", "#/covers");
   await expect
     .poll(async () => (await rest<SearchRow[]>(user, "cover_searches?select=status")).map((s) => s.status), { timeout: 30_000 })
     .toEqual(["nothing_found", "nothing_found", "nothing_found"]);
