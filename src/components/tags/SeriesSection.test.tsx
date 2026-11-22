@@ -77,6 +77,21 @@ describe("SeriesSection Find series", () => {
     expect(fn("findSeries")).toHaveBeenCalledWith(["b1", "b2"]);
   });
 
+  it("says how many books it retries when a series check failed", () => {
+    const failed = { ...mkJob("b2", "failed"), kind: "series" as const, reason: "series" as const };
+    setup({ cards, jobs: [failed, mkJob("b3", "failed")] }, books);
+    fireEvent.click(screen.getByRole("button", { name: "Find series" }));
+    const g = screen.getByRole("group", { name: "Confirm series check" });
+    expect(within(g).getByText("Check 2 books · about $0.03")).toBeInTheDocument();
+    expect(within(g).getByText("Includes 1 book whose last series check failed.")).toBeInTheDocument();
+  });
+
+  it("shows no retry line when nothing failed", () => {
+    setup({ cards }, books);
+    fireEvent.click(screen.getByRole("button", { name: "Find series" }));
+    expect(screen.queryByText(/last series check failed/)).toBeNull();
+  });
+
   it("Cancel calls nothing", () => {
     setup({ cards }, books);
     fireEvent.click(screen.getByRole("button", { name: "Find series" }));
