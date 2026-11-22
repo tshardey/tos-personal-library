@@ -63,9 +63,14 @@ export function newTagsEligible(
   return out;
 }
 
+/** A newest job that failed as a series check: Find series retries it (a failed full or new_tags job waits for the book page's retag). */
+function isFailedSeriesCheck(j: TagJob | undefined): boolean {
+  return j !== undefined && j.status === "failed" && j.kind === "series";
+}
+
 /**
  * Books a series check would queue: carded, no series, neither series field hand-set, not yet checked,
- * no active job and newest job not failed. Shelf or not. Catalogue order.
+ * no active job, and newest job not failed unless it failed as a series check. Shelf or not. Catalogue order.
  */
 export function seriesEligible(
   books: BookWithCopies[],
@@ -83,9 +88,16 @@ export function seriesEligible(
         !isSeriesHandSet(b) &&
         !checked.has(b.id) &&
         !active.has(b.id) &&
-        newest.get(b.id)?.status !== "failed",
+        // Retrying a failed series check is safe on cost: one series check (SERIES_PER_BOOK_ESTIMATE_MICRO) per book, and only when Confirm is pressed.
+        (newest.get(b.id)?.status !== "failed" || isFailedSeriesCheck(newest.get(b.id))),
     )
     .map((b) => b.id);
+}
+
+/** How many of these books Find series would retry: their newest job is a failed series check. */
+export function seriesRetryCount(bookIds: string[], jobs: TagJob[]): number {
+  const newest = newestJobByBook(jobs);
+  return bookIds.filter((id) => isFailedSeriesCheck(newest.get(id))).length;
 }
 
 /** Finished over total for the newest series run that still has a queued or processing job; null when none is open. */

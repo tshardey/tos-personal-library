@@ -17,6 +17,7 @@ import {
   runProgress,
   seriesEligible,
   seriesProgress,
+  seriesRetryCount,
   vocabVersion,
 } from "./eligibility";
 import { groupLibraryTags } from "./group";
@@ -154,7 +155,7 @@ describe("series eligibility", () => {
     ...job(id, bookId, status, createdAt, runId), kind: "series", reason: "series",
   });
   const cards = new Map(
-    ["ok", "unhauled", "noseries", "nameset", "volset", "checked", "open", "failed"].map((id) => [id, card(id, 1)] as const),
+    ["ok", "unhauled", "noseries", "nameset", "volset", "checked", "open", "failed", "fullfailed", "retrydone"].map((id) => [id, card(id, 1)] as const),
   );
 
   it("estimate constant", () => {
@@ -175,13 +176,46 @@ describe("series eligibility", () => {
       mkBook("checked"),
       mkBook("open"),
       mkBook("failed"),
+      mkBook("fullfailed"),
       mkBook("unhauled", { onShelf: false }),
     ];
     const jobs = [
       sjob("1", "open", "processing", "2026-11-02T00:00:00Z"),
-      sjob("2", "failed", "failed", "2026-11-02T00:00:00Z"),
+      job("3", "fullfailed", "failed", "2026-11-02T00:00:00Z"),
     ];
-    expect(seriesEligible(books, cards, new Set(["checked"]), jobs)).toEqual(["ok", "unhauled"]);
+    expect(seriesEligible(books, cards, new Set(["checked"]), jobs)).toEqual(["ok", "failed", "unhauled"]);
+  });
+
+  it("seriesEligible retries a failed series check but not a failed full or new_tags job", () => {
+    const books = [mkBook("failed"), mkBook("fullfailed"), mkBook("retrydone"), mkBook("checked"), mkBook("open"), mkBook("noseries", { seriesName: "Wrenfold Tales" }), mkBook("nameset", { userEditedFields: ["seriesName"] })];
+    const jobs = [
+      job("0", "failed", "done", "2026-11-01T00:00:00Z"),
+      sjob("1", "failed", "failed", "2026-11-02T00:00:00Z"),
+      sjob("2", "fullfailed", "failed", "2026-11-01T00:00:00Z"),
+      { ...job("3", "fullfailed", "failed", "2026-11-02T00:00:00Z"), kind: "new_tags" as const, reason: "new_tags" as const },
+      // An older failed series check no longer counts once a newer job finished.
+      sjob("4", "retrydone", "failed", "2026-11-01T00:00:00Z"),
+      job("5", "retrydone", "done", "2026-11-02T00:00:00Z"),
+      sjob("6", "checked", "failed", "2026-11-02T00:00:00Z"),
+      sjob("7", "open", "failed", "2026-11-01T00:00:00Z"),
+      sjob("8", "open", "queued", "2026-11-02T00:00:00Z"),
+      sjob("9", "noseries", "failed", "2026-11-02T00:00:00Z"),
+      sjob("10", "nameset", "failed", "2026-11-02T00:00:00Z"),
+    ];
+    const eligible = seriesEligible(books, cards, new Set(["checked"]), jobs);
+    expect(eligible).toEqual(["failed", "retrydone"]);
+    expect(seriesRetryCount(eligible, jobs)).toBe(1);
+    expect(seriesRetryCount([], jobs)).toBe(0);
+  });
+
+  it("seriesProgress counts a run that mixes first checks and retries", () => {
+    const jobs = [
+      sjob("1", "a", "failed", "2026-11-01T00:00:00Z", "old"),
+      sjob("2", "a", "done", "2026-11-03T00:00:00Z", "new"),
+      sjob("3", "b", "queued", "2026-11-03T00:00:00Z", "new"),
+      sjob("4", "c", "failed", "2026-11-03T00:00:00Z", "new"),
+    ];
+    expect(seriesProgress(jobs)).toEqual({ done: 2, total: 3 });
   });
 
   it("seriesProgress counts done and failed of the newest open series run", () => {

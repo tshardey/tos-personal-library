@@ -3,7 +3,7 @@ import { useTagging } from "@/contexts/TaggingContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { seriesNames } from "@/lib/series";
 import { SERIES_PER_BOOK_ESTIMATE_MICRO } from "@/lib/tagging/cost";
-import { seriesEligible, seriesProgress } from "@/lib/tagging/eligibility";
+import { seriesEligible, seriesProgress, seriesRetryCount } from "@/lib/tagging/eligibility";
 import RetagConfirm from "./RetagConfirm";
 import SeriesSuggestionItem from "./SeriesSuggestionItem";
 
@@ -17,6 +17,7 @@ export default function SeriesSection() {
   const [message, setMessage] = useState<string | null>(null);
 
   const eligible = useMemo(() => seriesEligible(books, cards, seriesChecked, jobs), [books, cards, seriesChecked, jobs]);
+  const retries = useMemo(() => seriesRetryCount(eligible, jobs), [eligible, jobs]);
   const progress = useMemo(() => seriesProgress(jobs), [jobs]);
   const names = useMemo(() => seriesNames(books), [books]);
 
@@ -60,6 +61,11 @@ export default function SeriesSection() {
         queuedText={(n) => `Queued ${n} ${n === 1 ? "book" : "books"} for a series check.`}
         errorText="Couldn't queue the series check. Try again."
         emptyText="Every tagged book has been checked for a series."
+        note={
+          retries === 0
+            ? undefined
+            : `Includes ${retries} ${retries === 1 ? "book" : "books"} whose last series check failed.`
+        }
       />
       {progress && (
         <p className="text-sm text-muted">

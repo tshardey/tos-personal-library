@@ -7,7 +7,7 @@ import { aiBudget } from "./testkit";
 const onRetag = vi.fn();
 
 function renderIt(
-  over: { bookIds?: string[]; budget?: AiBudget | null; disabled?: boolean; label?: string } = {},
+  over: { bookIds?: string[]; budget?: AiBudget | null; disabled?: boolean; label?: string; note?: string } = {},
 ) {
   return render(
     <RetagConfirm
@@ -15,6 +15,7 @@ function renderIt(
       bookIds={over.bookIds ?? ["a", "b", "c"]}
       budget={over.budget === undefined ? aiBudget(1_000_000) : over.budget}
       disabled={over.disabled}
+      note={over.note}
       onRetag={onRetag}
     />,
   );
@@ -29,6 +30,18 @@ beforeEach(() => {
 });
 
 describe("RetagConfirm", () => {
+  it("shows a note in the confirm step only when given", () => {
+    const { unmount } = renderIt({ note: "Includes 2 books whose last series check failed." });
+    expect(screen.queryByText(/last series check failed/)).toBeNull();
+    fireEvent.click(button());
+    expect(within(group()).getByText("Includes 2 books whose last series check failed.")).toBeInTheDocument();
+    expect(within(group()).getByText("Retag 3 books · about $0.03")).toBeInTheDocument();
+    unmount();
+    renderIt();
+    fireEvent.click(button());
+    expect(group().querySelectorAll("p")).toHaveLength(2);
+  });
+
   it("uses the label for its button and spends nothing until Confirm", async () => {
     renderIt();
     fireEvent.click(button());

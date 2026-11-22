@@ -21,6 +21,7 @@ export default function RetagConfirm({
   queuedText = (n) => `Queued ${n} ${n === 1 ? "book" : "books"} for retagging.`,
   errorText = "Couldn't queue the retag. Try again.",
   emptyText,
+  note,
 }: {
   label: string;
   /** The books Confirm queues, in order. */
@@ -40,6 +41,8 @@ export default function RetagConfirm({
   errorText?: string;
   /** Shown when there are no books. */
   emptyText?: string;
+  /** An extra line in the confirm step, under the count and estimate; nothing shows when absent. */
+  note?: string;
 }) {
   const [step, setStep] = useState<"idle" | "confirm" | "queueing">("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -92,6 +95,7 @@ export default function RetagConfirm({
           <p className="font-medium">
             {`${verb} ${books} ${books === 1 ? "book" : "books"} · ${estimate.startsWith("under") ? "" : "about "}${estimate}`}
           </p>
+          {note && <p>{note}</p>}
           {budget !== null && <p>{`${formatUsd(remainingMicro(budget))} of this month's tagging budget left.`}</p>}
           {budget !== null && covered < books && <p>{coverage}</p>}
           <div className="flex gap-2">
