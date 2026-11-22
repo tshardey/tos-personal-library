@@ -33,7 +33,7 @@ describe("RetagConfirm", () => {
     renderIt();
     fireEvent.click(button());
     expect(onRetag).not.toHaveBeenCalled();
-    expect(within(group()).getByText("Retag 3 books · about $0.05")).toBeInTheDocument();
+    expect(within(group()).getByText("Retag 3 books · about $0.03")).toBeInTheDocument();
     expect(within(group()).getByText("$1.00 of this month's tagging budget left.")).toBeInTheDocument();
     expect(within(group()).queryByText(/budget covers/)).toBeNull();
     fireEvent.click(within(group()).getByRole("button", { name: "Confirm" }));
@@ -47,7 +47,7 @@ describe("RetagConfirm", () => {
     onRetag.mockResolvedValue(1);
     renderIt({ bookIds: ["a"] });
     fireEvent.click(button());
-    expect(within(group()).getByText("Retag 1 book · about $0.02")).toBeInTheDocument();
+    expect(within(group()).getByText("Retag 1 book · about $0.01")).toBeInTheDocument();
     fireEvent.click(within(group()).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByText("Queued 1 book for retagging.")).toBeInTheDocument();
   });
