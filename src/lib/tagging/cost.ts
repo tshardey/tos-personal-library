@@ -5,12 +5,12 @@ import type { AiBudget } from "./types";
 export const TAG_PER_BOOK_ESTIMATE_MICRO = 6800;
 // Measured on Sonnet 5.5, mean × 1.5 (Plan 7 Task 2).
 export const NEW_TAGS_PER_BOOK_ESTIMATE_MICRO = 3600;
-// Measured in Plan 11 Task 6 on Sonnet 5.5, mean × 1.5.
-export const SERIES_PER_BOOK_ESTIMATE_MICRO = 17100;
+// Production Find series run (2026-11-21): 3,720 per book on average, plus margin.
+export const SERIES_PER_BOOK_ESTIMATE_MICRO = 5000;
 // Measured in Plan 11 Task 6 on Sonnet 5.5, mean × 1.5: one searched series follow-up job.
 export const SERIES_SEARCH_JOB_ESTIMATE_MICRO = 36700;
-/** Until real data exists, assume 30% of tagged books need a searched series check (design 4.4). */
-export const UNSURE_FOLLOWUP_RATE = 0.3;
+/** About 7% of production series checks searched the web (2026-11-21); assume 10% for margin. */
+export const UNSURE_FOLLOWUP_RATE = 0.1;
 /** A full tag plus its expected unsure follow-up; used by Tag all books and every Retag confirm. */
 export const FULL_TAG_PER_BOOK_ESTIMATE_MICRO =
   TAG_PER_BOOK_ESTIMATE_MICRO + Math.ceil(UNSURE_FOLLOWUP_RATE * SERIES_SEARCH_JOB_ESTIMATE_MICRO);

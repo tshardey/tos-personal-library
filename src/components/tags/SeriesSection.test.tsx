@@ -69,9 +69,9 @@ describe("SeriesSection Find series", () => {
     fn("findSeries").mockResolvedValue(2);
     fireEvent.click(screen.getByRole("button", { name: "Find series" }));
     const g = screen.getByRole("group", { name: "Confirm series check" });
-    // Find series keeps the series estimate, not the full-tag one: 2 x 17,100 is about $0.03.
-    expect(SERIES_PER_BOOK_ESTIMATE_MICRO).toBe(17100);
-    expect(within(g).getByText("Check 2 books · about $0.03")).toBeInTheDocument();
+    // Find series keeps the series estimate, not the full-tag one: 2 x 5,000 is about $0.01.
+    expect(SERIES_PER_BOOK_ESTIMATE_MICRO).toBe(5000);
+    expect(within(g).getByText("Check 2 books · about $0.01")).toBeInTheDocument();
     fireEvent.click(within(g).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByText("Queued 2 books for a series check.")).toBeInTheDocument();
     expect(fn("findSeries")).toHaveBeenCalledWith(["b1", "b2"]);

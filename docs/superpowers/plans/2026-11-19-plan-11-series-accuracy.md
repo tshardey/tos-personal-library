@@ -586,6 +586,7 @@ export const FULL_TAG_PER_BOOK_ESTIMATE_MICRO: number;   // TAG + ceil(rate × s
 4. The brief's Reed Three dismiss example fills directly, because after Reed One and Reed Two are approved A. Reed is in the series. The e2e dismisses a Petra Wynnecombe book (Fenn Three) instead; its retag step retags Fenn Three, its same-author step finishes Holt Two (M. Holt), and its unsure step uses Mire One (A. Reed).
 5. The Find covers now note assertion lives in `e2e/cover-batch.spec.ts`, because `mass-edit.spec.ts` has no Find covers now flow.
 6. The server returns a suggestion's books in no fixed order, so the series e2e is order-insensitive. Sorting the books in the Series section is a follow-up.
+7. **Estimates lowered from production (2026-11-22).** A production Find series run of 282 series checks (read-only, counts only, 2026-11-21) cost $1.01 in all: 3,720 µ$ per book on average for done jobs (failed ones averaged 2,073), against the estimate of 17,100. Only 17 of 256 finished checks needed a web search (about 7%); the largest searched check cost 42,904 µ$. With Tierra's approval, `SERIES_PER_BOOK_ESTIMATE_MICRO` goes from 17,100 to 5,000 (measured plus margin) and `UNSURE_FOLLOWUP_RATE` from 0.3 to 0.1 (measured plus margin), which answers note 3. `SERIES_SEARCH_JOB_ESTIMATE_MICRO` (36,700) and `TAG_PER_BOOK_ESTIMATE_MICRO` (6,800) stay, so the derived `FULL_TAG_PER_BOOK_ESTIMATE_MICRO` goes from 17,810 to 10,470.
 
 ## Open questions for the coordinator
 
