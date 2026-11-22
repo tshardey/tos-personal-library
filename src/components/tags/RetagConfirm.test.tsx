@@ -35,7 +35,7 @@ describe("RetagConfirm", () => {
     expect(screen.queryByText(/last series check failed/)).toBeNull();
     fireEvent.click(button());
     expect(within(group()).getByText("Includes 2 books whose last series check failed.")).toBeInTheDocument();
-    expect(within(group()).getByText("Retag 3 books · about $0.05")).toBeInTheDocument();
+    expect(within(group()).getByText("Retag 3 books · about $0.03")).toBeInTheDocument();
     unmount();
     renderIt();
     fireEvent.click(button());

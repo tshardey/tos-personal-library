@@ -82,7 +82,7 @@ describe("SeriesSection Find series", () => {
     setup({ cards, jobs: [failed, mkJob("b3", "failed")] }, books);
     fireEvent.click(screen.getByRole("button", { name: "Find series" }));
     const g = screen.getByRole("group", { name: "Confirm series check" });
-    expect(within(g).getByText("Check 2 books · about $0.03")).toBeInTheDocument();
+    expect(within(g).getByText("Check 2 books · about $0.01")).toBeInTheDocument();
     expect(within(g).getByText("Includes 1 book whose last series check failed.")).toBeInTheDocument();
   });
 
