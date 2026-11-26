@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mkBook } from "./covers/fixtures.test-util";
-import { canonicalSeries, isSeriesHandSet, joinsExisting, parseVolume, seriesFillTargets, seriesNames } from "./series";
+import { canonicalSeries, isSeriesHandSet, joinsExisting, parseVolume, seriesFillTargets, seriesNames, sortSeriesTargets } from "./series";
 import type { SeriesSuggestion } from "./tagging/types";
 import type { Book } from "./types";
 
@@ -78,5 +78,36 @@ describe("seriesFillTargets", () => {
       ["b3", 3, "third"],
       ["b1", null, "first"],
     ]);
+  });
+});
+
+describe("sortSeriesTargets", () => {
+  const t = (id: string, title: string, volume: number | null) => ({ book: { id, title }, volume });
+  it("puts volumes ascending, then unnumbered books by title, numbers in order", () => {
+    const out = sortSeriesTargets([
+      t("3", "Three", 3), t("b", "Beta", null), t("1", "One", 1), t("a", "alpha", null), t("2", "Two", 2),
+    ]);
+    expect(out.map((x) => x.book.id)).toEqual(["1", "2", "3", "a", "b"]);
+    const nums = sortSeriesTargets([t("x", "Book 10", null), t("y", "Book 9", null)]);
+    expect(nums.map((x) => x.book.id)).toEqual(["y", "x"]);
+  });
+  it("breaks ties by id and does not mutate its input", () => {
+    const input = [t("b", "Same", 1), t("a", "Same", 1)];
+    expect(sortSeriesTargets(input).map((x) => x.book.id)).toEqual(["a", "b"]);
+    expect(input[0].book.id).toBe("b");
+  });
+  it("seriesFillTargets returns sorted targets for new and existing suggestions", () => {
+    const books = [mkBook("b1", { title: "Beta" }), mkBook("b2", { title: "Alpha" }), mkBook("b3", { title: "Gamma" })];
+    for (const kind of ["new", "existing"] as const) {
+      const s: SeriesSuggestion = {
+        id: "s", name: "Ember Loom", kind,
+        books: [
+          { bookId: "b1", volume: null, why: null },
+          { bookId: "b3", volume: 2, why: null },
+          { bookId: "b2", volume: 1, why: null },
+        ],
+      };
+      expect(seriesFillTargets(s, books).map((x) => x.book.id)).toEqual(["b2", "b3", "b1"]);
+    }
   });
 });

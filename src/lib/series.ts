@@ -43,7 +43,19 @@ export function isSeriesHandSet(book: Pick<Book, "userEditedFields">): boolean {
   return book.userEditedFields.includes("seriesName") || book.userEditedFields.includes("seriesVolume");
 }
 
-/** The books a suggestion would fill: still present, no series, not hand-set, in the suggestion's order. */
+/** Volume ascending, then books with no volume; each group by title (numbers in order), then book id. */
+export function sortSeriesTargets<T extends { book: { id: string; title: string }; volume: number | null }>(targets: T[]): T[] {
+  return [...targets].sort((a, b) => {
+    if ((a.volume === null) !== (b.volume === null)) return a.volume === null ? 1 : -1;
+    if (a.volume !== null && b.volume !== null && a.volume !== b.volume) return a.volume - b.volume;
+    return (
+      a.book.title.localeCompare(b.book.title, undefined, { sensitivity: "base", numeric: true }) ||
+      (a.book.id < b.book.id ? -1 : a.book.id > b.book.id ? 1 : 0)
+    );
+  });
+}
+
+/** The books a suggestion would fill: still present, no series, not hand-set, sorted by sortSeriesTargets. */
 export function seriesFillTargets(
   s: SeriesSuggestion,
   books: Book[],
@@ -56,7 +68,7 @@ export function seriesFillTargets(
       out.push({ book, volume: entry.volume, why: entry.why });
     }
   }
-  return out;
+  return sortSeriesTargets(out);
 }
 
 /** The existing spelling when the trimmed text matches a name only by case (canonicalSeries' rule); else null. */

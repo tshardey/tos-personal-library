@@ -11,6 +11,8 @@ export const SERIES_PER_BOOK_ESTIMATE_MICRO = 5000;
 export const SERIES_SEARCH_JOB_ESTIMATE_MICRO = 36700;
 /** About 7% of production series checks searched the web (2026-11-21); assume 10% for margin. */
 export const UNSURE_FOLLOWUP_RATE = 0.1;
+/** Series audit, per book. Measured in Plan 12 Task 7 on Sonnet 5.5, mean x 1.5. */
+export const AUDIT_PER_BOOK_ESTIMATE_MICRO = 4700;
 /** A full tag plus its expected unsure follow-up; used by Tag all books and every Retag confirm. */
 export const FULL_TAG_PER_BOOK_ESTIMATE_MICRO =
   TAG_PER_BOOK_ESTIMATE_MICRO + Math.ceil(UNSURE_FOLLOWUP_RATE * SERIES_SEARCH_JOB_ESTIMATE_MICRO);

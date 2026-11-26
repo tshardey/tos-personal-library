@@ -35,7 +35,7 @@ export interface TagJob {
   id: string;
   bookId: string;
   runId: string | null;
-  kind: "full" | "new_tags" | "series";
+  kind: "full" | "new_tags" | "series" | "audit";
   reason: string;
   status: TagJobStatus;
   attempts: number;
@@ -66,6 +66,28 @@ export interface SeriesSuggestion {
   kind: "new" | "existing";
   books: { bookId: string; volume: number | null; why: string | null }[];
 }
+
+/** A pending series-audit flag; the server's numeric strings are mapped to numbers. */
+export interface SeriesAuditFlag {
+  id: string;
+  bookId: string;
+  kind: "wrong_series" | "wrong_number";
+  currentName: string;
+  currentVolume: number | null;
+  proposedName: string | null;
+  proposedVolume: number | null;
+  why: string | null;
+  createdAt: string;
+}
+
+export type AuditTag = "Wrong series?" | "Wrong number?" | "Missing number?";
+
+/** One dismissed new suggestion, or one dismissed book of an existing series. */
+export type SeriesDismissal =
+  | { kind: "name"; suggestionId: string; name: string; decidedAt: string | null }
+  | { kind: "book"; suggestionId: string; bookId: string; name: string; decidedAt: string | null };
+
+export type AuditDecision = "applied" | "kept" | "edited" | "stale" | "not_pending";
 
 export type AiFeature = "tagging" | "ask";
 
