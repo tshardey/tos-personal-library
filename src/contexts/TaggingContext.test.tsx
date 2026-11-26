@@ -17,6 +17,8 @@ import { drainTagging, TAG_PAUSE_MS } from "@/lib/tagging/drain";
 import type {
   AiBudget,
   LibraryTag,
+  SeriesAuditFlag,
+  SeriesDismissal,
   SeriesSuggestion,
   TagJob,
   TagSuggestion,
@@ -86,6 +88,13 @@ function fakeDeps(over: Partial<TaggingDeps> = {}): TaggingDeps {
     listSeriesChecked: vi.fn(async () => new Set<string>()),
     approveSeriesSuggestion: vi.fn(async () => 2),
     dismissSeriesSuggestion: vi.fn(async () => {}),
+    listSeriesAuditFlags: vi.fn(async () => []),
+    listSeriesAudited: vi.fn(async () => new Set<string>()),
+    listSeriesDismissals: vi.fn(async () => []),
+    applySeriesAudit: vi.fn(async () => "applied" as const),
+    keepSeriesAudit: vi.fn(async () => "kept" as const),
+    editSeriesAudit: vi.fn(async () => "edited" as const),
+    undoSeriesDismissal: vi.fn(async () => "restored" as const),
     createLibraryTag: vi.fn(async () => 2),
     ask: vi.fn(async () => ({ outcome: "empty" as const })),
     loadTosTags: vi.fn(async () => ({
@@ -518,6 +527,170 @@ describe("TaggingProvider", () => {
       expect(UNAVAILABLE_TAGGING.pendingCount).toBe(0);
       expect(await UNAVAILABLE_TAGGING.findSeries(["b1"])).toBe(0);
       expect(await UNAVAILABLE_TAGGING.approveSeries("s", "n", {})).toBe(0);
+    });
+  });
+
+  describe("series audit", () => {
+    const flag = (id: string, over: Partial<SeriesAuditFlag> = {}): SeriesAuditFlag => ({
+      id,
+      bookId: "b-" + id,
+      kind: "wrong_series",
+      currentName: "Saltglass Archive",
+      currentVolume: 2,
+      proposedName: "Ember Loom",
+      proposedVolume: 1,
+      why: null,
+      createdAt: "2026-11-01T00:00:00Z",
+      ...over,
+    });
+    const DISMISSAL: SeriesDismissal = {
+      kind: "name",
+      suggestionId: "s9",
+      name: "Wrenfold Tales",
+      decidedAt: null,
+    };
+
+    it.each(["PGRST205", "42P01", "42703"])(
+      "a %s error on the flags read hides only the audit fields; series suggestions still load",
+      async (code) => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        mount(
+          fakeDeps({
+            listSeriesSuggestions: vi.fn(async () => [
+              { id: "s1", kind: "new", name: "Thornmere Cycle", books: [] } as SeriesSuggestion,
+            ]),
+            listSeriesAuditFlags: vi.fn(async () => Promise.reject({ code })),
+          }),
+        );
+        await flush();
+        expect(latest.auditAvailable).toBe(false);
+        expect(latest.seriesAvailable).toBe(true);
+        expect(latest.seriesSuggestions).toHaveLength(1);
+        expect(latest.pendingCount).toBe(1);
+        warn.mockRestore();
+      },
+    );
+
+    it("loads flags sorted, the audited set and dismissals; the count includes flags", async () => {
+      mount(
+        fakeDeps({
+          listSeriesSuggestions: vi.fn(async () => [
+            { id: "s1", kind: "new", name: "Thornmere Cycle", books: [] } as SeriesSuggestion,
+          ]),
+          listSeriesAuditFlags: vi.fn(async () => [
+            flag("f2", { kind: "wrong_number", proposedName: null }),
+            flag("f1"),
+          ]),
+          listSeriesAudited: vi.fn(async () => new Set(["b1"])),
+          listSeriesDismissals: vi.fn(async () => [DISMISSAL]),
+        }),
+      );
+      await flush();
+      expect(latest.auditAvailable).toBe(true);
+      expect(latest.seriesAuditFlags.map((f) => f.id)).toEqual(["f1", "f2"]);
+      expect(latest.seriesAudited).toEqual(new Set(["b1"]));
+      expect(latest.seriesDismissals).toEqual([DISMISSAL]);
+      expect(latest.pendingCount).toBe(3);
+    });
+
+    it("a transient error after a success keeps the audit lists", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const list = vi
+        .fn<TaggingDeps["listSeriesAuditFlags"]>()
+        .mockResolvedValueOnce([flag("f1")])
+        .mockRejectedValueOnce({ code: "57014" });
+      mount(fakeDeps({ listSeriesAuditFlags: list }));
+      await flush();
+      await act(async () => {
+        await latest.reload();
+      });
+      expect(latest.auditAvailable).toBe(true);
+      expect(latest.seriesAuditFlags).toHaveLength(1);
+      warn.mockRestore();
+    });
+
+    it("auditSeries requests reason audit under a new run id and returns the queued count", async () => {
+      const deps = fakeDeps({
+        requestTagging: vi.fn(
+          async () =>
+            new Map([
+              ["b1", "queued" as const],
+              ["b2", "skipped" as const],
+            ]),
+        ),
+      });
+      mount(deps);
+      await flush();
+      await act(async () => {
+        expect(await latest.auditSeries(["b1", "b2"])).toBe(1);
+      });
+      expect(deps.requestTagging).toHaveBeenCalledWith("h1", ["b1", "b2"], "audit", "run-1");
+    });
+
+    it.each([
+      ["applyAudit", "applySeriesAudit", "applied"],
+      ["keepAudit", "keepSeriesAudit", "kept"],
+    ] as const)("%s decides, reloads both lists and bumps tagsVersion", async (method, repo, answer) => {
+      const deps = fakeDeps();
+      mount(deps);
+      await flush();
+      const flags = vi.mocked(deps.listSeriesAuditFlags).mock.calls.length;
+      const series = vi.mocked(deps.listSeriesSuggestions).mock.calls.length;
+      await act(async () => {
+        expect(await latest[method]("f1")).toBe(answer);
+      });
+      expect(deps[repo]).toHaveBeenCalledWith("f1");
+      expect(vi.mocked(deps.listSeriesAuditFlags).mock.calls.length).toBeGreaterThan(flags);
+      expect(vi.mocked(deps.listSeriesSuggestions).mock.calls.length).toBeGreaterThan(series);
+      expect(screen.getByTestId("version")).toHaveTextContent("1");
+    });
+
+    it("editAudit decides, reloads both lists and bumps tagsVersion", async () => {
+      const deps = fakeDeps();
+      mount(deps);
+      await flush();
+      const flags = vi.mocked(deps.listSeriesAuditFlags).mock.calls.length;
+      const series = vi.mocked(deps.listSeriesSuggestions).mock.calls.length;
+      await act(async () => {
+        expect(await latest.editAudit("f1", "Ember Loom", 3)).toBe("edited");
+      });
+      expect(deps.editSeriesAudit).toHaveBeenCalledWith("f1", "Ember Loom", 3);
+      expect(vi.mocked(deps.listSeriesAuditFlags).mock.calls.length).toBeGreaterThan(flags);
+      expect(vi.mocked(deps.listSeriesSuggestions).mock.calls.length).toBeGreaterThan(series);
+      expect(screen.getByTestId("version")).toHaveTextContent("1");
+    });
+
+    it("a stale answer still reloads", async () => {
+      const deps = fakeDeps({ applySeriesAudit: vi.fn(async () => "stale" as const) });
+      mount(deps);
+      await flush();
+      const flags = vi.mocked(deps.listSeriesAuditFlags).mock.calls.length;
+      await act(async () => {
+        expect(await latest.applyAudit("f1")).toBe("stale");
+      });
+      expect(vi.mocked(deps.listSeriesAuditFlags).mock.calls.length).toBeGreaterThan(flags);
+    });
+
+    it("undoDismissal reloads both lists", async () => {
+      const deps = fakeDeps();
+      mount(deps);
+      await flush();
+      const flags = vi.mocked(deps.listSeriesAuditFlags).mock.calls.length;
+      const series = vi.mocked(deps.listSeriesSuggestions).mock.calls.length;
+      await act(async () => {
+        expect(await latest.undoDismissal(DISMISSAL)).toBe("restored");
+      });
+      expect(deps.undoSeriesDismissal).toHaveBeenCalledWith(DISMISSAL);
+      expect(vi.mocked(deps.listSeriesAuditFlags).mock.calls.length).toBeGreaterThan(flags);
+      expect(vi.mocked(deps.listSeriesSuggestions).mock.calls.length).toBeGreaterThan(series);
+    });
+
+    it("outside a provider the audit defaults are unavailable and empty", async () => {
+      expect(UNAVAILABLE_TAGGING.auditAvailable).toBe(false);
+      expect(UNAVAILABLE_TAGGING.seriesAuditFlags).toEqual([]);
+      expect(UNAVAILABLE_TAGGING.seriesAudited.size).toBe(0);
+      expect(UNAVAILABLE_TAGGING.seriesDismissals).toEqual([]);
+      expect(await UNAVAILABLE_TAGGING.auditSeries(["b1"])).toBe(0);
     });
   });
 });
