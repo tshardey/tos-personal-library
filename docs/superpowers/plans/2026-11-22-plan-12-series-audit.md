@@ -919,7 +919,22 @@ undoDismissal(d: SeriesDismissal): Promise<"restored" | "not_dismissed" | "not_e
 
 ### Build notes — Library PR (2026-11-25)
 
-- (none yet)
+1. **Estimate:** `AUDIT_PER_BOOK_ESTIMATE_MICRO = 4700`, Task 7's measured value (mean 3,123 µ$ × 1.5, rounded up to 100).
+2. **The More-menu count** includes pending audit flags (open question 1, settled by the coordinator).
+3. **Undo copy beyond D12:**
+   - a book whose undo answers `not_dismissed` reads `{title} was already back in {name}.`;
+   - `not_eligible` reads `{title} can't go back to {name}.`;
+   - a name answering `not_dismissed` reads `{name} was already back.`;
+   - a rejected undo shows `Couldn't undo that. Try again.` as an alert in its item;
+   - Undo is disabled while its call runs.
+4. **Dismissed (N) refresh:** dismissing a series suggestion now reloads the audit reads too, so the Dismissed list updates without a page reload (`dismissSeries` in `TaggingContext`).
+5. **Now/Audit text helpers:** `nowText` and `auditText` live in `src/lib/tagging/eligibility.ts`, not in the card file, to satisfy the react-refresh lint rule.
+6. **Retag e2e flake (pre-existing on `main`):**
+   - With `LIBRARY_TAGGER_FAKE=1` served, the page finished the manual jobs before `mass-edit.spec.ts` and `tag-suggestions.spec.ts` checked that they were still open, so both failed on `main` too.
+   - Both specs now abort the `library-tagger` route, so the jobs stay open, and their assertions are unchanged.
+7. **Audit e2e:** it also aborts the `library-tagger` route and finishes jobs through the helper (`claim_tag_job` → outcome `audit` → `claim_audit_job` → `finish_tag_job`). The real handler's audit path is covered on the ToS side (handler tests, pgTAP).
+8. **Lighthouse:** the sign-in screen is magic-link only, so the audit run signed its synthetic user in through the app's Supabase client in the page.
+9. **Build notes commit:** the ToS build notes went in as their own docs commit before Task 9.
 
 ## Open questions for the coordinator
 
