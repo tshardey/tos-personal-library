@@ -3,7 +3,7 @@ import { routeFakeCovers, seedShelf } from "./a11y";
 import { installFakeCamera } from "./fake-camera";
 import { routeCatalogs } from "./routes";
 import { newMemberOf, newUserWithHousehold, newUserWithoutHousehold, rest, signIn, supabaseEnv, type TestUser } from "./supabase";
-import { finishOpenJobsWith, type JobRow } from "./tag-jobs";
+import { finishOpenJobsWith, seedAuditFlags, seedDismissals, type JobRow } from "./tag-jobs";
 
 /**
  * Screenshots for a by-eye check against the mockups (Plan 9). Skipped unless E2E_SCREENSHOTS=1.
@@ -248,6 +248,36 @@ const STATES: { name: string; open(page: Page, ctx: Ctx): Promise<void>; after?(
         el.scrollIntoView({ block: "start" });
         window.scrollBy(0, -80);
       });
+    },
+  },
+  {
+    // Plan 12: three flag cards (one of each tag) under Check these series, the second in Edit…, seeded in beforeAll.
+    name: "series-audit",
+    async open(page) {
+      await page.goto("#/tags");
+      const region = page.getByRole("region", { name: "Series", exact: true });
+      await expect(region.getByRole("listitem", { name: "Wren Hollow: Wrong series?" })).toBeVisible();
+      await region.getByRole("listitem", { name: "Wren Ash: Wrong number?" }).getByRole("button", { name: "Edit…" }).click();
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await region.getByRole("heading", { name: "Check these series" }).evaluate((el) => {
+        el.scrollIntoView({ block: "start" });
+        window.scrollBy(0, -80);
+      });
+    },
+    async after(page) {
+      await page.getByRole("listitem", { name: "Wren Ash: Wrong number?" }).getByRole("button", { name: "Cancel" }).click();
+    },
+  },
+  {
+    // Plan 12: the Dismissed (2) list expanded, one name and one book, scrolled into view.
+    name: "series-dismissed",
+    async open(page) {
+      await page.goto("#/tags");
+      const region = page.getByRole("region", { name: "Series", exact: true });
+      await region.getByRole("button", { name: "Dismissed (2)" }).click();
+      await expect(region.getByRole("button", { name: "Undo dismissal of Ember Loom" })).toBeVisible();
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     },
   },
   {
@@ -511,6 +541,13 @@ test.beforeAll(async () => {
     },
     seriesStatus: "found",
   }));
+  // Plan 12: three books with an audit flag each (one of each tag), and two dismissals for the Dismissed list.
+  await seedAuditFlags(owner, [
+    { title: "Wren Hollow", series: "Thornmere Cycle", volume: 1, audit: { verdict: "wrong_series", name: "Saltglass Archive", volume: 1, why: "The cover names the Saltglass Archive." } },
+    { title: "Wren Ash", series: "Thornmere Cycle", volume: 2, audit: { verdict: "wrong_number", name: null, volume: 3, why: "The third book of the cycle." } },
+    { title: "Wren Fold", series: "Thornmere Cycle", volume: null, audit: { verdict: "wrong_number", name: null, volume: 4, why: "The fourth book of the cycle." } },
+  ]);
+  await seedDismissals(owner);
 });
 
 /** Sets columns on one of the owner's books (local stack, RLS applies). */
