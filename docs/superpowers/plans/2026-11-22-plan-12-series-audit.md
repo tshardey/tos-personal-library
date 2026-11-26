@@ -875,6 +875,52 @@ undoDismissal(d: SeriesDismissal): Promise<"restored" | "not_dismissed" | "not_e
 1. Tracking where a series came from, if an import ever starts bringing series in (design decision 3).
 2. Re-auditing a book whose series was decided by hand. It's never offered today, by design.
 
+## Build notes
+
+### Build notes — ToS PR (#163) (2026-11-23)
+
+1. **Worktree:** the build used an Orca worktree (`plan12-tos`), with its branch renamed from `tshardey/plan12-tos` to `library-series-audit` (as Plan 11 build note 1 allows).
+2. **Task 1, `reserved_micro`:** `tag_jobs.reserved_micro` is `int not null default 0`, so the old-claim test asserts `0`, not null.
+3. **Task 1, accuracy suite:** `library_series_accuracy.test.sql` pins the exact JSON of `_same_author_books`, so its two expected values gained `"handSet": false`.
+4. **Task 1, `audit_seen`:** clients can't read `tag_jobs.audit_seen`, because `tag_jobs` uses column-level select grants. The app doesn't need it. If the library ever does, it needs `grant select (audit_seen)`.
+5. **Task 1, the `audit` outcome:** `claim_tag_job`'s `audit` outcome returns every other column null, including `attempts` and `kind`.
+6. **Task 1, `claim_audit_job` order:** it checks `not_audit` right after membership, before the done/failed checks.
+7. **Task 2, two internal helpers not in D14:** `_apply_series_audit` (the finish branch) and `_decide_series_audit` (the shared body of the three decision RPCs). Neither has a client grant.
+8. **Task 2, spelling guard:** it also treats names that are equal under `lower()` as the same spelling, which only matters for punctuation-only names. Loose keys must be equal **and non-empty**.
+9. **Task 2, flag upsert:** it also refreshes `kind`, `current_name` and `current_volume`.
+10. **Task 2, missing payload keys:** missing `name`, `volume` or `why` keys in the `audit` payload are read as null. A missing or invalid `verdict` is still `invalid_result`.
+11. **Task 2, undo check order:** `undo_series_book_dismissal` checks `not_dismissed` before `not_eligible`.
+12. **Task 3, `SERIES_RULES_FOR_AUDIT`:** it holds 11 lines, because `SERIES_RULES` has 13 and the header and the `series_status` line are dropped.
+13. **Task 3, `series.ts`:** it now exports helpers that were private (`field`, `flat`, `volumeText`, `round2`, `NAME_MAX`, `WHY_MAX`, `PLACEHOLDERS`, `SAME_AUTHOR_SERIES`) and adds `seriesFieldLines`. The output of `seriesBookText` is unchanged.
+14. **Task 3, `_shared` lockfile:** `_shared/deno.lock` on `main` is lockfile v5, which Deno 2.1.4 can't read. The `_shared` tests run with `--no-lock`, and `_shared` lint can't run. This is pre-existing; the plan's command needs `--no-lock` or a newer Deno.
+15. **Task 4, audit search format:** an audit's search call always sends `json_schema`, because there is no audit `text_json` line (a test-only option).
+16. **Task 4, defensive kind mapping:** a `claim_tag_job` row of kind `audit` maps to audit, never to full.
+17. **Task 4, lint fix:** I removed a pre-existing unused `z` import in `tagger.test.ts` that failed `deno lint`.
+18. **Task 5, lint failure elsewhere:** `deno lint` across functions reports a pre-existing `require-await` error in `library-intake/vision.test.ts`, which I didn't touch.
+19. **Task 7, ceiling check:** `auditCeilingMicro()` was applied to the tool-less first call, and the whole job was held to 150,000.
+20. **Task 7, scoring setup:** scoring seeded all fixture books in one synthetic household, ran in one transaction, and then rolled it back.
+21. **Final fix, `stale` answer:** see ruling 2 (it departs from D8's literal text).
+
+**Facts the library PR builds on** (from the ToS report):
+
+- **Estimate:** `AUDIT_PER_BOOK_ESTIMATE_MICRO = 4700`.
+- **Decision RPC answers:** `apply_series_audit`, `keep_series_audit` and `edit_series_audit` return `applied`, `kept` or `edited`, plus `stale` (also returned for a flag the trigger already staled) and `not_pending` (decided flags only). Map `stale` to D12's stale line.
+- **Errors:** `edit_series_audit` raises `invalid_name` and `invalid_volume` (22023). Non-members and unknown flags get `not_authorized` (42501).
+- **Undo RPCs:**
+  - `undo_series_dismissal(p_suggestion)` returns `restored` or `not_dismissed`, and raises `invalid_kind` (22023) for an `existing` row.
+  - `undo_series_book_dismissal(p_suggestion, p_book)` returns `restored`, `not_eligible` or `not_dismissed`, and raises 22023 for a `new` row.
+  - Each checks `not_dismissed` first.
+- **Claims:** `claim_tag_job` on an audit job returns outcome `audit` with `attempts` and `kind` null. The e2e helper should then call `claim_audit_job(p_job)`, which returns `outcome, claim_token, attempts, book, card, series_names, same_author`.
+- **The finish payload** for an audit job is `{ tos: [], library: [], summary: null, coverDescription: null, coverSeen: false, suggestions: [], audit: { verdict, name, volume, why } }`, with no `series` key.
+- **Key on `kind`, not `reason`:** `enqueue_tagging` can turn a queued audit job into kind `full` while its reason stays `audit`. So `auditRetryCount` and the progress code should count `kind = 'audit'`.
+- **Readable columns:** `book_cards.series_audited_at` is client-readable (table-level select). `tag_jobs.audit_seen` is not, and isn't needed.
+- **The flags table** `library.series_audit_flags` has columns `id, household_id, book_id, job_id, kind, current_name, current_volume (numeric → string), proposed_name, proposed_volume, why, status, created_at, decided_by, decided_at`. The status `stale` exists and is never listed.
+- **Watch item:** the audit search calls skipped searching on invented books (see Task 7).
+
+### Build notes — Library PR (2026-11-25)
+
+- (none yet)
+
 ## Open questions for the coordinator
 
-1. **The More-menu count includes pending audit flags (D12).** Without that, Tierra would only find the cards by opening Series. **Default if unanswered:** include them.
+1. **Settled (2026-11-25): pending audit flags count.** The More-menu count includes pending audit flags (D12). Without that, Tierra would only find the cards by opening Series. **Default if unanswered:** include them.
