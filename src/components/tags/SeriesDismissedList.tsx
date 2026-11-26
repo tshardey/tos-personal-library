@@ -23,6 +23,7 @@ export default function SeriesDismissedList({
 }) {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const panel = useId();
   const byId = new Map(books.map((b) => [b.id, b]));
 
@@ -45,11 +46,14 @@ export default function SeriesDismissedList({
 
   async function undo(d: SeriesDismissal, key: string) {
     setFailed(null);
+    setBusy(key);
     try {
       await onUndo(d);
     } catch (err) {
       console.error("Undo dismissal failed", err instanceof Error ? err.name : "unknown");
       setFailed(key);
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -65,7 +69,7 @@ export default function SeriesDismissedList({
             className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-raised p-3 text-sm"
           >
             <span>{label}</span>
-            <Button aria-label={`Undo dismissal of ${undoLabel}`} onClick={() => void undo(d, key)}>
+            <Button aria-label={`Undo dismissal of ${undoLabel}`} disabled={busy === key} onClick={() => void undo(d, key)}>
               Undo
             </Button>
             {failed === key && (

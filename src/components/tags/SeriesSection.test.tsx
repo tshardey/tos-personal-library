@@ -548,6 +548,28 @@ describe("SeriesSection Dismissed", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Wren Hollow can't go back to Ember Loom."));
   });
 
+  it("says a book is already back when the undo answers not_dismissed", async () => {
+    withDismissed([bookItem()]);
+    fn("undoDismissal").mockResolvedValue("not_dismissed");
+    fireEvent.click(screen.getByRole("button", { name: "Dismissed (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo dismissal of Wren Hollow from Ember Loom" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Wren Hollow was already back in Ember Loom.");
+  });
+
+  it("disables Undo while its call runs, and re-enables it on rejection", async () => {
+    withDismissed([bookItem()]);
+    let reject!: (e: Error) => void;
+    fn("undoDismissal").mockReturnValue(new Promise((_, r) => (reject = r)));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fireEvent.click(screen.getByRole("button", { name: "Dismissed (1)" }));
+    const undo = () => screen.getByRole("button", { name: "Undo dismissal of Wren Hollow from Ember Loom" });
+    fireEvent.click(undo());
+    expect(undo()).toBeDisabled();
+    reject(new Error("boom"));
+    await waitFor(() => expect(undo()).toBeEnabled());
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't undo that");
+  });
+
   it("has no button without dismissals", () => {
     withDismissed([]);
     expect(screen.queryByRole("button", { name: /Dismissed/ })).toBeNull();

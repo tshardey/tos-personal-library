@@ -76,15 +76,12 @@ export default function SeriesSection() {
     const book = d.kind === "book" ? books.find((b) => b.id === d.bookId) : undefined;
     const title = book?.title ?? "That book";
     // A deviation from D12: not_dismissed and not_eligible get their own lines, since nothing was put back.
-    setMessage(
-      answer === "restored"
-        ? d.kind === "name"
-          ? `Put ${d.name} back in the suggestions.`
-          : `Put ${title} back in ${d.name}.`
-        : d.kind === "name"
-          ? `${d.name} was already back.`
-          : `${title} can't go back to ${d.name}.`,
-    );
+    let line: string;
+    if (answer === "restored") line = d.kind === "name" ? `Put ${d.name} back in the suggestions.` : `Put ${title} back in ${d.name}.`;
+    else if (d.kind === "name") line = `${d.name} was already back.`;
+    else if (answer === "not_dismissed") line = `${title} was already back in ${d.name}.`;
+    else line = `${title} can't go back to ${d.name}.`;
+    setMessage(line);
     heading.current?.focus();
   }
 
