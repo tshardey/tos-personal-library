@@ -117,6 +117,8 @@ test("Retag selected confirms first, then queues one manual job per book", async
   await closeOpenJobs(user, opened);
   expect((await rest<JobRow[]>(user, jobsQuery)).every((j) => j.status === "failed")).toBe(true);
 
+  // Hold the function: with the fake tagger served, the page would finish the queued retags and they would no longer be open jobs.
+  await page.route("**/functions/v1/library-tagger**", (route) => route.abort());
   await signIn(page, user);
   await page.goto("#/");
   await page.getByRole("button", { name: "Select", exact: true }).click();
