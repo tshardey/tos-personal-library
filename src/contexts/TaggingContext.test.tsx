@@ -508,16 +508,18 @@ describe("TaggingProvider", () => {
       expect(screen.getByTestId("version")).toHaveTextContent("1");
     });
 
-    it("dismissSeries reloads the series lists", async () => {
+    it("dismissSeries reloads the series lists and the Dismissed list", async () => {
       const deps = fakeDeps();
       mount(deps);
       await flush();
       const before = vi.mocked(deps.listSeriesSuggestions).mock.calls.length;
+      const dismissalsBefore = vi.mocked(deps.listSeriesDismissals).mock.calls.length;
       await act(async () => {
         await latest.dismissSeries("s1");
       });
       expect(deps.dismissSeriesSuggestion).toHaveBeenCalledWith("s1");
       expect(vi.mocked(deps.listSeriesSuggestions).mock.calls.length).toBeGreaterThan(before);
+      expect(vi.mocked(deps.listSeriesDismissals).mock.calls.length).toBeGreaterThan(dismissalsBefore);
     });
 
     it("outside a provider the series defaults are unavailable and empty", async () => {

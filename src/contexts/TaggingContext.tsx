@@ -667,9 +667,10 @@ export function TaggingProvider(props: {
   const dismissSeries = useCallback(
     async (id: string) => {
       await d.dismissSeriesSuggestion(id);
-      await loadSeries();
+      // The dismissal joins the Dismissed list, which loads with the audit reads.
+      await Promise.all([loadSeries(), loadAudit()]);
     },
-    [d, loadSeries],
+    [d, loadAudit, loadSeries],
   );
 
   const approve = useCallback(
