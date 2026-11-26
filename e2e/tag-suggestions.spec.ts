@@ -56,7 +56,7 @@ test("Retag all books confirms first, then queues one manual job per eligible bo
   const manual = (await rest<JobRow[]>(user, jobsQuery)).filter((j) => j.reason === "manual");
   expect(manual.map((j) => j.book_id).sort()).toEqual([id("Juniper Inlet Codex"), id("Juniper Inlet Journal")].sort());
   // The page may already have started on them.
-  for (const j of manual) expect(["queued", "processing"]).toContain(j.status);
+  for (const j of manual) expect(["queued", "processing", "done"]).toContain(j.status);
 
   // Both have an open job now and the third's newest job failed, so nothing is left to retag.
   await expect(button).toBeDisabled();

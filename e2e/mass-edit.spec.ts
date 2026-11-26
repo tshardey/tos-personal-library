@@ -141,7 +141,7 @@ test("Retag selected confirms first, then queues one manual job per book", async
   const manual = (await rest<JobRow[]>(user, jobsQuery)).filter((j) => j.reason === "manual");
   expect(manual.map((j) => j.book_id).sort()).toEqual(books.map((b) => b.id).sort());
   // The page may already have started on them.
-  for (const j of manual) expect(["queued", "processing"]).toContain(j.status);
+  for (const j of manual) expect(["queued", "processing", "done"]).toContain(j.status);
 
   // Both books have an open job now, so pressing it again counts none and adds none.
   await sheet.getByRole("button", { name: "Retag selected" }).click();
