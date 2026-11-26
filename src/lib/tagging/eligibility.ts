@@ -142,6 +142,17 @@ export function auditTag(f: SeriesAuditFlag): AuditTag {
   return f.currentVolume === null ? "Missing number?" : "Wrong number?";
 }
 
+const place = (name: string, volume: number | null) => (volume === null ? `${name}, no number` : `${name} #${volume}`);
+
+/** What the series is now. */
+export const nowText = (f: SeriesAuditFlag) => place(f.currentName, f.currentVolume);
+
+/** What the audit answered: a standalone, a new series, or the same series with another number. */
+export function auditText(f: SeriesAuditFlag): string {
+  if (f.kind === "wrong_number") return place(f.currentName, f.proposedVolume);
+  return f.proposedName === null ? "Standalone (no series)" : place(f.proposedName, f.proposedVolume);
+}
+
 const TAG_ORDER: Record<AuditTag, number> = { "Wrong series?": 0, "Wrong number?": 1, "Missing number?": 2 };
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
