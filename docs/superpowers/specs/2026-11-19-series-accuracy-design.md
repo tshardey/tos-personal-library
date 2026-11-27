@@ -1,20 +1,20 @@
 # Series accuracy: design
 
 **Date:** 2026-11-19
-**Status:** draft for Tierra's review
+**Status:** draft for the owner's review
 **Builds on:** `2026-11-17-series-suggestions-design.md` (Plan 10). Everything there still holds unless this document changes it.
 **Repos:** Tome of Secrets (tagger function and migration) and the library app (the cost estimates, the "Add to your series" wording and the Find covers note).
 
 ## 1. Why
 
-Tierra reviewed the first real series results (2026-11-18/19). Suggestions were mostly sensible, but there were wrong series and misses. The coordinator checked production read-only and confirmed the causes. Real titles stay out of this public repo; the examples below are invented stand-ins.
+The owner reviewed the first real series results (2026-11-18/19). Suggestions were mostly sensible, but there were wrong series and misses. The coordinator checked production read-only and confirmed the causes. Real titles stay out of this public repo; the examples below are invented stand-ins.
 
 - **Wrong series, filled with no approval.** A book by one author was put into an existing household series that only held another author's books. For example, a book by "A. Reed" was filled into "The Lantern Vale Cycle", which only held books by "M. Holt". The design's "existing series apply directly" rule had no author check. At the time of the check, 8 auto-filled books sat in a series shared only with other authors. One pair was correct: the same author written two ways, "Tj Holt" and "T. J. Holt".
 - **Misses.** The series check saw only the title, the authors, the AI-written summary and the cover line.
   - It never saw the book database description, nor the household's other books by the same author. A second book by an author whose first book already had a series came back blank.
   - Some books have almost no description (28 books under 100 characters).
   - Some books are simply unknown to the model.
-- **Rejected guesses.** Tierra dismissed suggestions that came from two places. Some were guesses from a number in the title. Others treated an author's loosely linked standalone novels as a series.
+- **Rejected guesses.** The owner dismissed suggestions that came from two places. Some were guesses from a number in the title. Others treated an author's loosely linked standalone novels as a series.
 
 ## 2. Goals and anti-goals
 
@@ -29,7 +29,7 @@ Tierra reviewed the first real series results (2026-11-18/19). Suggestions were 
 - Surprise spend. Search cost must be bounded, measured and shown in estimates.
 - Overwriting or refilling hand-set series.
 
-## 3. Decisions (Tierra's, 2026-11-19)
+## 3. Decisions (the owner's, 2026-11-19)
 
 1. **Auto-fill only on an author match.** An existing series is filled in automatically only when an author of the book matches an author of a book already in that series. Otherwise, it becomes a suggestion for approval, exactly like a new series name.
 2. **More evidence:**
@@ -54,7 +54,7 @@ Tierra reviewed the first real series results (2026-11-18/19). Suggestions were 
 - **This replaces Plan 10 §4.2 step 1.** An existing series is applied only when the series result matches it **and** the authors match. With no author match, the series is recorded as a suggestion for that book, under that series' existing household spelling.
 - **The same author rule applies to a name approved earlier as an alias** (Plan 10 `approved_as`). The alias is followed only when the authors match its target series; otherwise the book becomes a suggestion.
 - **Dismissing a suggestion for an existing series dismisses it for those books only.** It must not stop later same-author books from filling that series automatically, and must not stop other books from being suggested. Dismissing a new name still dismisses the name, as now. *(Claude's call: otherwise one dismissed cross-author guess would block a real series.)*
-- **The approve screen marks these differently.** A suggestion for an existing series reads "Add to your series *X*", with the "Joins your series" hint, so Tierra can see it isn't a new name.
+- **The approve screen marks these differently.** A suggestion for an existing series reads "Add to your series *X*", with the "Joins your series" hint, so the owner can see it isn't a new name.
 
 ### 4.2 More evidence for the model
 Each series judgement, in full tag jobs and series checks alike, gets:
@@ -101,9 +101,9 @@ Add to `SERIES_RULES`:
   - their series is not hand-set;
   - they have no pending suggestion;
   - either another household book shares a normalised author and has a series, or the synopsis is under 100 characters.
-- This should run as a migration step, or as a one-off RPC the coordinator runs with Tierra's go-ahead; the builder decides.
+- This should run as a migration step, or as a one-off RPC the coordinator runs with the owner's go-ahead; the builder decides.
 - Expected: about 40 books, roughly $1–2 even if every one searches. The Find series confirm shows the estimate before anything runs.
-- Books already in a wrong cross-author series are not changed automatically; Tierra fixes them by hand. *(The coordinator gave her the list.)*
+- Books already in a wrong cross-author series are not changed automatically; the owner fixes them by hand. *(The coordinator gave her the list.)*
 - **Rollout gate:** existing series on books count as author evidence (§4.1, §4.2), so the wrong cross-author fills must be fixed **before** the production `db push`. The coordinator re-runs the read-only cross-author check and confirms that only legitimate rows remain (such as the same author spelled two ways) before asking for the go-ahead. *(Claude's call: only a handful of rows are wrong, so a gate is far cheaper than a provenance column.)*
 
 ### 4.6 Find covers now note (library)
@@ -113,7 +113,7 @@ Add to `SERIES_RULES`:
 ## 5. Constraints
 - **Repos and production:**
   - ToS owns the migration and the function; the library owns the copy fix.
-  - The production `db push` and function deploy need Tierra's go-ahead at the time.
+  - The production `db push` and function deploy need the owner's go-ahead at the time.
 - **Test data:**
   - Synthetic data only, in tests, fixtures and docs.
   - The measurement uses invented books. Web searches for invented titles will find nothing, which is fine; that tests restraint, and the cost per search.

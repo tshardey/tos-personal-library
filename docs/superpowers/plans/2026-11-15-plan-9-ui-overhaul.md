@@ -13,13 +13,13 @@
 
 **Tech Stack:** Vite 6, React 19, TypeScript 5.6, Tailwind 4 (`@tailwindcss/vite`), Vitest 4 + Testing Library + jsdom, Playwright 1.64 (`e2e/`). **No new dependencies.** No ToS changes, no schema, no RPCs, no Edge Functions, and no API spend ($0).
 
-**Spec:** `docs/superpowers/specs/2026-11-15-ui-overhaul-design.md`. It is binding. §3 is Tierra's and §5 holds Claude's calls, all already decided. §6 is settled by D1–D12 below. The mockups are local and git-ignored, at `C:/Users/tierr/Github/tos-personal-library/.superpowers/brainstorm/335-1794808923/content/`. The chosen options are `home-layout.html` B, `phone-nav-v3.html` A, `book-page.html` B, `cards.html` A, `palette.html` A and `filters.html` A. Builders open them in a browser to compare against; they are read-only. Conventions follow `2026-11-15-plan-8-read-status.md` and `2026-11-12-plan-6-copy-flags.md`.
+**Spec:** `docs/superpowers/specs/2026-11-15-ui-overhaul-design.md`. It is binding. §3 is the owner's and §5 holds Claude's calls, all already decided. §6 is settled by D1–D12 below. The mockups are local and git-ignored, at `C:/Users/tierr/Github/tos-personal-library/.superpowers/brainstorm/335-1794808923/content/`. The chosen options are `home-layout.html` B, `phone-nav-v3.html` A, `book-page.html` B, `cards.html` A, `palette.html` A and `filters.html` A. Builders open them in a browser to compare against; they are read-only. Conventions follow `2026-11-15-plan-8-read-status.md` and `2026-11-12-plan-6-copy-flags.md`.
 
 ## Global Constraints
 
-- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution.** This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (`tshardey <tierra.duffield@gmail.com>`). **Tell every subagent this.**
-- **Never commit to, push to or merge `main`. Never merge a PR. Never delete a remote branch.** Agents open every PR and leave it unmerged. Tierra merges.
-- **They/them** for Tierra and AJ in every PR body, comment and doc.
+- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution.** This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (`tshardey`). **Tell every subagent this.**
+- **Never commit to, push to or merge `main`. Never merge a PR. Never delete a remote branch.** Agents open every PR and leave it unmerged. The owner merges.
+- **They/them** for both household members in every PR body, comment and doc.
 - **Library app only.** No file outside this repo changes. The ToS checkout at `C:/Users/tierr/Github/tome-of-secrets` is used only as the `--workdir` for the local Supabase stack, and nothing in it is edited.
 - **Public repo, synthetic data only.**
   - No real titles, authors, ISBNs, ids, cover URLs, reading data, photos or household names go in tests, fixtures, screenshots, commits or PR text.
@@ -58,9 +58,9 @@ These settle spec §6 and the brief.
 | — | (no branch) | — | 20 | Whole-scope review; fixes land on whichever PR owns the code |
 
 - **They don't stack.** PR 1 puts every shared part, token and the nav in place. PRs 2, 3 and 4 then each touch their own screens only, so each branches from `origin/main` once PR 1 is merged. They can be built in parallel and merged in any order.
-  - *Why:* Tierra merges, and a PR based on `main` never needs retargeting.
+  - *Why:* The owner merges, and a PR based on `main` never needs retargeting.
 - **Files PRs 2–4 might all touch:** `e2e/visual.spec.ts` (each adds routes) and `src/components/ui/*` (only if a part needs a small extension). Before opening each of PRs 2–4, run `git fetch origin` and `git rebase origin/main`, then rerun the gates.
-- **No stacking (Tierra, 2026-11-15):** if PR 1 is still unmerged when a builder is ready for PR 2/3/4, the builder waits. Don't branch from `tshardey/ui-overhaul-design`.
+- **No stacking (the owner, 2026-11-15):** if PR 1 is still unmerged when a builder is ready for PR 2/3/4, the builder waits. Don't branch from `tshardey/ui-overhaul-design`.
 - **Every PR leaves the app working and fully dark.** PR 1's colour sweep (Task 2) covers every screen, so later PRs change layout and parts, not readability.
 - **Rollback:** each PR is a plain frontend change. Reverting any one restores the previous look, with no data effect. Reverting PR 1 after 2–4 have merged needs those reverted first, since they import `src/components/ui/`.
 
@@ -1000,8 +1000,8 @@ Hard-refresh first (Pages caches JS for about 10 minutes).
 
 ## Open questions for the coordinator
 
-1. **Merge timing.** D1 has PRs 2–4 branch from `main` after Tierra merges PR 1, so nothing needs retargeting. Should builders instead start PRs 2–4 straight away, stacked on `tshardey/ui-overhaul-design` (D1's fallback, with a retarget note in each body)?
-   - *2026-11-15 answer (Tierra):* **wait for PR 1 to merge first.** PRs 2–4 start only after PR 1 is merged, each from `origin/main`. The stacking fallback is not used.
+1. **Merge timing.** D1 has PRs 2–4 branch from `main` after the owner merges PR 1, so nothing needs retargeting. Should builders instead start PRs 2–4 straight away, stacked on `tshardey/ui-overhaul-design` (D1's fallback, with a retarget note in each body)?
+   - *2026-11-15 answer (the owner):* **wait for PR 1 to merge first.** PRs 2–4 start only after PR 1 is merged, each from `origin/main`. The stacking fallback is not used.
 
 ## Build notes
 
@@ -1080,7 +1080,7 @@ Hard-refresh first (Pages caches JS for about 10 minutes).
 
 **2026-11-16, PR 3 (Tasks 14–16).** Where the build departed from the text above, and why:
 
-1. **Task 15, `Find cover` opens in a `Sheet`.** D9 puts the `Find cover` button in the left column. The open request form (reason chips, note, budget copy, buttons) was cramped there: about 134px wide on the phone. The form now opens in a `Sheet` titled `Find cover`. Every field and behaviour is unchanged, including `Angled` pre-ticked for a book with a deluxe copy. The status after a request (`New covers are ready. Review covers`) stays beside the button. Approved by the coordinator for Tierra.
+1. **Task 15, `Find cover` opens in a `Sheet`.** D9 puts the `Find cover` button in the left column. The open request form (reason chips, note, budget copy, buttons) was cramped there: about 134px wide on the phone. The form now opens in a `Sheet` titled `Find cover`. Every field and behaviour is unchanged, including `Angled` pre-ticked for a book with a deluxe copy. The status after a request (`New covers are ready. Review covers`) stays beside the button. Approved by the coordinator for the owner.
 2. **Task 15, actions while editing.** While `Edit book` is open, the tabs are hidden. So `Mark read` (in the read and dnf states) and the menu's `Add copy` are disabled until Save or Cancel. They don't leave edit mode, so unsaved edits are kept. `MarkReadButton` takes an optional `disabled` prop.
 3. **Task 15, phone order.** In one column, the left column (the cover and actions) comes before `Back to library`, as D9's column split implies. The mockup's phone note ("cover on top") agrees, and the bottom tab bar's `Library` is always there.
 4. **Task 15, tap targets.** D11's 44px rule now also covers the Overview's `Your reading` buttons and `Clear date`, SeriesPicker's `Close`, LibraryTagPicker's `Done`, the Find cover reason chips, and `Try again` / `Remove mark`. The left-column actions sit in a `role="group"` named `Book actions`.
@@ -1090,7 +1090,7 @@ Hard-refresh first (Pages caches JS for about 10 minutes).
 
 **2026-11-17, Task 20 (whole-scope review, `tshardey/ui-overhaul-final`).**
 
-1. **Nav change (Tierra):** Photos and Import left More (phone sheet and computer menu); Add is their only nav entry and is highlighted on `#/inbox` and `#/import`.
+1. **Nav change (the owner):** Photos and Import left More (phone sheet and computer menu); Add is their only nav entry and is highlighted on `#/inbox` and `#/import`.
 2. **Review fixes:** D11 44px phone targets on the Selection bar, `Find covers`, the library-tag and series pickers, the Tags/ToS edit controls, `Show the rest of this series` and the Retry/Add-a-book buttons (new e2e tap checks for the Selection bar and the mass-edit sheet); a stored owner filter naming a member who left reads as All (Review Focus 3); `BottomBar` pads clear of the raised Scan circle on the phone; `Sheet`'s Tab trap skips fieldset-disabled controls; the cover-size buttons hand focus over at an end.
 3. **Parked PR 1 items, done:** `Menu` closes when focus Tabs out; `Sheet` focus return checks `isConnected`; `Tabs` `aria-controls` only on the selected tab; `Sheet`'s no-op transition classes are gone.
 4. **Also:** a muted `No synopsis yet.` on an otherwise empty Overview; a meta description; the last real-looking book data in tests replaced with invented names.

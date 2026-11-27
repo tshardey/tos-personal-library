@@ -1228,7 +1228,7 @@ Copy, exact:
 
    Then merge ToS PR 2. **Reload rule.** Then, on each device, confirm that the counts match, the audiobooks are typed, and the rest are Unsorted.
 5. Merge ToS PR 3. **Reload rule.** Link one shelf book to a quest from the quest picker; tag it in ToS; see the tag in the library app.
-6. **Merge ToS PR 4 (reload rule), then do the real review of the roughly 50 books** (Tierra first, then AJ on their own save):
+6. **Merge ToS PR 4 (reload rule), then do the real review of the roughly 50 books** (the owner first, then the second member on their own save):
    1. `Sync now` first, so the cloud equals this device.
    2. Open `Tidy your ToS library`.
    3. Go through every preselected match: open any whose library title or author looks off, and untick it.

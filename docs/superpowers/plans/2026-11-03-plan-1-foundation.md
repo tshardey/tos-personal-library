@@ -92,7 +92,7 @@ library.join_household(p_invite_code text, p_display_name text) returns uuid
 
 - [ ] **Step 1: Bead.** `bd create "library schema, RLS, household RPCs" -p 1`; `bd dep add <this> <task1-bead>`; set in_progress.
 - [ ] **Step 2: Write the failing pgTAP test** `library_rls.test.sql`. Create two auth users (A, B) by inserting into `auth.users`; impersonate with `set local role authenticated; set local request.jwt.claims = '{"sub":"<uuid>"}';`. Assertions (one pgTAP assertion per bullet clause; set `plan(n)` to match):
-  - A `create_household('Home','Tierra')` returns a uuid; A appears in `household_members`.
+  - A `create_household('Home','Robin')` returns a uuid; A appears in `household_members`.
   - A inserts a book and a copy (`origin='manual'`) → succeed.
   - B selects from `library.books` → 0 rows (`is_empty`).
   - B inserts a book with A's `household_id` → `throws_ok` (RLS violation, SQLSTATE `42501`).
@@ -157,7 +157,7 @@ library.join_household(p_invite_code text, p_display_name text) returns uuid
   - `joinHousehold(inviteCode: string, displayName: string): Promise<string>` — throws `Error('invalid_invite_code')` when the RPC raises it.
   - `useHousehold(): { household: Household | null; members: HouseholdMember[]; loading: boolean; refresh(): Promise<void> }`
 
-- [ ] **Step 1: Failing test** (mock repo). Create form: name "Home", your name "Tierra" → `createHousehold('Home','Tierra')` then `refresh()`. Join form: rejecting with `invalid_invite_code` shows "That invite code didn't match a household." and stays on setup. Review Focus 1–3.
+- [ ] **Step 1: Failing test** (mock repo). Create form: name "Home", your name "Robin" → `createHousehold('Home','Robin')` then `refresh()`. Join form: rejecting with `invalid_invite_code` shows "That invite code didn't match a household." and stays on setup. Review Focus 1–3.
 - [ ] **Step 2:** run → FAIL.
 - [ ] **Step 3:** Implement. App flow: signed in + `household === null` → `HouseholdSetup`; otherwise library. `InviteCode` (in a settings/menu area) shows the code with a copy button so the partner can join.
 - [ ] **Step 4:** PASS; manual: user A creates, user B joins with A's code, both see the same (empty) library.

@@ -1,12 +1,12 @@
 # Series suggestions: design
 
 **Date:** 2026-11-17
-**Status:** draft for Tierra's review
+**Status:** draft for the owner's review
 **Repos:** Tome of Secrets (the tagger function and the database migration) and the library app (screens).
 
 ## 1. Intent
 
-Today a book's series (name and number) is only ever set by hand, on the book page or with bulk edit. Scans, photo intake and imports all leave it blank. Tierra wants new books to arrive with their series filled in, without the library drifting into near-duplicate series names ("Name", "Name Series", "The Name Saga"). That drift is the same worry that made new tags go through approval.
+Today a book's series (name and number) is only ever set by hand, on the book page or with bulk edit. Scans, photo intake and imports all leave it blank. The owner wants new books to arrive with their series filled in, without the library drifting into near-duplicate series names ("Name", "Name Series", "The Name Saga"). That drift is the same worry that made new tags go through approval.
 
 **Success:** after a scan, a book in a series the household already has shows that series (and usually its number) with no typing. A book from a series new to the household shows up as a suggestion, and one tap approves it for every book that suggested it.
 
@@ -19,7 +19,7 @@ Today a book's series (name and number) is only ever set by hand, on the book pa
 - Books already in the library can be checked for a series in one cheap, opt-in run.
 
 **Non-goals**
-- Pulling series from Open Library or Google Books. Tierra chose the tagger route; book-database series data is patchy.
+- Pulling series from Open Library or Google Books. The owner chose the tagger route; book-database series data is patchy.
 - Series pages, reading-order views, or "next in series" features.
 - Changing or merging series that are already set.
 - Automatically merging near-duplicate series names.
@@ -30,7 +30,7 @@ Today a book's series (name and number) is only ever set by hand, on the book pa
 - Any spend the household didn't see coming. The backfill shows its cost first, like Tag all books.
 - Wrong series on books, from the model guessing. Prefer blank over wrong.
 
-## 3. Decisions (Tierra's)
+## 3. Decisions (the owner's)
 
 - **Source: the AI tagger** (2026-11-17), not book databases.
 - **New series need approval; existing ones apply directly** (2026-11-17): "It should suggest new series for approval to prevent the same concern we had for tags."
@@ -72,14 +72,14 @@ A **Find series** action on the Tag suggestions screen checks books that already
 - **Each book is checked once.** Every series check (a full tag job after launch, or this pass) records that the book was checked, whatever the result, so standalone books and books behind a pending or dismissed suggestion are never paid for twice. Only **Retag this book** re-checks a book. *(Claude's call: no repeat spend, per the anti-goals.)*
 - It uses each book's saved card (summary and cover description) and title and authors, with no image: a text-only pass that asks only for the series. It goes through the same rules as §4.2.
 - Before it runs, it shows the number of books, a cost estimate and the tagging budget left, behind a Confirm, the same pattern as Tag all books and Check for new tags. It runs in the open app and stops cleanly at the monthly cap.
-- It uses **the same model as tagging** (Tierra, 2026-11-17: accuracy over a cheaper model) and is charged to the existing **tagging** budget. Estimate: about 30¢ per hundred books, once; new books get the check inside normal tagging at almost no extra cost. The per-call budget hold may be smaller than a full tag job's, since there's no image.
+- It uses **the same model as tagging** (the owner, 2026-11-17: accuracy over a cheaper model) and is charged to the existing **tagging** budget. Estimate: about 30¢ per hundred books, once; new books get the check inside normal tagging at almost no extra cost. The per-call budget hold may be smaller than a full tag job's, since there's no image.
 - Books with no card yet are covered by Tag all books, which now includes series.
 - **Retag this book** on the book page also re-checks series, under the same rules.
 
 ## 5. Constraints
 
 - The Tome of Secrets repo owns the database migration and the tagger function. The library app owns the screens. The migration and function ship first.
-- **Production:** the database push and function deploy need Tierra's explicit go-ahead at the time.
+- **Production:** the database push and function deploy need the owner's explicit go-ahead at the time.
 - Public repos: synthetic examples only, in tests, fixtures and docs. No real series names.
 - Follow the existing series rules: names are trimmed and 1 to 200 characters; numbers are 0 to under 10000 with two decimals.
 - New tables follow the household row-level security pattern of `tag_suggestions` and `tag_suggestion_books`.

@@ -1,10 +1,10 @@
 # Plan 7: Tagging pass and Ask (prompt search) — design
 
-Status: designed with Tierra on 2026-11-13; builder check done and its questions answered. Awaiting Tierra's review of this document.
+Status: designed with the owner on 2026-11-13; builder check done and its questions answered. Awaiting the owner's review of this document.
 
 ## 1. Why
 
-Tierra plays Tome of Secrets (ToS) and joins outside reading challenges. Both hand out prompts such as "a red cover", "found family", "contains vampires", "a number or weekday in the title", "starts with B" or "stars on the cover". When a prompt comes up, Tierra wants help **choosing a book from the household shelf to read next** that fits it.
+The owner plays Tome of Secrets (ToS) and joins outside reading challenges. Both hand out prompts such as "a red cover", "found family", "contains vampires", "a number or weekday in the title", "starts with B" or "stars on the cover". When a prompt comes up, the owner wants help **choosing a book from the household shelf to read next** that fits it.
 
 Today the library can't help:
 
@@ -14,7 +14,7 @@ Today the library can't help:
 - Descriptions are mostly good (247 of 257 books have one, averaging about 1,240 characters), but about 10% are written about a deluxe or special edition rather than the story.
 - The app stores no Open Library subjects or Google categories, and those sources are uneven and nearly trope-free anyway.
 
-An inventory of 318 real prompts from Tierra's games and challenges (ToS data, r/Fantasy Bingo 2026, Roll for Reads, a board-game TBR, mission and prompt cards, a seasonal syllabus) shows how prompts get answered:
+An inventory of 318 real prompts from the owner's games and challenges (ToS data, r/Fantasy Bingo 2026, Roll for Reads, a board-game TBR, mission and prompt cards, a seasonal syllabus) shows how prompts get answered:
 
 | How a prompt is answered | Prompts |
 |---|---|
@@ -27,8 +27,8 @@ An inventory of 318 real prompts from Tierra's games and challenges (ToS data, r
 ## 2. What success looks like
 
 - Common prompts ("vampires", "cozy", "red cover", "YA") become a **free, instant filter**: tap a tag chip.
-- Harder prompts ("things aren't what they seem", "an antler on the cover or in the title", "spell R-E-A-D with titles") go to **Ask ✨**. It returns a short ranked list of books that could fit, each with a confidence % and a one-line reason. Tierra decides what to read from there.
-- Every book carries pre-filled ToS tags. This especially helps AJ, who doesn't follow the game mechanics closely. Tierra double-checks tags when they review a book in ToS anyway.
+- Harder prompts ("things aren't what they seem", "an antler on the cover or in the title", "spell R-E-A-D with titles") go to **Ask ✨**. It returns a short ranked list of books that could fit, each with a confidence % and a one-line reason. The owner decides what to read from there.
+- Every book carries pre-filled ToS tags. This especially helps the second member, who doesn't follow the game mechanics closely. The owner double-checks tags when they review a book in ToS anyway.
 - Spending stays small and predictable: about $2 one-time to tag the whole library, then about $1–2 a month for Ask at 10–20 searches.
 
 ## 3. Goals, non-goals, anti-goals
@@ -40,10 +40,10 @@ An inventory of 318 real prompts from Tierra's games and challenges (ToS data, r
   - A **book card**: a short "what this book is about" summary plus a cover description. It is Ask's compact input and is what fixes the deluxe-description problem.
 - **Ask ✨** on the main search box, reading book cards and returning ranked matches.
 - Library tags as **filter chips**, on the **book page** (editable), and in **mass edit**.
-- A **tag suggestions** list where Tierra approves or dismisses new tags the tagger proposes.
+- A **tag suggestions** list where the owner approves or dismisses new tags the tagger proposes.
 
 **Non-goals**
-- **Author identity** (AAPI, Black, Latinx, Indigenous or LGBTQIA+ author). It is never inferred or tagged (Tierra: guessing from names is bad, and bios often don't say). Ask's instructions also say not to infer it.
+- **Author identity** (AAPI, Black, Latinx, Indigenous or LGBTQIA+ author). It is never inferred or tagged (the owner: guessing from names is bad, and bios often don't say). Ask's instructions also say not to infer it.
 - **Reader-relative prompts** ("read in a park", "recommended by a friend", "unread by me"). "Unread by me" arrives with read status (backlog item 2), not here.
 - **Merging library tags into ToS.** Library tags stay library-only for now. A later merge stays possible, and nothing here should block it.
 - Debut, banned and similar author-level or external facts as hard fields. Ask may answer them, with a "please verify" reason.
@@ -51,22 +51,22 @@ An inventory of 318 real prompts from Tierra's games and challenges (ToS data, r
 
 **Anti-goals** (failure even if it technically works)
 - **A tag someone removed by hand coming back.** The pass only ever adds tags. A removal in either app is remembered, and re-runs respect it.
-- **Spend that surprises Tierra.** Each feature has its own monthly cap, a full run shows a cost estimate first, and failures never loop and keep billing.
+- **Spend that surprises the owner.** Each feature has its own monthly cap, a full run shows a cost estimate first, and failures never loop and keep billing.
 - **Ask results padded with poor fits.** Matches below about 30% confidence are left off.
 - **Edition blurbs read as plot.** Text about sprayed edges, foil or "special edition" must not turn into content tags.
 
 ## 4. Constraints
 
-- **ToS owns all migrations and Edge Functions.** The schema and functions go in a ToS PR, and the UI goes in a library-app PR. Production `db push`, function deploys and secret changes happen only with Tierra's go-ahead at that moment.
-- **API key and budget.** The production `ANTHROPIC_API_KEY` Supabase secret is shared with `library-intake` and `library-covers`. Its workspace is capped at $10 a month. Monthly caps inside that cap (Tierra agreed):
+- **ToS owns all migrations and Edge Functions.** The schema and functions go in a ToS PR, and the UI goes in a library-app PR. Production `db push`, function deploys and secret changes happen only with the owner's go-ahead at that moment.
+- **API key and budget.** The production `ANTHROPIC_API_KEY` Supabase secret is shared with `library-intake` and `library-covers`. Its workspace is capped at $10 a month. Monthly caps inside that cap (the owner agreed):
   - covers $5 (existing);
-  - **tagging $5 in the first month**, so the full run finishes in one go, then **$2** a month (Tierra's choice; cover finding has cost cents so far, so this stays well inside the $10 cap);
+  - **tagging $5 in the first month**, so the full run finishes in one go, then **$2** a month (the owner's choice; cover finding has cost cents so far, so this stays well inside the $10 cap);
   - **Ask $2**;
   - about $1 of headroom for photo and scan intake.
 
-  Tierra has said the cap can rise if needed, but wants cost kept in mind. Raise it only with a reason.
+  The owner has said the cap can rise if needed, but wants cost kept in mind. Raise it only with a reason.
 - **Public repos.** Fixtures, tests and PR text use synthetic titles only. Tag vocabulary is not sensitive.
-- **Household.** Two people (Tierra and AJ) share one catalogue. Tags, cards, suggestions and both budgets are household-scoped and shared. Either person can use Ask.
+- **Household.** Two people (the owner and another household member) share one catalogue. Tags, cards, suggestions and both budgets are household-scoped and shared. Either person can use Ask.
 - **Layout.** Phone-first, matching the existing app (Vite, React 19, TypeScript, Tailwind 4).
 
 ## 5. How it works (decided)
@@ -77,13 +77,13 @@ For each book:
 - title, authors, series name and volume;
 - the description;
 - the cover image (fetched from `cover_url`: today 174 Open Library and 81 Google hosts);
-- **Claude's own knowledge of the title.** Tierra approved this. It matters most when the description is about the edition.
+- **Claude's own knowledge of the title.** The owner approved this. It matters most when the description is about the edition.
 
 The tagger must treat edition marketing text as non-content, and treat all book text and cover text as data, never as instructions.
 
 ### 5.2 What it writes
 
-**ToS tags** go into `library.book_tags`, applied directly with no review step (Tierra's choice).
+**ToS tags** go into `library.book_tags`, applied directly with no review step (the owner's choice).
 - **Allowed categories:** ToS `genre`, `content` and `form`, plus `Award-Winning`, which is a book fact even though ToS files it under provenance.
 - **Never auto-applied:**
   - the provenance tags about a copy or reading (Borrowed, Bought Used, Gifted, Inherited, Damaged/Ex-Library, Re-Read, Picked Back Up, On TBR Over a Year);
@@ -124,7 +124,7 @@ The summary is about the story, not the edition. Cards aren't shown in the UI in
 
 The record must be written however the removal happens. A database trigger on delete is the natural fit; the builder decides.
 
-### 5.5 Ask ✨ (layout A, chosen by Tierra)
+### 5.5 Ask ✨ (layout A, chosen by the owner)
 
 Mockup: `.superpowers/brainstorm/` in this repo (git-ignored), `ask-layout.html`, option A.
 
@@ -165,7 +165,7 @@ Mockup: `.superpowers/brainstorm/` in this repo (git-ignored), `ask-layout.html`
 
 ## 6. Left to the builder
 
-These don't change what Tierra sees. The builder settles each one and records the decision in the plan.
+These don't change what the owner sees. The builder settles each one and records the decision in the plan.
 
 1. **Models.** Measure on a synthetic set before choosing.
    - *Claude's lean:* `claude-sonnet-5-5` for tagging (world knowledge matters for edition-heavy descriptions) and for Ask (judgement and ranking).
@@ -193,9 +193,9 @@ These don't change what Tierra sees. The builder settles each one and records th
 ## 7. Rollout (user-approved steps)
 
 1. Merge the ToS PR (migration, functions, pgTAP).
-2. `db push` and the function deploys, each with Tierra's go-ahead.
+2. `db push` and the function deploys, each with the owner's go-ahead.
 3. Merge the library-app PR, then hard-refresh (GitHub Pages caches JS for about 10 minutes).
-4. Tierra's first run: tag about 10 books, check the tags and the measured cost, then **Tag all books**.
+4. The owner's first run: tag about 10 books, check the tags and the measured cost, then **Tag all books**.
 5. Try Ask on a handful of real prompts.
 
 ## Appendix A: Starting library-tag vocabulary

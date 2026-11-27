@@ -36,7 +36,7 @@ vi.mock("@/lib/library-repo", () => {
 
 const household = { id: "h1", name: "Home", inviteCode: "x", createdAt: "" };
 const members = [
-  { householdId: "h1", userId: "u1", displayName: "Tierra", createdAt: "" },
+  { householdId: "h1", userId: "u1", displayName: "Robin", createdAt: "" },
   { householdId: "h1", userId: "u2", displayName: "Sam", createdAt: "" },
 ];
 vi.mock("@/contexts/HouseholdContext", () => ({
@@ -45,7 +45,7 @@ vi.mock("@/contexts/HouseholdContext", () => ({
 
 import ImportPage from "./ImportPage";
 
-const MINE = "Tierra's Books";
+const MINE = "Robin's Books";
 const OLD = "2026-01-01T00:00:00+00:00";
 
 function isbn(n: number): string {

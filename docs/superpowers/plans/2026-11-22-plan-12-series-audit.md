@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Audit series button checks each book whose series was filled in by the tagger or approved from a suggestion, once. It flags a likely wrong series, a wrong number or a missing number on a card that Tierra settles in one tap. It never changes a book by itself. Tierra can also undo a dismissal, and a suggestion's books are listed in number order.
+**Goal:** Audit series button checks each book whose series was filled in by the tagger or approved from a suggestion, once. It flags a likely wrong series, a wrong number or a missing number on a card that the owner settles in one tap. It never changes a book by itself. The owner can also undo a dismissal, and a suggestion's books are listed in number order.
 
 **Architecture:**
 - **ToS** owns everything server-side: one migration, pgTAP tests, and changes to `library-tagger` (`series.ts` → a new `audit.ts`, `tagger.ts`, `handler.ts`).
@@ -23,19 +23,19 @@
 
 ## Global Constraints
 
-- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (`git config user.email` = tierra.duffield@gmail.com); check it in both repos before the first commit. **Tell every subagent this.**
+- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (`git config user.email`); check it in both repos before the first commit. **Tell every subagent this.**
 - **Never commit to, push to or merge `main`. Never merge a PR. Never delete a remote branch.** Agents open every PR and leave it unmerged.
 - **No Beads.** Don't run `bd` or touch `.beads/`, even though ToS `AGENTS.md` asks for it.
-- **They/them** for Tierra and AJ in every PR body, comment and doc.
+- **They/them** for both household members in every PR body, comment and doc.
 - **ToS owns the migration and the function.**
   - All ToS work happens in **one new worktree**, `C:/Users/tierr/Github/tome-of-secrets-plan12`, on branch `library-series-audit`, created off ToS `origin/main` (Task 1). Below, `<tos-wt>` means that path. An Orca-provided worktree is fine if its branch is pushed as `library-series-audit` (Plan 11 build note 1).
   - Never edit, switch or commit in the ToS main checkout (`C:/Users/tierr/Github/tome-of-secrets`). Reading it with `git -C ... show origin/main:<path>` is fine.
   - The library repo adds no migrations and no `supabase/` directory.
 - **Production changes happen only in the USER-APPROVED steps, which agents never run:** `db push` and `functions deploy`. Never point a tool at the production project.
-- **Real Anthropic calls happen only in Task 7.** Tierra has pre-approved it up to **$0.25**. Every other test stubs `fetch` or uses the fake tagger.
+- **Real Anthropic calls happen only in Task 7.** The owner has pre-approved it up to **$0.25**. Every other test stubs `fetch` or uses the fake tagger.
 - **The web search tool is unchanged:** `SEARCH_TOOL` (`web_search_20260318`, `max_uses: 2`, `response_inclusion: "excluded"`), `SEARCH_FORMAT`, `SERIES_SEARCH_MAX_TOKENS`, `WEB_SEARCH_MICRO` and `usageOf`'s search count are reused as they are.
 - **API keys:** never print, echo, `cat` or log a key or an env file. Task 7 passes `C:/Users/tierr/Github/tome-of-secrets/.env` to `docker run --env-file` and never opens it. The key in that file is quoted and `--env-file` keeps the quotes, so the harness strips one pair of surrounding quotes **in memory** before building the client (Plan 10 and Plan 11 build notes).
-- **Docker:** leave other containers alone (tierra-personal, workout-coach, kinetic-campaigns). Before `supabase start`, run `docker ps --filter name=supabase`. If a stack from another worktree is running, **don't stop it**: ask the coordinator (`orca orchestration ask`) and wait for a yes. Docker Desktop may be started if it isn't running.
+- **Docker:** leave other containers alone (the owner's personal project, workout-coach, kinetic-campaigns). Before `supabase start`, run `docker ps --filter name=supabase`. If a stack from another worktree is running, **don't stop it**: ask the coordinator (`orca orchestration ask`) and wait for a yes. Docker Desktop may be started if it isn't running.
 - **Commands** (as Plan 11):
   - Supabase CLI: `npx supabase@2.122.1 <cmd> --workdir <tos-wt>`. pgTAP runs after a fresh `db reset`.
   - Deno tests: `docker run --rm -v "<tos-wt>/supabase/functions:/fn" -w /fn/library-tagger denoland/deno:2.1.4 deno test --allow-env --allow-read --allow-net=registry.npmjs.org`. Do the same with `-w /fn/_shared`.
@@ -66,12 +66,12 @@ These settle design §7 and the brief.
 | ToS | `library-series-audit` off ToS `origin/main` | Tasks 1–8 | Nothing until the push and deploy; then nothing until the library merges, because only the new app requests audits |
 | Library | `tshardey/series-audit` (holds the design and this plan) → `main` | Tasks 9–13 | Audit series, the flag cards, Dismissed (N) with Undo, sorted suggestion books |
 
-- **Order:** ToS PR merge → production `db push` → `functions deploy library-tagger` (both with Tierra's go-ahead, run by the coordinator) → library PR merge → hard-refresh.
+- **Order:** ToS PR merge → production `db push` → `functions deploy library-tagger` (both with the owner's go-ahead, run by the coordinator) → library PR merge → hard-refresh.
 - **Behaviour when one side isn't live:**
   - **Pushed, function not deployed:** `request_tagging` accepts `audit`, but nothing calls it (the old app doesn't know the reason). The trigger, the flags table and the undo RPCs are live and unused. Series checks and full jobs are unchanged. `_same_author_books` gains a `handSet` key, which the old handler ignores. If an audit job did exist, the old handler would get outcome `audit` from `claim_tag_job` and return it. The old app treats an unknown outcome as an error (a drain pause). No audit job can exist, because only the new app requests one, and it merges last.
   - **Function deployed before the push (wrong order):** the new handler never sees outcome `audit`, so it never calls `claim_audit_job`. Its series and full paths read the claim as Plan 11 and treat a missing `handSet` as `false`, so it runs exactly as today.
   - **Library merged before the push:** the audit reads (`series_audit_flags`, `series_audited_at`) answer `PGRST205` or `42703`. Only `auditAvailable` turns off: Audit series, Check these series and Dismissed (N) are hidden. Find series and suggestions work, and suggestion books are sorted. This is why the audit reads load apart from the series reads (Task 10).
-  - **ToS live, library not yet merged (the normal window):** the old app has no audit UI and never requests an audit, so nothing changes for Tierra.
+  - **ToS live, library not yet merged (the normal window):** the old app has no audit UI and never requests an audit, so nothing changes for the owner.
   - **Library PR reverted:** as the line above. Pending flags stay in the table and come back on a re-merge.
 
 **D2. The marker (§4.1, §7 bullet 1).**
@@ -220,7 +220,7 @@ export const AUDIT_SEARCH_PROMPT = [
   - `wrong_series` with a name: the series becomes `coalesce(_series_spelling(household, lower(proposed_name)), proposed_name)` and the number becomes `proposed_volume`.
   - `wrong_series` with no name: series and number become null.
   - `wrong_number`: the number becomes `proposed_volume`.
-  - No author check (§4.1, the cross-author rule): this is Tierra's decision.
+  - No author check (§4.1, the cross-author rule): this is the owner's decision.
 - `keep_series_audit(p_flag uuid)` → `kept`. The book changes only in `user_edited_fields`.
 - `edit_series_audit(p_flag uuid, p_name text, p_volume numeric)` → `edited`.
   - `p_name` is trimmed; empty or null clears the series and the number. Over 200 characters → `invalid_name` (22023).
@@ -311,7 +311,7 @@ It applies to `new` and `existing` items alike.
 Each item has a test in the named task.
 
 1. **The cluster.** Three books by one author all tagger-filled into the same wrong series. Each audit's evidence labels the other two `(not checked by hand)`, and none is vouched for. *(Task 3 Deno content test; Task 7 gate.)*
-2. **A series changed while an audit job runs, or between the audit and Tierra's tap.** The finish writes no flag and sets no marker. A flag already shown becomes stale, disappears, and its RPC answers `stale` without touching the book. *(Task 2 pgTAP; Task 11 component test.)*
+2. **A series changed while an audit job runs, or between the audit and the owner's tap.** The finish writes no flag and sets no marker. A flag already shown becomes stale, disappears, and its RPC answers `stale` without touching the book. *(Task 2 pgTAP; Task 11 component test.)*
 3. **A model slip that only re-spells the series** (`the thornmere cycle` for `Thornmere Cycle`, with or without a different number). No `wrong_series` card is written. A real number change becomes a `wrong_number` card. *(Task 2 pgTAP.)*
 4. **Pressing Audit series twice, or an audit after a decision.** The second press offers 0 books and spends nothing. A decided book is hand-set and never audited again. A failed audit is offered once more. *(Task 1 pgTAP; Task 9 unit.)*
 5. **An old handler meeting an audit job.** It receives outcome `audit`, reserves nothing and never runs a full tag. *(Task 1 pgTAP.)*
@@ -585,7 +585,7 @@ export function auditCeilingMicro(model?: AiModel): number;
 
 ### Task 7: Measurement (real API, pre-approved to $0.25)
 
-Tierra pre-approved this task up to **$0.25** (design §5), so no further ask is needed. **The bound is hard.** Task 6's gates must be green, and the local stack (`<tos-wt>`, after `db reset`) must be running for Step 3's scoring.
+The owner pre-approved this task up to **$0.25** (design §5), so no further ask is needed. **The bound is hard.** Task 6's gates must be green, and the local stack (`<tos-wt>`, after `db reset`) must be running for Step 3's scoring.
 
 - **The key:** passed by `docker run --env-file C:/Users/tierr/Github/tome-of-secrets/.env`, never opened, read or printed. One pair of surrounding quotes is stripped in memory.
 - **The books:** only `fixtures/series-audit-synthetic.ts`. Each invented ISBN is checked to 404 on Open Library first (free).
@@ -848,15 +848,15 @@ undoDismissal(d: SeriesDismissal): Promise<"restored" | "not_dismissed" | "not_e
 
 ## USER-APPROVED STEP: production rollout
 
-**Agents don't run any of this without Tierra's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps. The coordinator runs them.
+**Agents don't run any of this without the owner's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps. The coordinator runs them.
 
-1. **Tierra merges the ToS PR** (`library-series-audit`).
-2. **`db push`, with Tierra's go-ahead,** from a fresh push worktree at the merged `main`:
+1. **The owner merges the ToS PR** (`library-series-audit`).
+2. **`db push`, with the owner's go-ahead,** from a fresh push worktree at the merged `main`:
    - `worktree add --detach`, `link --project-ref`, `db push --dry-run`;
    - confirm the only pending migration is `..._library-series-audit`;
    - push. The migration changes no book and queues nothing.
-3. **`functions deploy library-tagger`, with Tierra's go-ahead,** from the same worktree. `secrets list` confirms `ANTHROPIC_API_KEY`; no secret changes. Remove the push worktree.
-4. **Tierra merges the library PR,** then hard-refreshes (GitHub Pages caches JS for about 10 minutes).
+3. **`functions deploy library-tagger`, with the owner's go-ahead,** from the same worktree. `secrets list` confirms `ANTHROPIC_API_KEY`; no secret changes. Remove the push worktree.
+4. **The owner merges the library PR,** then hard-refreshes (GitHub Pages caches JS for about 10 minutes).
 5. **First use:**
    - Tag suggestions → Series → **Audit series** shows the count (design: about 80) and the estimate;
    - confirm only if they look right (design expectation: about 25–40¢);
@@ -938,4 +938,4 @@ undoDismissal(d: SeriesDismissal): Promise<"restored" | "not_dismissed" | "not_e
 
 ## Open questions for the coordinator
 
-1. **Settled (2026-11-25): pending audit flags count.** The More-menu count includes pending audit flags (D12). Without that, Tierra would only find the cards by opening Series. **Default if unanswered:** include them.
+1. **Settled (2026-11-25): pending audit flags count.** The More-menu count includes pending audit flags (D12). Without that, the owner would only find the cards by opening Series. **Default if unanswered:** include them.

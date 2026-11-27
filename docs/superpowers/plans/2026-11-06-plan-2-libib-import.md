@@ -35,7 +35,7 @@ Profiled read-only from `library_20261103_234851.csv`, and rechecked against two
 | Size | 127 rows, 175 KB, about 1.4 KB per row | A 500-book household is under 1 MB |
 | Encoding | UTF-8, no BOM, LF line endings, unquoted header | Also accept BOM, CRLF and windows-1252 (a re-save in Excel produces them) |
 | Columns | The 31 in spec §5, all rows width 31 | Look up columns by name; tolerate extras and reordering |
-| `collection` | All 127 are `Tierra's Books`. The partner's collection arrives as **its own file** with a different collection name and the same 31-column header; the two files share no id and no ISBN | libib exports each collection as a separate file, so `allIds` covers one collection at a time. The parser still accepts a file holding several |
+| `collection` | All 127 are in the owner's collection (`<owner>'s Books`). The partner's collection arrives as **its own file** with a different collection name and the same 31-column header; the two files share no id and no ISBN | libib exports each collection as a separate file, so `allIds` covers one collection at a time. The parser still accepts a file holding several |
 | `item_type` / `copies` | All `book` / all `1`, in all three files | Neither other value has ever been observed; synthetic tests stay |
 | `id` | 10-character alphanumeric, unique. **Stable across two exports 3 days apart:** all 127 Nov 3 ids reappear with the same ISBN, title and copies, plus 4 new rows | Dedupe on id is sound for the observed window (D1) |
 | `ean_isbn13` | Present and checksum-valid on all 127; 107 are `978`, 20 are `979`. Also valid on every row of both Nov 6 files | No no-ISBN row has been observed, in the partner's file either; synthetic tests stay (D5) |
@@ -258,7 +258,7 @@ Rules. `titleKey`: strip the D6 edition parenthetical, NFD and strip marks (`/\p
     - `isbn13: ["9780000000002"]` plus incoming `["9780000000019"]`: union, existing first. Same with `"isbn13"` edited: untouched. Same ISBN incoming: no change, empty patch.
     - Patch never contains `title`, even with incoming different. Untidy stored `"  Publisher "` with no real change: empty patch.
     - Applying the returned patch and calling again gives an empty patch.
-  - `owner-map.test.ts`: `"Tierra's Books"` with member `Tierra` suggests their id; a collection matching no member, or two members, is undefined (**RF4**); a saved mapping wins, unless the saved userId isn't a member any more, when name matching applies; saved `"skip"` and `"shared"` are honored; a throwing `localStorage` gives `{}`, no crash; the key starts with `tpl_`.
+  - `owner-map.test.ts`: `"Robin's Books"` with member `Robin` suggests their id; a collection matching no member, or two members, is undefined (**RF4**); a saved mapping wins, unless the saved userId isn't a member any more, when name matching applies; saved `"skip"` and `"shared"` are honored; a throwing `localStorage` gives `{}`, no crash; the key starts with `tpl_`.
 - [ ] **Step 2: Run to verify failure.** `docker compose run --rm app npm test -- src/lib/libib`. Expected: FAIL for the new modules.
 - [ ] **Step 3: Implement** per Interfaces.
 - [ ] **Step 4: Verify.** Same command. Expected: PASS.
@@ -452,7 +452,7 @@ Exact copy:
   - Upload of two new rows shows `2 new books, 0 extra copies, 0 unchanged, 0 to review`, and **no store write has been called**. Confirm calls `insertBooks`, `insertCopies` and `upsertLedger`, then shows the done state.
   - Each file error from the copy list renders its text and writes nothing.
   - **RF1:** `listBooks` rejecting shows `Couldn't read the library, so nothing was imported.` with no plan and no writes. The ledger rejecting (migration not applied yet) gives the same result.
-  - **RF4:** collection `Partner Shelf` with no matching member: Confirm disabled with the prompt; choosing `Skip this collection` enables it, and those rows aren't written. `Tierra's Books` is preselected to member `Tierra`.
+  - **RF4:** collection `Partner Shelf` with no matching member: Confirm disabled with the prompt; choosing `Skip this collection` enables it, and those rows aren't written. `Robin's Books` is preselected to member `Robin`.
   - Review: a `same_title` row shows radios with the default checked; choosing `Separate book` changes the summary to one more new book; Confirm applies that choice.
   - Removed only: the row appears with an unticked box, the summary shows, `Everything in this file is already in the library.` is absent and there is no `Import` button. Ticking changes the summary and `Import` appears; untick and it goes again.
   - Re-upload where all rows are known and the ledger is complete: `Everything in this file is already in the library.`, no action button. All rows in a collection mapped to Skip: `Nothing to import from this file.`, not that sentence.
@@ -534,7 +534,7 @@ Exact copy:
 1. Merge the ToS `libib-import-ledger` PR.
 2. Push from the Supabase-linked worktree, `C:/Users/tierr/Github/tome-of-secrets-library-schema`. The Task 1 worktree isn't linked, and the main checkout is on an unrelated branch. The linked worktree sits on a detached HEAD, so update it first: `git -C C:/Users/tierr/Github/tome-of-secrets-library-schema fetch origin`, then `git -C C:/Users/tierr/Github/tome-of-secrets-library-schema checkout --detach origin/main`. Run `npx supabase@2.122.1 db push --dry-run --workdir C:/Users/tierr/Github/tome-of-secrets-library-schema` and confirm the only pending migration is `20261106000000_library-libib-import-rows`. Then run the same command without `--dry-run`.
 3. Merge the library PR; the Pages deploy runs.
-4. Upload the real export. The preview writes nothing, so read it first. Expected: about one new book per row (hand-added books appear in review instead), and owner preselected for `Tierra's Books`.
+4. Upload the real export. The preview writes nothing, so read it first. Expected: about one new book per row (hand-added books appear in review instead), and owner preselected for the owner's collection.
 5. **Re-upload the same file without confirming.** Expected: `Everything in this file is already in the library.` Ids held across exports 3 days apart (D1). If a later export ever shows `rescan` rows, don't confirm those defaults blindly, and report it.
 6. Upload the partner's collection file once they've joined the household. Until then, choose Skip for it. Same-book rows then become second copies.
 

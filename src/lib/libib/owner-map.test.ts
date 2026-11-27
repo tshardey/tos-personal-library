@@ -8,7 +8,7 @@ const member = (userId: string, displayName: string): HouseholdMember => ({
   displayName,
   createdAt: "",
 });
-const members = [member("u1", "Tierra"), member("u2", "Sam")];
+const members = [member("u1", "Robin"), member("u2", "Sam")];
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -17,31 +17,31 @@ afterEach(() => {
 
 describe("suggestOwners", () => {
   it("matches a whole word, ignoring possessive", () => {
-    expect(suggestOwners(["Tierra's Books"], members, {})).toEqual({ "Tierra's Books": "u1" });
+    expect(suggestOwners(["Robin's Books"], members, {})).toEqual({ "Robin's Books": "u1" });
   });
   it("leaves unmatched collections undefined", () => {
     expect(suggestOwners(["Garage"], members, {})["Garage"]).toBeUndefined();
   });
   it("leaves ambiguous matches undefined", () => {
-    expect(suggestOwners(["Tierra and Sam"], members, {})["Tierra and Sam"]).toBeUndefined();
+    expect(suggestOwners(["Robin and Sam"], members, {})["Robin and Sam"]).toBeUndefined();
   });
   it("does not suggest anyone for an empty collection name or empty display name", () => {
     expect(suggestOwners([""], members, {})[""]).toBeUndefined();
     expect(suggestOwners(["!!!"], [member("u3", "!!!")], {})["!!!"]).toBeUndefined();
   });
   it("prefers a saved member", () => {
-    expect(suggestOwners(["Tierra's Books"], members, { "Tierra's Books": "u2" })).toEqual({
-      "Tierra's Books": "u2",
+    expect(suggestOwners(["Robin's Books"], members, { "Robin's Books": "u2" })).toEqual({
+      "Robin's Books": "u2",
     });
   });
   it("falls back to name matching when the saved member is gone", () => {
-    expect(suggestOwners(["Tierra's Books"], members, { "Tierra's Books": "gone" })).toEqual({
-      "Tierra's Books": "u1",
+    expect(suggestOwners(["Robin's Books"], members, { "Robin's Books": "gone" })).toEqual({
+      "Robin's Books": "u1",
     });
   });
   it("honors saved skip and shared", () => {
-    expect(suggestOwners(["Tierra's Books", "Z"], members, { "Tierra's Books": "skip", Z: "shared" })).toEqual({
-      "Tierra's Books": "skip",
+    expect(suggestOwners(["Robin's Books", "Z"], members, { "Robin's Books": "skip", Z: "shared" })).toEqual({
+      "Robin's Books": "skip",
       Z: "shared",
     });
   });

@@ -6,25 +6,25 @@
 
 ## 1. Intent
 
-A household catalog of the **physical books** Tierra and their partner own. It answers one question: *what physical books do we have?*
+A household catalog of the **physical books** the owner and their partner own. It answers one question: *what physical books do we have?*
 
 It exists because:
 
-- **Picking the next read means walking the house.** There's no central bookshelf; books are spread across rooms. Tierra wants to browse what they own from their phone instead.
+- **Picking the next read means walking the house.** There's no central bookshelf; books are spread across rooms. The owner wants to browse what they own from their phone instead.
 - **Getting books in is painful for anything without a barcode.** libib handles barcode scanning well, but book-box editions (e.g. Fae Crate), older books, and the partner's thrifted/older editions have no scannable ISBN.
 - **They accidentally buy duplicates.** Both partners have bought books the household already owned. A fast "do we own this?" lookup fixes that.
 - **Tome of Secrets (ToS) should source books from it.** Today ToS book selection searches OpenLibrary/Google Books, which is incomplete and requires retyping. Picking from the household library should fill in a quest/TBR book directly.
 
-Success looks like: Tierra and their partner both browse and search one shared catalog on their Android phones; new barcode hauls arrive via a libib re-export; barcode-less books arrive via photos; ToS's book picker offers library books first.
+Success looks like: The owner and their partner both browse and search one shared catalog on their Android phones; new barcode hauls arrive via a libib re-export; barcode-less books arrive via photos; ToS's book picker offers library books first.
 
 ## 2. Goals
 
 1. **Shared household catalog.** One catalog for both partners, both signed in with their existing ToS accounts. Both can read, search, add and edit.
 2. **Book vs. copy model.** One entry per book (work), with any number of physical copies. Example: *Poet Empress* — one Fae Crate copy and one bookstore copy.
-3. **Copy owner tag.** Each copy is tagged as *Tierra's*, *partner's*, or *shared*. This replaces libib's two-collection approach.
+3. **Copy owner tag.** Each copy is tagged as *the owner's*, *partner's*, or *shared*. This replaces libib's two-collection approach.
 4. **Browse view.** Cover wall showing cover, title, author; detail view adds synopsis and the list of copies. The displayed cover may be a stock cover — it does not need to match the owned edition.
 5. **Quick "do we own this?" search** usable while standing in a bookstore.
-6. **Repeatable libib CSV import.** libib stays the barcode scanner. Tierra exports the CSV and re-uploads it as often as they like; the import dedups and adds only what's new (new books and new copies).
+6. **Repeatable libib CSV import.** libib stays the barcode scanner. The owner exports the CSV and re-uploads it as often as they like; the import dedups and adds only what's new (new books and new copies).
 7. **Photo intake pipeline.** Photograph a cover (optionally the title page), single or in batches. The pipeline identifies title/author, fetches metadata online, checks the catalog, and proposes either *add a copy to an existing book* or *create a new book*.
 8. **ToS integration.** ToS's book search checks the household library first, then falls back to its existing OpenLibrary/Google Books search.
 
@@ -60,7 +60,7 @@ id,item_type,title,creators,first_name,last_name,collection,ean_isbn13,upc_isbn1
 
 Profile of the current export:
 
-- 127 rows, all `item_type=book`, all `collection="Tierra's Books"`. **The partner's books are a second collection in the same libib account** (~80 books), exported separately or together and distinguished by `collection`. Same account, so libib `id`s are unique across both collections.
+- 127 rows, all `item_type=book`, all `collection="<owner>'s Books"`. **The partner's books are a second collection in the same libib account** (~80 books), exported separately or together and distinguished by `collection`. Same account, so libib `id`s are unique across both collections.
 - **The partner's libib data is only ~20% of their books** (so roughly 400 total), and about 10% of what was scanned wasn't found. They won't scan the rest. **The photo pipeline is the main intake path for the partner — expect batches of tens to hundreds of photos**, not one-offs.
 - `id` is a short libib-generated id (e.g. `oph5gd0an7`), unique per row — a stable key for re-imports.
 - Every row has `ean_isbn13`; 17 rows have an empty `description`.
@@ -81,7 +81,7 @@ Profile of the current export:
 ### 6.1 App (this repo)
 
 - **Stack mirrors `kinetic-campaigns`:** Vite, React 19, TypeScript, Tailwind 4, Vitest + Testing Library, ESLint, `@supabase/supabase-js`, `lucide-react`. Config via `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` in root `.env` (with `.env.example`).
-- **Development environment:** runs in Docker via **docker-compose**, not a VS Code devcontainer (Tierra works in Orca now, not VS Code). `docker compose` brings up the Node toolchain for `npm run dev` / `npm test` / lint, with the Vite dev server reachable from the host and the Supabase CLI available. The local Supabase stack (`supabase start`) itself runs on Docker, so the compose setup needs access to the host Docker daemon (socket mount) or runs the Supabase services as compose services. Builder's choice which. Running the Supabase CLI on the host (Tierra has it installed in PowerShell) is an acceptable fallback if in-container is impractical.
+- **Development environment:** runs in Docker via **docker-compose**, not a VS Code devcontainer (the owner works in Orca now, not VS Code). `docker compose` brings up the Node toolchain for `npm run dev` / `npm test` / lint, with the Vite dev server reachable from the host and the Supabase CLI available. The local Supabase stack (`supabase start`) itself runs on Docker, so the compose setup needs access to the host Docker daemon (socket mount) or runs the Supabase services as compose services. Builder's choice which. Running the Supabase CLI on the host (the owner has it installed in PowerShell) is an acceptable fallback if in-container is impractical.
 - **Hosting:** GitHub Pages via an Actions workflow equivalent to `kinetic-campaigns/.github/workflows/deploy.yml`.
 - **Installable PWA** for Android: manifest + icons so it can be added to the home screen. Camera capture via `<input type="file" accept="image/*" capture>` (plus multi-select from gallery for batches).
 - **Screens:**
@@ -109,7 +109,7 @@ Conceptual model (exact columns left to the builder, but these concepts must exi
 - Runs in the browser: parse CSV, compute a diff against the catalog, **show a preview** ("N new books, M new copies, K unchanged, J possible matches to review"), then write on confirm.
 - **Matching order:** libib `id` already imported → known copy (skip, or update non-edited fields). Otherwise ISBN-13 matches an existing book (e.g. one that came in via photo) → add a copy to that book. Otherwise → new book + copy.
 - **Copies:** if a known libib row's `copies` count is higher than the number of copies linked to that libib id, add the difference as new copies.
-- **Owner:** derived from the libib `collection` (e.g. "Tierra's Books" → Tierra), with a mapping chosen at import time.
+- **Owner:** derived from the libib `collection` (e.g. "<owner>'s Books" → the owner), with a mapping chosen at import time.
 - **Never overwrite user-edited fields.** Missing descriptions/covers may be backfilled from OpenLibrary/Google.
 - Removal of a row from libib does **not** delete anything in the library (libib is an intake source, not the source of truth).
 
@@ -120,7 +120,7 @@ Conceptual model (exact columns left to the builder, but these concepts must exi
   1. Send image(s) to **Claude Haiku (`claude-haiku-5-5`)** with vision, asking for structured output: title, authors, edition/publisher clues (e.g. "Fae Crate exclusive", sprayed edges), confidence.
   2. Look up metadata by title + author on OpenLibrary, then Google Books (same priority as ToS) for synopsis, ISBNs, stock cover, page count.
   3. Match against the household catalog (ISBN, then normalized title + author with fuzzy matching) and record a proposal: *new copy of book X* or *new book*.
-- **The user confirms each proposal in the inbox** with one tap, or corrects it (pick a different existing book, edit fields, set owner/edition/location). *(Builder/Claude's call, not stated by Tierra: chosen because a silent wrong match is an anti-goal; Tierra's ask was that the pipeline checks for an existing entry and adds a copy rather than a new book, which the proposal does.)*
+- **The user confirms each proposal in the inbox** with one tap, or corrects it (pick a different existing book, edit fields, set owner/edition/location). *(Builder/Claude's call, not stated by the owner: chosen because a silent wrong match is an anti-goal; the owner's ask was that the pipeline checks for an existing entry and adds a copy rather than a new book, which the proposal does.)*
 - Anthropic API key stored as an Edge Function secret, never in the client.
 - Expected cost: well under a cent per book with Haiku.
 
@@ -130,7 +130,7 @@ Conceptual model (exact columns left to the builder, but these concepts must exi
 
 - Add a library search source (e.g. `searchLibrary`) that queries the signed-in user's household books and returns `BookSearchResult`-shaped results, carrying the library book id.
 - **Library results are always shown first, and external results still appear below them** (not "external only when the library is empty"), so a user reading the ebook/audiobook of a book owned in print can still pick external metadata. Library results are visually marked "in our library." *(Claude's call.)*
-- **The library replaces ToS's "Physical TBR" shelf** (decided by Tierra). Today a ToS book has `shelfCategory: 'general' | 'physical-tbr'` (validated in `dataValidator.js`, migrated in `dataMigrator.js`, set in `stateAdapter.js`, edited in `LibraryController.js`, and set to `physical-tbr` by `shoppingRenderer.js` when a purchase is linked). It is not referenced by any game rules in `assets/data/` or the rules Markdown. Replacement:
+- **The library replaces ToS's "Physical TBR" shelf** (decided by the owner). Today a ToS book has `shelfCategory: 'general' | 'physical-tbr'` (validated in `dataValidator.js`, migrated in `dataMigrator.js`, set in `stateAdapter.js`, edited in `LibraryController.js`, and set to `physical-tbr` by `shoppingRenderer.js` when a purchase is linked). It is not referenced by any game rules in `assets/data/` or the rules Markdown. Replacement:
   - ToS books gain an optional link to a library book id (set when picked from library results). The "Physical TBR" badge becomes an "in our library" badge derived from that link; the shelf radio/select in the add/edit book forms is removed.
   - `shelfCategory` is retired through ToS's normal save schema versioning (new version + migration). Existing `physical-tbr` books are kept as books; after migration ToS offers a one-time list of them to match to library books (or leave unlinked). Nothing is auto-created in the library from ToS. *(Claude's call on the mechanics.)*
   - The shopping screen (`shoppingRenderer.js`, which also calls `searchBooks`) shows library results first too, so "already owned" is visible before logging a purchase. A purchased book that isn't in the library is just a normal ToS book; it enters the library through libib or photo intake, not from ToS. *(Claude's call.)*
