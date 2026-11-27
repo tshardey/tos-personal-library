@@ -1277,7 +1277,7 @@ The fake screener calls nothing paid. Gathering calls the real OpenLibrary and G
 ## User checks after rollout
 
 1. **From a book's page:** fix a wrong-language cover in a few taps, with a note. The new cover appears on the wall, and in Tome of Secrets after its next refresh.
-2. **Both of you:** Tierra starts a batch and closes the app; AJ opens the app later. The batch finishes, and the badge shows for both.
+2. **Both of you:** The owner starts a batch and closes the app; the second member opens the app later. The batch finishes, and the badge shows for both.
 3. **Review list:** the best match is already picked on most rows. If most rows need a change, report it, because the screening isn't doing its job (spec anti-goal).
 4. **How many real no-cover books end `Nothing found`:** count them under the Nothing found filter. A high share is the signal for a web-search fallback (D4, follow-up 3).
 5. **A translated book you own:** its new cover is the English translation's, never the original's.

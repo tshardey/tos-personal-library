@@ -30,7 +30,7 @@ beforeEach(() => {
 function fillCreate() {
   fireEvent.change(screen.getByLabelText("Household name"), { target: { value: "Home" } });
   fireEvent.change(screen.getByLabelText("Your name", { selector: "#create-display-name" }), {
-    target: { value: "Tierra" },
+    target: { value: "Robin" },
   });
   fireEvent.click(screen.getByRole("button", { name: /create household/i }));
 }
@@ -49,7 +49,7 @@ describe("HouseholdSetup", () => {
     render(<HouseholdSetup />);
     fillCreate();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    expect(repo.createHousehold).toHaveBeenCalledWith("Home", "Tierra");
+    expect(repo.createHousehold).toHaveBeenCalledWith("Home", "Robin");
   });
 
   it("joins with an invite code then refreshes", async () => {

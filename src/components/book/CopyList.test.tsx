@@ -12,7 +12,7 @@ vi.mock("@/lib/library-repo", () => ({
 import { deleteBook, deleteCopy, setCopyFlags, updateCopy } from "@/lib/library-repo";
 
 const members: HouseholdMember[] = [
-  { householdId: "h", userId: "u1", displayName: "Tierra", createdAt: "" },
+  { householdId: "h", userId: "u1", displayName: "Robin", createdAt: "" },
 ];
 function copy(id: string, ownerUserId: string | null): Copy {
   return {
@@ -49,7 +49,7 @@ describe("CopyList", () => {
 
   it("labels owners by display name or Shared", () => {
     renderList([copy("c1", "u1"), copy("c2", null)]);
-    expect(screen.getByText("Tierra")).toBeInTheDocument();
+    expect(screen.getByText("Robin")).toBeInTheDocument();
     expect(screen.getByText("Shared")).toBeInTheDocument();
   });
 

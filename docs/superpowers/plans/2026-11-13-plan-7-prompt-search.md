@@ -23,7 +23,7 @@
 - **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user. **Tell every subagent this.**
 - **Never commit to, push to or merge `main`. Never merge a PR. Never delete a remote branch.** Every PR is opened by agents and left unmerged.
 - **No Beads.** Don't run `bd` or touch `.beads/`, even though ToS `AGENTS.md` asks for it.
-- **They/them** for Tierra and AJ in every PR body, comment and doc.
+- **They/them** for both household members in every PR body, comment and doc.
 - **ToS owns all migrations and functions.**
   - All ToS work happens in **one new worktree**, `C:/Users/tierr/Github/tome-of-secrets-plan7`, on branch `library-tagging-ask`, created off ToS `origin/main` (Task 1). Below, `<tos-wt>` means that path.
   - Never edit in the ToS main checkout (`C:/Users/tierr/Github/tome-of-secrets`) or any other existing worktree. Reading it with `git -C ... show origin/main:<path>` is fine.
@@ -102,7 +102,7 @@ These settle spec §6 and the brief. Where code and spec disagree, the decision 
   - `library.ai_global_budget_micro(p_feature)`: tagging `5000000`, Ask `2000000`.
   - `library.tag_reserve_micro()`: `80000` provisional, set by Task 2 (below).
   - `library.ask_max_reserve_micro()`: `600000`.
-- **Note for Tierra:** in the first month the per-feature caps add to $12 (covers $5, tagging $5, Ask $2) against the $10 workspace cap. The spec accepts this because covers have cost cents; the workspace cap is the hard stop, and `billing`/`rejected` stop the drain cleanly (D10).
+- **Note for the owner:** in the first month the per-feature caps add to $12 (covers $5, tagging $5, Ask $2) against the $10 workspace cap. The spec accepts this because covers have cost cents; the workspace cap is the hard stop, and `billing`/`rejected` stop the drain cleanly (D10).
 - **Internal helpers,** executable by no client role: `library._ai_reserve(p_household, p_feature, p_micro) returns date` (null when either row would pass its budget; locks the total row, then the household row, as `claim_cover_search` does) and `library._ai_settle(p_household, p_feature, p_month, p_reserved, p_cost, p_uncount boolean)` (refunds `reserved − clamp(cost)` to the reserved month's rows, never below 0).
 - **Tagging reservation, a static ceiling** pinned by a Deno test (`ceilingMicro() <= TAG_RESERVE_MICRO`):
   - input: `ceil(system prompt chars / 3)` + 1 image × 4,800 tokens + vocabulary at its cap (400 household tags + the starting 144, ids only, `ceil(chars / 3)`) + `TEXT_TOKEN_ALLOWANCE` 6,000 (title 200, authors 3 × 60, series 200, description 4,000, card 1,100, all at 1 token per character);
@@ -121,7 +121,7 @@ These settle spec §6 and the brief. Where code and spec disagree, the decision 
 - **Card:** summary and cover description from the reply, `model`, `vocab_version` (the version at claim), `cover_url_seen`, `written_at`. A `new_tags` job only adds tags and updates the card's `vocab_version`.
 - **Suggestions:** at most 3 per book, each with a proposed id, label, category (D3's list) and a why of at most 200 characters. One suggestion per `(household_id, tag_id)` ever:
   - a pending one gains the book;
-  - a **dismissed** one is never suggested again (*why:* Tierra dismisses once);
+  - a **dismissed** one is never suggested again (*why:* The owner dismisses once);
   - an id already in the vocabulary is applied as a tag instead;
   - a malformed id or category is dropped.
 - **Refused ids are dropped silently:** an id outside the allowed lists, a recorded removal, `audio`.
@@ -703,7 +703,7 @@ export interface LibraryTagChange { book: Book; add: string[]; remove: string[] 
 
 ## USER-APPROVED STEP: production rollout (spec §7)
 
-**Agents don't run any of this without Tierra's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps.
+**Agents don't run any of this without the owner's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps.
 
 1. Merge the ToS PR (`library-tagging-ask`).
 2. **`db push`**, from a fresh push worktree at the merged `main` (the Plan 5 recipe: `worktree add --detach`, `link --project-ref`, `db push --dry-run`, confirm the only pending migrations are `..._library-tag-vocabulary` and `..._library-tagging`, then push).
@@ -769,7 +769,7 @@ These record where the build departed from the plan text, and why.
 - **Prompt rule:** broad cover tags give way to specific ones (a wolf cover gets `cover-wolf`, not also `cover-animal`).
 - **Retag selected** (mass edit, shown only when tagging is available) queues `manual` full jobs for the selected books through `retagMany`. Pressing it spends nothing: a confirm step shows the estimate (4,300 µ$ a book), the budget left, and how many books the budget covers. Books that already have an open job aren't counted. It is disabled at the budget cap, with the same copy as the per-book button.
 - **Vocabulary duplicates:** `listVocabulary` keeps one row per id (the household's wins over a shared row), so a shared tag added later can't double a household tag in the pickers.
-- **Retag selected departs from the spec.** Select all + Retag selected goes against the spec line "Retagging every book from scratch is not offered" (`docs/superpowers/specs/2026-11-13-prompt-search-design.md`, ~line 116). Tierra asked for it after the cover vocabulary grew. The no-surprise-spend concern is met by a confirm step that shows the estimate and the remaining budget, and by the server's per-claim budget cap.
+- **Retag selected departs from the spec.** Select all + Retag selected goes against the spec line "Retagging every book from scratch is not offered" (`docs/superpowers/specs/2026-11-13-prompt-search-design.md`, ~line 116). The owner asked for it after the cover vocabulary grew. The no-surprise-spend concern is met by a confirm step that shows the estimate and the remaining budget, and by the server's per-claim budget cap.
 - **ToS reserve change:** the tag reserve rose from 69,000 to 71,000 µ$ (the worst-case ceiling is now 70,509) and VOCAB_CAP is 576. This supersedes the earlier 69,000 note.
 - **`booksCoveredBy`** now counts the last claim's reserve: 0 below `reserveMicro`, else `floor((remaining - reserve) / perBook) + 1`.
 - **Retag all books (2026-11-14).** The Tag suggestions screen now offers **Retag all books (covers too)** after the "Check for new tags" panel, because Check for new tags sends no image and so can never add cover tags. It queues `manual` full jobs through `retagMany`, the same path as Retag selected, behind the same confirm step: the count, the estimate (4,300 µ$ a book), the tagging budget left and, when it falls short, how many books the budget covers. It is disabled at the budget cap and when no book is eligible. The confirm step is now one shared component, `RetagConfirm`, used by both Retag selected and Retag all books. A note under the buttons says Check for new tags can't add cover tags and points to Retag all books. This takes the spec departure above further (the spec said retagging every book from scratch is not offered); the anti-goal "no surprise spend" is still met by the confirm step and the server's per-claim budget cap.

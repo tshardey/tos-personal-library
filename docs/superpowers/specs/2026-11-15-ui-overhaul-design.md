@@ -1,12 +1,12 @@
 # UI overhaul — design
 
-Status: draft for Tierra's review. Date: 2026-11-15.
+Status: draft for the owner's review. Date: 2026-11-15.
 
 ## 1. Intent
 
-The library app works, but it looks and feels like a phone page stretched over every screen, and some features are hard to find. Tierra wants a **simple, clean, dark app** that follows common UI/UX practice. Netflix's layout and Audible's library are the reference points; Bookshelf (squidbit) is liked but is light.
+The library app works, but it looks and feels like a phone page stretched over every screen, and some features are hard to find. The owner wants a **simple, clean, dark app** that follows common UI/UX practice. Netflix's layout and Audible's library are the reference points; Bookshelf (squidbit) is liked but is light.
 
-Tierra's pain points, in their words:
+The owner's pain points, in their words:
 1. Cover size can't be changed. Smaller covers would make picking books in bulk easier.
 2. The top menu items (Library, Scan, Photos, Import) don't say what they're for until you open them.
 3. Some features are hidden in the profile menu: read counts, Tag suggestions (adding tags), Edition labels.
@@ -15,9 +15,9 @@ Tierra's pain points, in their words:
 How it's used:
 - **Phone:** scanning books in, and quick "do we own this?" searches.
 - **Computer:** editing books, finding corrected covers, curating, tagging, and searching for Tome of Secrets prompts (Ask).
-- AJ uses the app too (he doesn't use StoryGraph), mainly on the library and mass edit.
+- The second member uses the app too (he doesn't use StoryGraph), mainly on the library and mass edit.
 
-Success looks like: everything Tierra uses often is visible or one tap away, the search/filter/select controls never scroll out of reach, covers can be sized, and the whole app is consistently dark.
+Success looks like: everything the owner uses often is visible or one tap away, the search/filter/select controls never scroll out of reach, covers can be sized, and the whole app is consistently dark.
 
 ## 2. Goals, non-goals, anti-goals
 
@@ -41,7 +41,7 @@ Success looks like: everything Tierra uses often is visible or one tap away, the
 - A layout that's pretty but slower for the bulk-select and curating jobs on the computer.
 - Low-contrast text (dark themes often fail here).
 
-## 3. Decisions Tierra made (from the mockups)
+## 3. Decisions the owner made (from the mockups)
 
 ### 3.1 Library home: one grid with a slim pinned toolbar (layout B)
 - One full grid of covers. No rows/carousels.
@@ -52,13 +52,13 @@ Success looks like: everything Tierra uses often is visible or one tap away, the
 - Bottom tab bar with icons and labels: **Library, Add, Scan (large centre button), Covers, More**.
 - **Covers** shows a count badge when covers wait for review (replaces today's amber "Covers to review (N)" pill).
 - **More** holds: Reading history, Tag suggestions, Edition labels, and the account (email, invite code if relevant, Sign out).
-  - *2026-11-17 (Tierra):* "Photos and Import are under Add and More. I don't think they need to be under More." They were removed from More (phone sheet and computer menu); Add is the only nav path to them, so `#/inbox` and `#/import` highlight **Add**.
+  - *2026-11-17 (the owner):* "Photos and Import are under Add and More. I don't think they need to be under More." They were removed from More (phone sheet and computer menu); Add is the only nav path to them, so `#/inbox` and `#/import` highlight **Add**.
 - The top of the phone screen keeps only the app title and the pinned toolbar (on screens that have one).
 - On the computer, the same destinations sit in a row across the top; More becomes a dropdown menu.
 
 ### 3.3 Book page: two columns with tabs (option B)
 - Left column: the cover, then the main actions **Edit, Find cover, Mark read**, and a **⋯** menu for the rest (Delete, Add copy, etc.).
-- Right column: title, authors, series line, then tabs: **Overview** (synopsis + "Your reading", with AJ's status alongside), **Copies (n)**, **Tags** (library tags), **Tome of Secrets** (ToS tags).
+- Right column: title, authors, series line, then tabs: **Overview** (synopsis + "Your reading", with the second member's status alongside), **Copies (n)**, **Tags** (library tags), **Tome of Secrets** (ToS tags).
 - On the phone: cover on top, same tabs below.
 
 ### 3.4 Grid cards: cover with title and author underneath (option A)
@@ -75,7 +75,7 @@ Starting values from the mockup (the builder may tune for contrast):
 - Errors use a distinct red, never the accent. Success/read uses a soft green.
 
 ### 3.6 Filters panel on the computer: opens under the toolbar (option A)
-- Opens below the toolbar, in four groups across the width: **Reading** (Unread/Read/DNF, plus For: Me / AJ), **Owner & Copy** (All/Shared/each member; Deluxe/Signed/Unhauled), **Tags & Series** (ToS tags, Library tags, Series), **Edition, Covers & Dates** (Edition, Covers, Published from/to, Date added).
+- Opens below the toolbar, in four groups across the width: **Reading** (Unread/Read/DNF, plus For: Me / Sam), **Owner & Copy** (All/Shared/each member; Deluxe/Signed/Unhauled), **Tags & Series** (ToS tags, Library tags, Series), **Edition, Covers & Dates** (Edition, Covers, Published from/to, Date added).
 - The grid updates live. "Clear all" is in the panel. Closing it leaves only the chips.
 - On the phone the same groups stack in a bottom sheet.
 
@@ -92,7 +92,7 @@ From a read of the code on 2026-11-15:
 - Styling: Tailwind 4, `src/index.css` is only `@import "tailwindcss";`. No theme tokens, no `dark:` classes, colours hard-coded (stone palette). No shared Button/Sheet/Dialog; the sheet pattern is hand-copied in ~8 places. `index.html` theme-color is `#292524`.
 - `#/add` is only reachable from the empty-library state today.
 
-## 5. Claude's calls (Tierra can overrule while reading)
+## 5. Claude's calls (the owner can overrule while reading)
 
 1. **No light mode.** Dark only; the `theme-color` meta and the browser `color-scheme` are set to dark.
 2. **Theme as Tailwind 4 `@theme` tokens** in `index.css` (semantic names like `surface`, `raised`, `text-muted`, `accent`), so colours change in one place.
@@ -123,7 +123,7 @@ From a read of the code on 2026-11-15:
 
 - Library app only (Vite/React 19/TS/Tailwind 4, GitHub Pages). No ToS changes, no schema, no API spend.
 - Public repo: synthetic data only in tests, fixtures, screenshots and PR text.
-- Tierra's standing rules apply (no AI attribution, never touch `main`, Tierra merges).
+- The owner's standing rules apply (no AI attribution, never touch `main`, the owner merges).
 - Pages caches JS for about 10 minutes; hard-refresh after each merge.
 
 ## 8. Mockups

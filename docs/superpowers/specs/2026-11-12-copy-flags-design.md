@@ -1,13 +1,13 @@
 # Plan 6: Unhauled, Deluxe and Signed copies, new filters, result count, scroll position — design
 
-Status: designed with Tierra on 2026-11-12; builder check done and its questions settled as Claude's calls. Awaiting Tierra's review of this document.
+Status: designed with the owner on 2026-11-12; builder check done and its questions settled as Claude's calls. Awaiting the owner's review of this document.
 
 ## 1. Why
 
-- **Unhauling.** Tierra trades books in for store credit and donates originals to free libraries or book exchanges after buying a deluxe edition. Today the only option is deleting the copy, which loses the record that the household once owned it and chose to let it go.
-- **Deluxe and Signed.** Tierra owns many publisher deluxe editions. Today "deluxe" lives only as free text in a copy's edition note (often moved there from the title by the libib import, e.g. "(Deluxe Edition)"). They want a simple on/off toggle for each, with the note kept for anything else.
-- **Date added.** After a bulk import, Tierra wants to check that day's books in one pass.
-- **Counts and publish date.** Tierra wants to see how many books match the current filters, and to filter by publication date.
+- **Unhauling.** The owner trades books in for store credit and donates originals to free libraries or book exchanges after buying a deluxe edition. Today the only option is deleting the copy, which loses the record that the household once owned it and chose to let it go.
+- **Deluxe and Signed.** The owner owns many publisher deluxe editions. Today "deluxe" lives only as free text in a copy's edition note (often moved there from the title by the libib import, e.g. "(Deluxe Edition)"). They want a simple on/off toggle for each, with the note kept for anything else.
+- **Date added.** After a bulk import, the owner wants to check that day's books in one pass.
+- **Counts and publish date.** The owner wants to see how many books match the current filters, and to filter by publication date.
 - **Scroll position.** Opening a book from far down the list and going back returns to the top of the list. This is a bug.
 
 ## 2. What success looks like
@@ -42,33 +42,33 @@ Status: designed with Tierra on 2026-11-12; builder check done and its questions
 
 - **ToS owns all migrations.** The schema change goes in a ToS PR with pgTAP tests; the app goes in a library PR; ToS's own reading of the shelf goes in a second ToS PR (see §7). Production `db push` and any data backfill are user-approved steps that agents never run.
 - Both repos are public. Fixtures and PR text use synthetic titles only.
-- Shared household catalogue for Tierra and AJ; RLS as for the existing `copies` columns.
+- Shared household catalogue for both household members; RLS as for the existing `copies` columns.
 - Phone-first, matching the existing app (Vite, React 19, TypeScript, Tailwind 4) and the ToS Dark Academia look.
 
 ## 5. How it works (decided)
 
-### 5.1 Unhauled (per copy, Tierra)
+### 5.1 Unhauled (per copy, the owner)
 
-- **Unhauling is per copy, not per book** (Tierra). Example: a household keeps a deluxe edition and donates the original; the book stays on the shelf with one copy.
+- **Unhauling is per copy, not per book** (the owner). Example: a household keeps a deluxe edition and donates the original; the book stays on the shelf with one copy.
 - A book is **unhauled** when it has at least one copy and every copy is unhauled. Every other book is **on the shelf**, including a book with no copies at all, so nothing disappears silently. *(Claude's call on the no-copies case.)*
 - **One definition.** The on-shelf rule is defined once in the database (a view or a column the migration adds) and used by the app, the cover finder and ToS, rather than worked out separately in each. *(Claude's call.)*
-- **Main library view and cover wall:** unhauled books are hidden unless the **Unhauled** filter is on (Tierra). The Unhauled filter shows books with any unhauled copy.
-- **Search:** typing in the search box also finds unhauled books (Tierra), so someone in a bookshop can see the household deliberately got rid of a title. Unhauled books are clearly marked "Unhauled" in the results.
+- **Main library view and cover wall:** unhauled books are hidden unless the **Unhauled** filter is on (the owner). The Unhauled filter shows books with any unhauled copy.
+- **Search:** typing in the search box also finds unhauled books (the owner), so someone in a bookshop can see the household deliberately got rid of a title. Unhauled books are clearly marked "Unhauled" in the results.
 - **Book page:** unhauled copies stay listed, marked Unhauled and visually muted, with a toggle to undo. Copy counts in the list count on-shelf copies only. *(Claude's call.)*
 - **Stored as** a nullable `unhauled_at` timestamp, set when toggled on and cleared when toggled off. The app shows it as an on/off toggle; the date is kept for free and can be shown as "Unhauled Nov 12". *(Claude's call: same as a boolean to the person, and the date is useful later.)*
 - **Cover finder:** books with no on-shelf copy are left out of the No cover filter and of batches, so no money is spent on books the household got rid of. *(Claude's call.)*
 - **Imports:** a libib re-import or intake must never clear `unhauled_at` on an existing copy.
 
-### 5.2 Unhauled in Tome of Secrets (Tierra)
+### 5.2 Unhauled in Tome of Secrets (the owner)
 
 - Unhauled books are hidden from ToS's "On our shelf" view, the link-a-book picker and the tidy review, **unless the book is already linked to an existing quest** in the player's save. Those linked books keep working and keep showing where they do today, with a small "Unhauled" mark so the player knows. *(Claude's call.)*
 - ToS reads the shelf directly from the `library` schema (`assets/js/services/LibraryCatalogService.js`), so this needs the copy's `unhauled_at` in that read and a filter in ToS.
 
-### 5.3 Deluxe and Signed (per copy, Tierra)
+### 5.3 Deluxe and Signed (per copy, the owner)
 
 - Two independent toggles on each copy, next to the existing edition note, copy note and the existing field for where the copy came from. Neither changes those fields.
 - Shown as small badges on the copy and, when set on any on-shelf copy, on the book's row. **Deluxe** and **Signed** filters in the list. *(Claude's call on the badges and filters.)*
-- **One-time backfill, shown to Tierra first:** after the production push, Claude runs a read-only query listing copies whose edition note or copy note contains "deluxe" or "special edition" (for Deluxe) or "signed" (for Signed), case-insensitive, and shows Tierra the list privately in chat. Once Tierra rules copies in or out, Claude sets the flags on exactly the approved copies with a one-off update, run with Tierra's go-ahead. The backfill is **not** in the migration, so no titles or ids go in the public repo; the migration is schema only. Note text is left as is. *(Claude's call.)*
+- **One-time backfill, shown to the owner first:** after the production push, Claude runs a read-only query listing copies whose edition note or copy note contains "deluxe" or "special edition" (for Deluxe) or "signed" (for Signed), case-insensitive, and shows the owner the list privately in chat. Once the owner rules copies in or out, Claude sets the flags on exactly the approved copies with a one-off update, run with the owner's go-ahead. The backfill is **not** in the migration, so no titles or ids go in the public repo; the migration is schema only. Note text is left as is. *(Claude's call.)*
 
 ### 5.4 Date added
 
@@ -77,12 +77,12 @@ Status: designed with Tierra on 2026-11-12; builder check done and its questions
 - It follows the same unhauled rule as the rest of the list: unhauled copies count, and their books show, only when the Unhauled filter is on or in search results. *(Claude's call.)*
 - Copies from the original libib import all share the day of that import, not libib's own "date added". That's acceptable for the bulk-import use case.
 
-### 5.5 Result count (Tierra)
+### 5.5 Result count (the owner)
 
 - The list and the cover wall show how many books match what's on screen, for example "42 books", and the number updates as filters and search change. *(Claude's call: books, not copies, since the list shows books; the Date added filter's own menu counts copies, §5.4.)*
 - Hidden unhauled books aren't counted unless the Unhauled filter is on or a search is showing them.
 
-### 5.6 Published filter (Tierra)
+### 5.6 Published filter (the owner)
 
 - Filter by publication **year**, as a from/to year range (either end can be left open). *(Claude's call: a year range covers "new releases" and "older books" without a calendar picker.)*
 - `books.publish_date` is free text from the cover and metadata sources. Today 251 of 256 books have a usable four-digit year in it; most are full dates and some are a year alone. The filter reads the year out of the text. Books with no year are left out while the filter is on.
@@ -105,7 +105,7 @@ Status: designed with Tierra on 2026-11-12; builder check done and its questions
 The new column must exist before any code reads it: ToS selects copy columns by name, and a missing column would blank the whole shelf, not just the new filter. So the ToS work is two PRs. *(Claude's call.)*
 
 1. Merge the ToS migration PR (schema and pgTAP only).
-2. `db push`, with Tierra's go-ahead.
-3. Backfill: Claude shows Tierra the Deluxe and Signed candidates privately, then sets the approved ones with Tierra's go-ahead.
+2. `db push`, with the owner's go-ahead.
+3. Backfill: Claude shows the owner the Deluxe and Signed candidates privately, then sets the approved ones with the owner's go-ahead.
 4. Merge the ToS shelf PR and the library PR. Hard-refresh both sites after the Pages deploys.
-5. Tierra unhauls this week's traded-in copies and checks they're gone from the main view and ToS but still found by search.
+5. The owner unhauls this week's traded-in copies and checks they're gone from the main view and ToS but still found by search.

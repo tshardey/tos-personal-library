@@ -1,17 +1,17 @@
 # Tome of Secrets ↔ library integration — design
 
-Date: 2026-11-10. **Replaces §6.5 of `2026-11-03-personal-library-design.md`.** Calls marked *(Claude's call)* were not stated by Tierra and can be overruled; everything else is Tierra's decision from the 2026-11-10 conversation.
+Date: 2026-11-10. **Replaces §6.5 of `2026-11-03-personal-library-design.md`.** Calls marked *(Claude's call)* were not stated by the owner and can be overruled; everything else is the owner's decision from the 2026-11-10 conversation.
 
 ## 1. Intent
 
-Tome of Secrets (ToS) has drifted into being a second library app. A book that is already on the household shelf, and so already in the library app, gets added to ToS's "Your Library" tab a second time just so it can be linked to a quest. Tierra wants ToS to go back to being the game:
+Tome of Secrets (ToS) has drifted into being a second library app. A book that is already on the household shelf, and so already in the library app, gets added to ToS's "Your Library" tab a second time just so it can be linked to a quest. The owner wants ToS to go back to being the game:
 
 - **The library app owns what the household has**: physical books, both members' copies.
-- **ToS owns what each player reads for quests, and when.** StoryGraph stays Tierra's full reading tracker; ToS doesn't need to track everything (StoryGraph has no public API, so no connection there).
+- **ToS owns what each player reads for quests, and when.** StoryGraph stays the owner's full reading tracker; ToS doesn't need to track everything (StoryGraph has no public API, so no connection there).
 
-Tierra's monthly ritual drives the design: sit at the computer, roll/draw the month's quests, browse the library app for books that fit, then **link a book to a quest directly from the quest** in ToS, without importing it into ToS's Library tab first.
+The owner's monthly ritual drives the design: sit at the computer, roll/draw the month's quests, browse the library app for books that fit, then **link a book to a quest directly from the quest** in ToS, without importing it into ToS's Library tab first.
 
-About 80% of Tierra's quest books come from the shelf. The rest are her own Kindle and Audible purchases (personal, not shareable with AJ, so they don't belong in the household library) and occasional public-library loans. AJ sometimes plays ToS with his own character.
+About 80% of the owner's quest books come from the shelf. The rest are her own Kindle and Audible purchases (personal, not shareable with the second member, so they don't belong in the household library) and occasional public-library loans. The second member sometimes plays ToS with his own character.
 
 ## 2. Goals
 
@@ -27,7 +27,7 @@ About 80% of Tierra's quest books come from the shelf. The rest are her own Kind
 - Ebooks and audiobooks in the household library. The library stays physical.
 - ToS tracking reading outside quests, or syncing with StoryGraph.
 - Creating household library entries from ToS. Physical books enter the library through libib import, photos or scanning.
-- Linking a quest from inside the library app (Tierra links from the quest). *(Claude's call: a small read-only "Linked to a quest" hint on the library book page is out of scope too; revisit later.)*
+- Linking a quest from inside the library app (the owner links from the quest). *(Claude's call: a small read-only "Linked to a quest" hint on the library book page is out of scope too; revisit later.)*
 - Per-person tags.
 
 ## 4. Anti-goals
@@ -47,14 +47,14 @@ About 80% of Tierra's quest books come from the shelf. The rest are her own Kind
 - Book search is `searchBooks` in `services/BookMetadataService.js` (OpenLibrary, then Google Books), called from the Library add form and edit drawer.
 - The Library tab markup is `_includes/character-sheet/tabs/library.html` (Reading / Completed / Other). `LibraryController.renderBooks()` returns early unless all three containers exist, so removing markup needs care.
 - Library schema: `library.books` (household-scoped: `title`, `authors text[]`, `isbn13[]`, `isbn10[]`, `cover_url`, `synopsis`, `page_count`, …) and `library.copies` (owner, edition_note, copy_note, origin `libib|photo|manual|scan`), with RLS to household members. Both apps share one origin (`tshardey.github.io`) and the same Supabase session.
-- Tierra's ToS library today: 5 Reading (1 ebook, 2 audiobooks, 2 physical), about 45 Other, and the Physical TBR mark on over half of all books. Completed books exist too (shown by year).
+- The owner's ToS library today: 5 Reading (1 ebook, 2 audiobooks, 2 physical), about 45 Other, and the Physical TBR mark on over half of all books. Completed books exist too (shown by year).
 - ToS process: migrations live in ToS, are developed against a local stack with pgTAP tests, and reach production only through a user-approved `db push`. ToS code changes go on feature branches with a subagent review; no Beads.
 
 ## 6. Decided approach
 
 ### 6.1 Book types in ToS
 
-- Every ToS book gets a **type**: `shelf` (a household library book), `audiobook`, `ebook`, or `library-loan`. *(Claude's call on the names and on one field: a loaned audiobook is filed as Audiobook; Tierra's loans today are physical.)*
+- Every ToS book gets a **type**: `shelf` (a household library book), `audiobook`, `ebook`, or `library-loan`. *(Claude's call on the names and on one field: a loaned audiobook is filed as Audiobook; the owner's loans today are physical.)*
 - A `shelf` book carries a `libraryBookId` pointing at `library.books.id`. It is a lightweight record ToS creates behind the scenes when a shelf book is linked to a quest, so quests, rewards, completion and completed-by-year keep working unchanged. **It never appears in the Audiobooks / Ebooks / Library books lists**, only in Completed once done. *(Claude's call: this keeps every existing quest/reward code path intact instead of teaching each one about library ids.)* Title, author, cover and page count are copied from the library book when linked and refreshed when the library is reachable.
 - **Audiobook replaces the manual "Audiobook" tag.** A book of type `audiobook` counts as having the `audio` tag wherever tags are evaluated (rewards, bonus cards, applicable-tag picker), and the picker no longer offers `audio` as a manual tag. Existing books tagged `audio` become type `audiobook` in the migration. Any current or future effect on `audio` sees audiobooks exactly as if tagged.
 - `status` stays internally as completed/not completed. The Reading and Other sections, the status choice in the Add form and edit drawer, and `shelfCategory` (Physical TBR) are removed through a schema version bump and migration. A book in progress is simply one linked to an active quest.
@@ -86,7 +86,7 @@ About 80% of Tierra's quest books come from the shelf. The rest are her own Kind
 Runs per player, once, after the schema version bump, as a review screen (it can be postponed but not skipped forever *(Claude's call)*):
 
 - ToS matches each of the player's books against the household library: ISBN is not stored in ToS today, so matching is by normalised title + author, reusing the library app's similarity approach; strong matches are pre-selected, weaker ones suggested, none applied silently.
-- **Matched, but not linked to any quest, not completed, and in no series** (most of Tierra's roughly 45 "Other" books): **removed from ToS** (decided by Tierra). They live in the library app; their tags are first merged into the library's shared tags.
+- **Matched, but not linked to any quest, not completed, and in no series** (most of the owner's roughly 45 "Other" books): **removed from ToS** (decided by the owner). They live in the library app; their tags are first merged into the library's shared tags.
 - **Matched, otherwise:** become `shelf` books linked to that library book. Their tags are merged into the library's shared tags (union). Quest links, completion dates and curriculum links are untouched.
 - **Unmatched:** the player chooses Audiobook, Ebook, Library book, Physical not in the library yet, link to a library book by hand, or drop. Books tagged `audio` default to Audiobook. Dropping is not offered for a book linked to a quest (active or archived) or completed. *(Claude's call: protects history.)*
 - `shelfCategory` is retired regardless of the choice; "it's on our shelf" now comes from the link.
@@ -98,11 +98,11 @@ Removed. ToS `main` no longer has a shopping page (the dollar economy, schema 18
 
 ### 6.7 Two players, offline, signed out
 
-- AJ's ToS save is separate (his own `tos_saves` row); shelf links and shared tags work the same for him, and the tags are shared through the library.
+- The second member's ToS save is separate (his own `tos_saves` row); shelf links and shared tags work the same for him, and the tags are shared through the library.
 - Library lookups in ToS must time out quickly and degrade to "On our shelf unavailable" plus online search. Nothing in ToS blocks on the library.
 - Signed-out or no household: no shelf results, no shared tags; types and the cleaned-up Library tab still apply.
 
-### 6.8 Series in the library app (requested by Tierra)
+### 6.8 Series in the library app (requested by the owner)
 
 - Each library book gets an optional **series**: an editable dropdown of series names, built from the names the household has already used, like the edition picker, with "Add 'X'". *(Claude's call: plus an optional volume number, for sorting.)* It is separate from the Tome of Secrets tags.
 - It is editable on the library book page, and filterable in the library ("show the rest of this series").

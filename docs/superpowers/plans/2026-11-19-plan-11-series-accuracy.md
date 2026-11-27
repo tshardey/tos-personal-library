@@ -23,16 +23,16 @@
 
 ## Global Constraints
 
-- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (tierra.duffield@gmail.com). **Tell every subagent this.**
+- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (see `git config user.email`). **Tell every subagent this.**
 - **Never commit to, push to or merge `main`. Never merge a PR. Never delete a remote branch.** Agents open every PR and leave it unmerged.
 - **No Beads.** Don't run `bd` or touch `.beads/`, even though ToS `AGENTS.md` asks for it.
-- **They/them** for Tierra and AJ in every PR body, comment and doc.
+- **They/them** for both household members in every PR body, comment and doc.
 - **ToS owns the migration and the function.**
   - All ToS work happens in **one new worktree**, `C:/Users/tierr/Github/tome-of-secrets-plan11`, on branch `library-series-accuracy`, created off ToS `origin/main` (Task 1). Below, `<tos-wt>` means that path. An Orca-provided worktree is fine if its branch is pushed as `library-series-accuracy` (Plan 10 build note).
   - Never edit, switch or commit in the ToS main checkout (`C:/Users/tierr/Github/tome-of-secrets`). Reading it with `git -C ... show origin/main:<path>` is fine.
   - The library repo adds no migrations and no `supabase/` directory.
 - **Production changes happen only in the USER-APPROVED steps, which agents never run:** `db push` and `functions deploy`. Never point a tool at the production project.
-- **Real Anthropic calls happen only in Task 6.** It is pre-approved by Tierra up to **$0.50**, but still needs the coordinator's OK at that moment. Every other test stubs `fetch` or uses the fake tagger.
+- **Real Anthropic calls happen only in Task 6.** It is pre-approved by the owner up to **$0.50**, but still needs the coordinator's OK at that moment. Every other test stubs `fetch` or uses the fake tagger.
 - **API keys:** never print, echo, `cat` or log a key or an env file. Task 6 passes `C:/Users/tierr/Github/tome-of-secrets/.env` to `docker run --env-file` and never opens it. The key in that file is quoted and `--env-file` keeps the quotes, so the harness strips one pair of surrounding quotes **in memory** before building the client (Plan 10 build note).
 - **Open Library:** unit tests stub `fetch`. The only live Open Library calls are the ones Task 6's harness makes for invented ISBNs (free). The request sends no user data, only the ISBN, and a generic `User-Agent: tos-library-tagger` (no email).
 - **Docker:** leave other containers alone. Before `supabase start`, run `docker ps --filter name=supabase`. If a stack from another worktree is running, **don't stop it**: ask the coordinator (`orca orchestration ask`) and wait for a yes. Run `db reset` from `<tos-wt>` so the new migration is applied.
@@ -63,7 +63,7 @@ These settle design §6 and the brief.
 | ToS | `library-series-accuracy` off ToS `origin/main` | Tasks 1–7 | Nothing until the push. After the push, the author rule and per-book dismissal are live; after the deploy, the new evidence, the unsure state and search are live |
 | Library | `tshardey/series-accuracy` (holds the design and this plan) → `main` | Tasks 8–11 | "Add to your series", the new estimates, the Find covers now note |
 
-- **Order:** ToS PR merge → **coordinator rollout gate** (§4.5; USER-APPROVED section, step 2) → production `db push` → `functions deploy library-tagger` (both with Tierra's go-ahead, run by the coordinator) → library PR merge → hard-refresh.
+- **Order:** ToS PR merge → **coordinator rollout gate** (§4.5; USER-APPROVED section, step 2) → production `db push` → `functions deploy library-tagger` (both with the owner's go-ahead, run by the coordinator) → library PR merge → hard-refresh.
 - **The push comes before the deploy, and the deploy before the library merge.**
 - **Behaviour when one side isn't live:**
   - **Pushed, function not deployed:** the author rule, per-book dismissal and the re-check reset are live, because they are SQL. The old handler ignores the new `same_author` claim column and sends no `seriesStatus`, so `finish_tag_job` behaves as Plan 10 (a series key marks the book checked; null applies nothing). No follow-ups are queued. The old handler never searches.
@@ -176,7 +176,7 @@ and this status line at the end:
   - no `pending` row in `series_suggestion_books` on a suggestion that is listed (a `new` row with status `pending`, or any `existing` row);
   - and either another household book that shares a non-empty author key **and** has a series, or `char_length(coalesce(synopsis, '')) < 100`.
 - It returns the number cleared. The migration's last statement is `select library._series_recheck_reset();`.
-- *Why a migration step:* the rollout gate (USER-APPROVED step 2) already puts the wrong-fill fixes before the push, and the push is the moment Tierra approves. An RPC would need either a client grant or a service-role run against production. Being a function, the selection is still pgTAP-testable. A local `db reset` runs it against an empty database, which is harmless.
+- *Why a migration step:* the rollout gate (USER-APPROVED step 2) already puts the wrong-fill fixes before the push, and the push is the moment the owner approves. An RPC would need either a client grant or a service-role run against production. Being a function, the selection is still pgTAP-testable. A local `db reset` runs it against an empty database, which is harmless.
 - It queues nothing. Find series then offers those books, with the estimate, behind its Confirm.
 
 **D12. The screen (§4.1, §4.6).**
@@ -391,7 +391,7 @@ export type SeriesCall = { kind: "ok"; status: SeriesStatus; series: RawSeries; 
 ### Task 6: Measurement and the mechanism choice (real API, pre-approved to $0.50)
 
 **Ask the coordinator first** (`orca orchestration ask`) and end the turn until the answer arrives. Name:
-- the bound: **at most $0.50** on the shared key, pre-approved by Tierra. Expected: about $0.30 (below);
+- the bound: **at most $0.50** on the shared key, pre-approved by the owner. Expected: about $0.30 (below);
 - that the key is passed by `docker run --env-file C:/Users/tierr/Github/tome-of-secrets/.env`, never opened, and its quotes stripped in memory;
 - that only the invented books in `fixtures/series-accuracy-synthetic.ts` are used, and their invented ISBNs are checked to 404 on Open Library first.
 
@@ -529,13 +529,13 @@ export const FULL_TAG_PER_BOOK_ESTIMATE_MICRO: number;   // TAG + ceil(rate × s
 
 ## USER-APPROVED STEP: production rollout
 
-**Agents don't run any of this without Tierra's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps. The coordinator runs them.
+**Agents don't run any of this without the owner's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps. The coordinator runs them.
 
-1. **Tierra merges the ToS PR** (`library-series-accuracy`).
-2. **Rollout gate (§4.5).** Tierra has fixed the wrong cross-author fills by hand. The coordinator re-runs the read-only cross-author check against production (counts and ids only, nothing printed into a public repo) and confirms that only legitimate rows remain, such as the same author written two ways. **If any other row remains, stop here.** Then ask Tierra for the go-ahead, noting that the push clears the "checked once" marker on the likely misses (about 40 books).
-3. **`db push`, with Tierra's go-ahead,** from a fresh push worktree at the merged `main`: `worktree add --detach`, `link --project-ref`, `db push --dry-run`; confirm the only pending migration is `..._library-series-accuracy`; push. The migration's last statement reports the number of markers cleared.
-4. **`functions deploy library-tagger`, with Tierra's go-ahead,** from the same worktree. `secrets list` confirms `ANTHROPIC_API_KEY`; no secret changes. Remove the push worktree.
-5. **Tierra merges the library PR,** then hard-refreshes (GitHub Pages caches JS for about 10 minutes).
+1. **The owner merges the ToS PR** (`library-series-accuracy`).
+2. **Rollout gate (§4.5).** The owner has fixed the wrong cross-author fills by hand. The coordinator re-runs the read-only cross-author check against production (counts and ids only, nothing printed into a public repo) and confirms that only legitimate rows remain, such as the same author written two ways. **If any other row remains, stop here.** Then ask the owner for the go-ahead, noting that the push clears the "checked once" marker on the likely misses (about 40 books).
+3. **`db push`, with the owner's go-ahead,** from a fresh push worktree at the merged `main`: `worktree add --detach`, `link --project-ref`, `db push --dry-run`; confirm the only pending migration is `..._library-series-accuracy`; push. The migration's last statement reports the number of markers cleared.
+4. **`functions deploy library-tagger`, with the owner's go-ahead,** from the same worktree. `secrets list` confirms `ANTHROPIC_API_KEY`; no secret changes. Remove the push worktree.
+5. **The owner merges the library PR,** then hard-refreshes (GitHub Pages caches JS for about 10 minutes).
 6. **First use:** Tag suggestions → Series → Find series shows the re-check count and estimate. Confirm only if they look right (design expectation: about 40 books, roughly $1–2 even if every one searches). Afterwards compare the spend with the Anthropic Console.
 
 ## User checks after rollout
@@ -586,9 +586,9 @@ export const FULL_TAG_PER_BOOK_ESTIMATE_MICRO: number;   // TAG + ceil(rate × s
 4. The brief's Reed Three dismiss example fills directly, because after Reed One and Reed Two are approved A. Reed is in the series. The e2e dismisses a Petra Wynnecombe book (Fenn Three) instead; its retag step retags Fenn Three, its same-author step finishes Holt Two (M. Holt), and its unsure step uses Mire One (A. Reed).
 5. The Find covers now note assertion lives in `e2e/cover-batch.spec.ts`, because `mass-edit.spec.ts` has no Find covers now flow.
 6. The server returns a suggestion's books in no fixed order, so the series e2e is order-insensitive. Sorting the books in the Series section is a follow-up.
-7. **Estimates lowered from production (2026-11-22).** A production Find series run of 282 series checks (read-only, counts only, 2026-11-21) cost $1.01 in all: 3,720 µ$ per book on average for done jobs (failed ones averaged 2,073), against the estimate of 17,100. Only 17 of 256 finished checks needed a web search (about 7%); the largest searched check cost 42,904 µ$. With Tierra's approval, `SERIES_PER_BOOK_ESTIMATE_MICRO` goes from 17,100 to 5,000 (measured plus margin) and `UNSURE_FOLLOWUP_RATE` from 0.3 to 0.1 (measured plus margin), which answers note 3. `SERIES_SEARCH_JOB_ESTIMATE_MICRO` (36,700) and `TAG_PER_BOOK_ESTIMATE_MICRO` (6,800) stay, so the derived `FULL_TAG_PER_BOOK_ESTIMATE_MICRO` goes from 17,810 to 10,470.
+7. **Estimates lowered from production (2026-11-22).** A production Find series run of 282 series checks (read-only, counts only, 2026-11-21) cost $1.01 in all: 3,720 µ$ per book on average for done jobs (failed ones averaged 2,073), against the estimate of 17,100. Only 17 of 256 finished checks needed a web search (about 7%); the largest searched check cost 42,904 µ$. With the owner's approval, `SERIES_PER_BOOK_ESTIMATE_MICRO` goes from 17,100 to 5,000 (measured plus margin) and `UNSURE_FOLLOWUP_RATE` from 0.3 to 0.1 (measured plus margin), which answers note 3. `SERIES_SEARCH_JOB_ESTIMATE_MICRO` (36,700) and `TAG_PER_BOOK_ESTIMATE_MICRO` (6,800) stay, so the derived `FULL_TAG_PER_BOOK_ESTIMATE_MICRO` goes from 17,810 to 10,470.
 
 ## Open questions for the coordinator
 
-1. **A book gets at most one searched check until its marker is cleared again (D9).** A later Retag this book that is still unsure won't search again, so the series stays blank. That keeps spend bounded and can't loop, but Tierra may expect Retag to try harder. **Default if unanswered:** as written; Retag still re-checks without search.
+1. **A book gets at most one searched check until its marker is cleared again (D9).** A later Retag this book that is still unsure won't search again, so the series stays blank. That keeps spend bounded and can't loop, but the owner may expect Retag to try harder. **Default if unanswered:** as written; Retag still re-checks without search.
 2. **`ai_budget.reserve_micro` becomes the series reserve (about $0.15, provisional) (D10).** Tagging then shows "budget used up" about $0.07 earlier than today in a month near the cap, and the "covers about n books" lines drop slightly. **Default if unanswered:** as written, because any run can now queue a searched check.

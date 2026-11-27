@@ -24,10 +24,10 @@
 
 ## Global Constraints
 
-- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (tierra.duffield@gmail.com). **Tell every subagent this.**
+- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (see `git config user.email`). **Tell every subagent this.**
 - **Never commit to, push to or merge `main`. Never merge a PR. Never delete a remote branch.** Agents open every PR and leave it unmerged.
 - **No Beads.** Don't run `bd` or touch `.beads/`, even though ToS `AGENTS.md` asks for it.
-- **They/them** for Tierra and AJ in every PR body, comment and doc.
+- **They/them** for both household members in every PR body, comment and doc.
 - **ToS owns the migration and the function.**
   - All ToS work happens in **one new worktree**, `C:/Users/tierr/Github/tome-of-secrets-plan10`, on branch `library-series-suggestions`, created off ToS `origin/main` (Task 1). Below, `<tos-wt>` means that path.
   - Never edit, switch or commit in the ToS main checkout (`C:/Users/tierr/Github/tome-of-secrets`). Reading it with `git -C ... show origin/main:<path>` is fine.
@@ -64,7 +64,7 @@ These settle design §6 and the brief.
 | ToS | `library-series-suggestions` off ToS `origin/main` | Tasks 1–5 | Nothing until the push and the deploy. After both, new and retagged books get series, and new names queue as suggestions that no screen shows yet |
 | Library | `tshardey/series-design` (holds the design and this plan) → `main` | Tasks 6–10 | The Series section, Find series, and the count on the More link |
 
-- **Merge and deploy order:** ToS PR merge → production `db push` → `functions deploy library-tagger` (both with Tierra's go-ahead, run by the coordinator) → library PR merge → hard-refresh.
+- **Merge and deploy order:** ToS PR merge → production `db push` → `functions deploy library-tagger` (both with the owner's go-ahead, run by the coordinator) → library PR merge → hard-refresh.
 - **Rollback matrix:**
   - **Library PR live before the push:** the series reads fail with `42P01`/`PGRST205` (the tables are missing) or `42703` (the `series_checked_at` column is missing). Only `seriesAvailable` becomes false, so the Series section, Find series and the series part of the count stay hidden. **Tagging, Ask and tag suggestions work as before.** The series reads are deliberately kept out of the tagging `load()` `Promise.all` (D9), because a failure there would hide all of tagging.
   - **Pushed, function not deployed:**
@@ -507,7 +507,7 @@ export interface Tagger { tag(input: TagInput): Promise<TagCall>; findSeries(inp
   - `SERIES_SYSTEM_PROMPT` mentions household names even when none are sent;
   - `p_volumes` keys must be lowercase;
   - optional extra pgTAP cases.
-- **Production (2026-11-18 00:3x UTC, coordinator, with Tierra's go-ahead):** `db push` applied `20261117223339_library-series-suggestions.sql`, and `library-tagger` was deployed (v4, verify_jwt true; an unauthenticated POST returns 401).
+- **Production (2026-11-18 00:3x UTC, coordinator, with the owner's go-ahead):** `db push` applied `20261117223339_library-series-suggestions.sql`, and `library-tagger` was deployed (v4, verify_jwt true; an unauthenticated POST returns 401).
 
 ## Library PR
 
@@ -734,15 +734,15 @@ dismissSeries(id: string): Promise<void>;          // then reload series
 
 ## USER-APPROVED STEP: production rollout
 
-**Agents don't run any of this without Tierra's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps. The coordinator runs them.
+**Agents don't run any of this without the owner's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps. The coordinator runs them.
 
-1. **Tierra merges the ToS PR** (`library-series-suggestions`).
-2. **`db push`, with Tierra's go-ahead,** from a fresh push worktree at the merged `main`:
+1. **The owner merges the ToS PR** (`library-series-suggestions`).
+2. **`db push`, with the owner's go-ahead,** from a fresh push worktree at the merged `main`:
    - `worktree add --detach`, `link --project-ref`, `db push --dry-run`;
    - confirm the only pending migration is `..._library-series-suggestions`;
    - push.
-3. **`functions deploy library-tagger`, with Tierra's go-ahead,** from the same worktree. `secrets list` confirms `ANTHROPIC_API_KEY`; no secret changes. Remove the push worktree.
-4. **Tierra merges the library PR,** then hard-refreshes (GitHub Pages caches JS for about 10 minutes).
+3. **`functions deploy library-tagger`, with the owner's go-ahead,** from the same worktree. `secrets list` confirms `ANTHROPIC_API_KEY`; no secret changes. Remove the push worktree.
+4. **The owner merges the library PR,** then hard-refreshes (GitHub Pages caches JS for about 10 minutes).
 5. **First use:** Find series shows the count and estimate. Confirm only if the estimate looks right. Check a few filled books and the Series suggestions against the Anthropic Console's cost.
 
 ## User checks after rollout

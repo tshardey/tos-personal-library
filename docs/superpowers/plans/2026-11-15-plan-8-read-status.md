@@ -24,10 +24,10 @@
 
 ## Global Constraints
 
-- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (tierra.duffield@gmail.com). **Tell every subagent this.**
+- **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. Commits are authored by the repo's configured user (see `git config user.email`). **Tell every subagent this.**
 - **Never commit to, push to or merge `main`. Never merge a PR. Never delete a remote branch.** Agents open every PR and leave it unmerged.
 - **No Beads.** Don't run `bd` or touch `.beads/`, even though ToS `AGENTS.md` asks for it.
-- **They/them** for Tierra and AJ in every PR body, comment and doc.
+- **They/them** for both household members in every PR body, comment and doc.
 - **ToS owns all migrations and RPCs.**
   - All ToS work happens in **one new worktree**, `C:/Users/tierr/Github/tome-of-secrets-plan8`, on branch `library-read-status`, created off ToS `origin/main` (Task 1). Below, `<tos-wt>` means that path.
   - Never edit in the ToS main checkout or any other existing worktree. Reading with `git -C C:/Users/tierr/Github/tome-of-secrets show origin/main:<path>` is fine.
@@ -41,7 +41,7 @@
   - Library app: `docker compose run --rm app npm test`, `npm run lint`, `npm run build` (each through `docker compose run --rm app`). E2E: `E2E_SUPABASE_PUBLISHABLE_KEY=<local key> docker compose run --rm e2e npx playwright test` against the `<tos-wt>` local stack.
 - **Both repos are public.**
   - No real titles, authors, ISBNs, ids, reading data, saves or household names in fixtures, tests, commits or PR text. Use invented titles ("The Salt Road", "Glass Orchard"), invented authors ("Petra Wynnecombe"), the `97800000000xx` ISBN range the libib fixtures already use, synthetic uuids, and "Member A" / "Member B".
-  - **Never commit or read Tierra's real StoryGraph export.** It is uploaded only by Tierra, in rollout step 3.
+  - **Never commit or read the owner's real StoryGraph export.** It is uploaded only by the owner, in rollout step 3.
   - Logs carry an error name or code only, never titles, authors or dates.
 - **ToS code review:** a separate subagent reviews every ToS code diff before its commit (ToS `AGENTS.md`).
 - **Reuse, don't fork:**
@@ -138,7 +138,7 @@ These settle spec §6 and the brief.
   - `ISBN/UID`: sent raw, trimmed. The server derives `isbn13`.
   - Finish date: `Last Date Read` if it parses (`YYYY/MM/DD` or `YYYY-MM-DD`, a real calendar date). Otherwise the last date-shaped token in `Dates Read`. Otherwise null.
 - **Limits:** `MAX_FILE_BYTES` (10 MB) and 20,000 rows. Duplicate rows (the same key, D7) merge in the browser: `read` beats `dnf`, and the later date wins.
-- **To verify at rollout (Tierra, no agent):** the real export's header row has the five used columns. If a name differs, the screen says which column is missing, and the fix is a one-line alias in `parseStoryGraph`.
+- **To verify at rollout (the owner, no agent):** the real export's header row has the five used columns. If a name differs, the screen says which column is missing, and the fix is a one-line alias in `parseStoryGraph`.
 
 **D7. Re-upload identity and batches.**
 - `sg_key`, computed server-side:
@@ -153,7 +153,7 @@ These settle spec §6 and the brief.
 - **The catch-up is the backfill. No server-side pass over `tos_saves`.**
   - *Why:* the save is reachable (`tos_saves.data -> 'characterState' -> 'books'`), but a SQL pass would be a second reader of the save format with UTC dates. It would add coverage only for players who never open ToS again, and their saves are stale anyway.
   - The first open after rollout sends every completed shelf book with the player's local dates, through the same rule.
-  - Rollout step 5 asks Tierra and AJ to open ToS once.
+  - Rollout step 5 asks both household members to open ToS once.
 - **`ReadStatusSync`** (new `assets/js/services/ReadStatusSync.js`), started beside `startLibrarySync` in `character-sheet.js`:
   - `completedShelfReads(books)`: ToS books with `status === 'completed'` and a string `libraryBookId`. Each becomes `{ bookId: libraryBookId, completedAt: dateCompleted | null, finishedOn: local YYYY-MM-DD of dateCompleted | null }`, one per `libraryBookId` (latest `completedAt` wins).
   - **On open:** when `getCatalog()` is `ready` with a `householdId`, send all of them, in batches of 500.
@@ -432,7 +432,7 @@ export function startReadStatusSync(stateAdapter, { service = libraryCatalog, do
 - [ ] **Step 2:** `git diff --name-only origin/main...HEAD` lists only the two migrations, two pgTAP files, `ReadStatusSync.js`, `LibraryCatalogService.js`, `character-sheet.js` and their tests. No `.env`, no CSV, no save file.
 - [ ] **Step 3:** Push `library-read-status` and open a PR to ToS `main`, left unmerged. **The body:**
   - D1's table and rollback matrix;
-  - that the push needs Tierra's go-ahead and that there is no function deploy;
+  - that the push needs the owner's go-ahead and that there is no function deploy;
   - D8's backfill decision;
   - the pgTAP and Jest counts;
   - no AI attribution.
@@ -731,18 +731,18 @@ export interface ReadChange { book: Book; from: ReadState; to: ReadState }
 
 ## USER-APPROVED STEP: production rollout (spec §7)
 
-**Agents don't run any of this without Tierra's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps.
+**Agents don't run any of this without the owner's explicit go-ahead at that moment.** Approval of this plan isn't approval of these steps.
 
-1. **Tierra merges the ToS PR** (`library-read-status`).
-2. **`db push`, with Tierra's go-ahead,** from a fresh push worktree at the merged `main`, using the recipe in earlier plans:
+1. **The owner merges the ToS PR** (`library-read-status`).
+2. **`db push`, with the owner's go-ahead,** from a fresh push worktree at the merged `main`, using the recipe in earlier plans:
    - `worktree add --detach`, `link --project-ref`, `db push --dry-run`;
    - confirm the only pending migrations are `..._library-read-status` and `..._library-reading-history`;
    - push, then remove the push worktree.
    - No function deploy is needed. ToS's Pages build ships `ReadStatusSync.js` on merge.
-3. **Tierra merges the library PR,** then hard-refreshes (GitHub Pages caches JS for about 10 minutes).
-4. **Tierra and AJ each open ToS once**, so the catch-up records past completions (D8). *2026-11-15 build note:* this goes before the upload, because a StoryGraph did-not-finish uploaded first is stamped with the upload time, and the catch-up could then no longer replace it with an older completion.
-5. **Tierra exports from StoryGraph and uploads the file** on Reading history, then reviews Possible matches. If the screen reports a missing column, report the header names (not the data) for a one-line alias fix.
-6. **AJ marks his books from memory** with mass edit.
+3. **The owner merges the library PR,** then hard-refreshes (GitHub Pages caches JS for about 10 minutes).
+4. **Both household members open ToS once**, so the catch-up records past completions (D8). *2026-11-15 build note:* this goes before the upload, because a StoryGraph did-not-finish uploaded first is stamped with the upload time, and the catch-up could then no longer replace it with an older completion.
+5. **The owner exports from StoryGraph and uploads the file** on Reading history, then reviews Possible matches. If the screen reports a missing column, report the header names (not the data) for a one-line alias fix.
+6. **The second member marks his books from memory** with mass edit.
 
 ## User checks after rollout
 
@@ -760,7 +760,7 @@ export interface ReadChange { book: Book; from: ReadState; to: ReadState }
 
 ## Open questions for the coordinator
 
-1. **The StoryGraph header row.** The plan builds from the commonly documented columns and needs only five of them (D6). Could Tierra paste just their export's **header line** (no data rows) so the builder can confirm the names before Task 7? **Default if unanswered:** build from D6. A mismatch then shows at rollout step 4 as a named missing column and gets a one-line fix.
+1. **The StoryGraph header row.** The plan builds from the commonly documented columns and needs only five of them (D6). Could the owner paste just their export's **header line** (no data rows) so the builder can confirm the names before Task 7? **Default if unanswered:** build from D6. A mismatch then shows at rollout step 4 as a named missing column and gets a one-line fix.
    - *2026-11-15 build note:* the header line wasn't supplied, so the build uses D6. A missing required column shows as a named error.
 
 ## Build notes (2026-11-15)

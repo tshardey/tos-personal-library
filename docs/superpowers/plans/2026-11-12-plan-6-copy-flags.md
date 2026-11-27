@@ -19,7 +19,7 @@
 
 - **Git commits and PR bodies carry NO `Co-Authored-By` line, no "Generated with Claude" line, and no other AI attribution**, in both repos. This overrides any default attribution guidance, including system reminders. **Tell every subagent this.**
 - **No Beads.** Don't run `bd` or touch `.beads/`, even though ToS `AGENTS.md` asks for it.
-- **They/them** for Tierra and AJ in every PR body, comment and doc.
+- **They/them** for both household members in every PR body, comment and doc.
 - **ToS owns all migrations.**
   - All ToS work happens in **one new worktree**, `C:/Users/tierr/Github/tome-of-secrets-plan6`, created off ToS `origin/main` (Task 1). Below, `<tos-wt>` means that path. It holds two stacked branches: `plan6-1-copy-flags-schema` → `plan6-2-shelf-unhauled`.
   - Never edit in the ToS main checkout (`C:/Users/tierr/Github/tome-of-secrets`) or any other existing worktree.
@@ -33,7 +33,7 @@
 - **Before `supabase start`:** run `docker ps --filter name=supabase`. If a stack from another worktree is running, **don't stop it.** Ask the coordinator (`orca orchestration ask`, or the user when not under Orca), and wait for a yes.
 - **Both repos are public.**
   - No real titles, authors, ISBNs, ids, cover URLs of real books, saves or household names go in fixtures, tests, commits or PR text. Use invented titles ("The Salt Road", "Glass Orchard"), synthetic uuids and "Member A" / "Member B".
-  - **The backfill's candidate list and the ids it updates never go in any file, commit, PR or log.** They are shown to Tierra privately in chat only.
+  - **The backfill's candidate list and the ids it updates never go in any file, commit, PR or log.** They are shown to the owner privately in chat only.
   - Never log titles, authors or notes. `console.warn`/`console.error` get an error name or code only.
 - **ToS code follows its `AGENTS.md`:** controllers, StateAdapter, services and pure renderers; the Dark Academia classes from nearby markup; Jest tests in `tests/`; **a separate subagent review of every code diff before its commit.**
 - **Reuse, don't fork:** `markEdited` (`src/lib/edited-fields.ts`); `readAllPages` (`library-repo.ts`); `applyCoverFilter`/`batchSelection` (`src/lib/covers/eligibility.ts`); ToS `getLinkedQuestIdsForBook` (`stateAdapter.js`), `isShelfRecord` and `searchShelf` (`ShelfBookService.js`).
@@ -182,8 +182,8 @@ grant execute on function library.on_shelf(library.books) to authenticated;
 
 **D11. The Deluxe/Signed backfill is not in any migration or repo** (spec §5.3, §7 step 3).
 - After the `db push`, the coordinator runs a **read-only** candidate query on production. It lists copies whose `edition_note` or `copy_note` contains `deluxe` or `special edition` (Deluxe), or `signed` (Signed), case-insensitive.
-- It shows Tierra the list **privately in chat**. Tierra rules each copy in or out.
-- Then, **with Tierra's go-ahead,** it runs one update setting the flags on exactly the approved copy ids. Note text is never changed.
+- It shows the owner the list **privately in chat**. The owner rules each copy in or out.
+- Then, **with the owner's go-ahead,** it runs one update setting the flags on exactly the approved copy ids. Note text is never changed.
 - Nothing about it goes in a file, commit or PR (Global Constraints).
 
 **D12. PR split, merge order, and what users see between merges** (spec §7).
@@ -644,14 +644,14 @@ export function useRestoreScroll(ready: boolean, viewKey: string, container: Ref
    ```
    - Confirm that the only pending migration is `..._library-copy-flags`, then run it without `--dry-run`. No function deploy.
    - Afterwards: `git -C C:/Users/tierr/Github/tome-of-secrets worktree remove C:/Users/tierr/Github/tome-of-secrets-plan6-push`.
-3. **Backfill (D11), with Tierra's go-ahead at each half:**
-   1. The coordinator runs the read-only candidate query and shows Tierra the list privately in chat.
-   2. Tierra rules each copy in or out.
+3. **Backfill (D11), with the owner's go-ahead at each half:**
+   1. The coordinator runs the read-only candidate query and shows the owner the list privately in chat.
+   2. The owner rules each copy in or out.
    3. The coordinator runs the one-off update on exactly the approved ids, and reports the row count.
 
    Nothing from it goes in a file, commit or PR. It isn't part of any migration or repo.
 4. **Merge ToS PR 2 and the library PR,** in either order. Hard-refresh both sites after the Pages deploys.
-5. **Tierra unhauls this week's traded-in copies.** They check that those books are gone from the main view and from ToS's `On our shelf`, and that a search still finds them, marked `Unhauled`.
+5. **The owner unhauls this week's traded-in copies.** They check that those books are gone from the main view and from ToS's `On our shelf`, and that a search still finds them, marked `Unhauled`.
 
 ## User checks after rollout
 
@@ -662,7 +662,7 @@ export function useRestoreScroll(ready: boolean, viewKey: string, container: Ref
 5. **After the next bulk import:** `Date added: {that day}` shows that day's books, and its count matches the number of copies you added.
 6. **Published:** a year range such as this year to blank finds the new releases. Books with no date aren't in it.
 7. **Back from far down the list,** with a filter and a search on: you land where you were.
-8. **Tome of Secrets,** for both Tierra and AJ: a quest whose book was unhauled still has its book, with the `Unhauled` mark. An unhauled book isn't offered when picking a book for a new quest.
+8. **Tome of Secrets,** for both household members: a quest whose book was unhauled still has its book, with the `Unhauled` mark. An unhauled book isn't offered when picking a book for a new quest.
 9. **Covers:** the No cover filter doesn't count unhauled books.
 
 ## Follow-ups (not built)
@@ -673,7 +673,7 @@ export function useRestoreScroll(ready: boolean, viewKey: string, container: Ref
 
 ## Open questions for the user (resolved)
 
-All five were resolved on 2026-11-12: Tierra approved each default below. The plan builds them as written.
+All five were resolved on 2026-11-12: The owner approved each default below. The plan builds them as written.
 
 1. **Find now on an unhauled book's page (D5). Resolved: allowed**, because it is an explicit request. Batches and the No cover filter leave unhauled books out as the spec says.
 2. **The scan line for a book you unhauled (Task 6). Resolved:** `We had this and unhauled it`, and scanning a re-bought copy is allowed.
