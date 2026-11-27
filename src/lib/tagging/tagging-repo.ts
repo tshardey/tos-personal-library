@@ -6,12 +6,15 @@ import type {
   AiBudget,
   AiFeature,
   AskResponse,
+  AuditDecision,
   BookCardMeta,
   LibraryTag,
   LibraryTagCategory,
   TagJob,
   TagJobOutcome,
   TagJobStatus,
+  SeriesAuditFlag,
+  SeriesDismissal,
   SeriesSuggestion,
   TagSuggestion,
 } from "./types";
@@ -175,7 +178,7 @@ export type TagRequestOutcome = "queued" | "already_open" | "skipped" | "not_fou
 export async function requestTagging(
   householdId: string,
   bookIds: string[],
-  reason: "run" | "manual" | "new_tags" | "series",
+  reason: "run" | "manual" | "new_tags" | "series" | "audit",
   runId: string | null,
 ): Promise<Map<string, TagRequestOutcome>> {
   const out = new Map<string, TagRequestOutcome>();
@@ -212,6 +215,8 @@ export async function runTagJob(jobId: string): Promise<TagJobOutcome> {
     throw error;
   }
   const outcome = (data as { outcome?: unknown } | null)?.outcome;
+  // An old function meeting an audit job answers "audit" and has done nothing; the job stays queued.
+  if (outcome === "audit") return "busy";
   if (typeof outcome === "string" && (TAG_OUTCOMES as readonly string[]).includes(outcome)) {
     return outcome as TagJobOutcome;
   }
@@ -300,6 +305,126 @@ export async function listSeriesChecked(householdId: string): Promise<Set<string
         .range(from, to) as unknown as Page,
   );
   return new Set(rows.map((r) => r.book_id as string));
+}
+
+const numOrNull = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+
+/** Pending audit flags (numerics arrive as strings such as "2.50"). Stale and decided flags are never listed. */
+export async function listSeriesAuditFlags(householdId: string): Promise<SeriesAuditFlag[]> {
+  const rows = await readAllPages<RawRow>(
+    (from, to) =>
+      supabase
+        .from("series_audit_flags")
+        .select("id, book_id, kind, current_name, current_volume, proposed_name, proposed_volume, why, created_at")
+        .eq("household_id", householdId)
+        .eq("status", "pending")
+        .order("created_at")
+        .order("id")
+        .range(from, to) as unknown as Page,
+  );
+  return rows.map((r): SeriesAuditFlag => ({
+    id: r.id as string,
+    bookId: r.book_id as string,
+    kind: r.kind === "wrong_number" ? "wrong_number" : "wrong_series",
+    currentName: r.current_name as string,
+    currentVolume: numOrNull(r.current_volume),
+    proposedName: str(r.proposed_name),
+    proposedVolume: numOrNull(r.proposed_volume),
+    why: str(r.why),
+    createdAt: r.created_at as string,
+  }));
+}
+
+/** Books whose series audit has run; any page's error rejects, so a partial set is never returned. */
+export async function listSeriesAudited(householdId: string): Promise<Set<string>> {
+  const rows = await readAllPages<RawRow>(
+    (from, to) =>
+      supabase
+        .from("book_cards")
+        .select("book_id")
+        .eq("household_id", householdId)
+        .not("series_audited_at", "is", null)
+        .order("book_id")
+        .range(from, to) as unknown as Page,
+  );
+  return new Set(rows.map((r) => r.book_id as string));
+}
+
+/** Dismissed new suggestions plus the dismissed books of existing ones, newest first, undated last. */
+export async function listSeriesDismissals(householdId: string): Promise<SeriesDismissal[]> {
+  const names = await readAllPages<RawRow>(
+    (from, to) =>
+      supabase
+        .from("series_suggestions")
+        .select("id, name, decided_at")
+        .eq("household_id", householdId)
+        .eq("kind", "new")
+        .eq("status", "dismissed")
+        .order("id")
+        .range(from, to) as unknown as Page,
+  );
+  const existing = await readAllPages<RawRow>(
+    (from, to) =>
+      supabase
+        .from("series_suggestions")
+        .select("id, name, books:series_suggestion_books!inner(book_id, decided_at, status)")
+        .eq("household_id", householdId)
+        .eq("kind", "existing")
+        .eq("books.status", "dismissed")
+        .order("id")
+        .range(from, to) as unknown as Page,
+  );
+  const out: SeriesDismissal[] = names.map((r) => ({
+    kind: "name",
+    suggestionId: r.id as string,
+    name: r.name as string,
+    decidedAt: str(r.decided_at),
+  }));
+  for (const r of existing) {
+    for (const b of (r.books ?? []) as { book_id: string; decided_at: unknown; status: unknown }[]) {
+      if (b.status !== "dismissed") continue;
+      out.push({ kind: "book", suggestionId: r.id as string, bookId: b.book_id, name: r.name as string, decidedAt: str(b.decided_at) });
+    }
+  }
+  const tie = (d: SeriesDismissal) => d.suggestionId + (d.kind === "book" ? d.bookId : "");
+  return out.sort((a, b) => {
+    if (a.decidedAt !== b.decidedAt) {
+      if (a.decidedAt === null) return 1;
+      if (b.decidedAt === null) return -1;
+      return a.decidedAt < b.decidedAt ? 1 : -1;
+    }
+    return tie(a) < tie(b) ? -1 : tie(a) > tie(b) ? 1 : 0;
+  });
+}
+
+const AUDIT_DECISIONS = ["applied", "kept", "edited", "stale", "not_pending"] as const satisfies readonly AuditDecision[];
+
+async function decideAudit(fn: string, args: Record<string, unknown>): Promise<AuditDecision> {
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) throw error;
+  if (typeof data === "string" && (AUDIT_DECISIONS as readonly string[]).includes(data)) return data as AuditDecision;
+  throw new UnexpectedReplyError(fn);
+}
+
+export const applySeriesAudit = (flagId: string): Promise<AuditDecision> =>
+  decideAudit("apply_series_audit", { p_flag: flagId });
+
+export const keepSeriesAudit = (flagId: string): Promise<AuditDecision> =>
+  decideAudit("keep_series_audit", { p_flag: flagId });
+
+/** A null or blank name clears the series; a null volume clears the number. */
+export const editSeriesAudit = (flagId: string, name: string | null, volume: number | null): Promise<AuditDecision> =>
+  decideAudit("edit_series_audit", { p_flag: flagId, p_name: name, p_volume: volume });
+
+/** Puts a dismissed suggestion, or one dismissed book, back. "not_eligible" means the book has a series now. */
+export async function undoSeriesDismissal(d: SeriesDismissal): Promise<"restored" | "not_dismissed" | "not_eligible"> {
+  const fn = d.kind === "name" ? "undo_series_dismissal" : "undo_series_book_dismissal";
+  const args = d.kind === "name" ? { p_suggestion: d.suggestionId } : { p_suggestion: d.suggestionId, p_book: d.bookId };
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) throw error;
+  const allowed = d.kind === "name" ? ["restored", "not_dismissed"] : ["restored", "not_eligible", "not_dismissed"];
+  if (typeof data === "string" && allowed.includes(data)) return data as "restored" | "not_dismissed" | "not_eligible";
+  throw new UnexpectedReplyError(fn);
 }
 
 /** Volumes are keyed by book id exactly as the database returned it. Returns the number of books filled. */

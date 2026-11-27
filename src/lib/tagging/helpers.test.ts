@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mkBook } from "../covers/fixtures.test-util";
 import {
+  AUDIT_PER_BOOK_ESTIMATE_MICRO,
   booksCoveredBy,
   FULL_TAG_PER_BOOK_ESTIMATE_MICRO,
   NEW_TAGS_PER_BOOK_ESTIMATE_MICRO,
@@ -10,6 +11,9 @@ import {
   UNSURE_FOLLOWUP_RATE,
 } from "./cost";
 import {
+  auditEligible,
+  auditRetryCount,
+  auditTag,
   newestJobByBook,
   newTagsEligible,
   retagAllEligible,
@@ -18,11 +22,12 @@ import {
   seriesEligible,
   seriesProgress,
   seriesRetryCount,
+  sortAuditFlags,
   vocabVersion,
 } from "./eligibility";
 import { groupLibraryTags } from "./group";
 import { tagIdFromLabel } from "./slug";
-import type { AiBudget, BookCardMeta, LibraryTag, TagJob } from "./types";
+import type { AiBudget, BookCardMeta, LibraryTag, SeriesAuditFlag, TagJob } from "./types";
 
 const job = (id: string, bookId: string, status: TagJob["status"], createdAt: string, runId: string | null = null): TagJob => ({
   id, bookId, runId, kind: "full", reason: "run", status, attempts: 0, claimedAt: null, retryAt: null, errorCode: null, createdAt,
@@ -245,5 +250,75 @@ describe("series eligibility", () => {
     expect(seriesProgress([sjob("1", "a", "done", "2026-11-01T00:00:00Z", "r")])).toBeNull();
     expect(seriesProgress([job("2", "a", "queued", "2026-11-01T00:00:00Z", "r")])).toBeNull();
     expect(seriesProgress([])).toBeNull();
+  });
+});
+
+describe("series audit helpers", () => {
+  const ajob = (id: string, bookId: string, status: TagJob["status"], createdAt: string, runId: string | null = null): TagJob => ({
+    ...job(id, bookId, status, createdAt, runId), kind: "audit", reason: "audit",
+  });
+  const S = { seriesName: "Thornmere Cycle" };
+  const ids = ["ok", "noseries", "nameset", "volset", "nocard", "audited", "open", "fullfailed", "auditfailed", "decided"];
+  const cards = new Map(ids.filter((i) => i !== "nocard").map((id) => [id, card(id, 1)] as const));
+  const books = [
+    mkBook("ok", S),
+    mkBook("noseries"),
+    mkBook("nameset", { ...S, userEditedFields: ["seriesName"] }),
+    mkBook("volset", { ...S, userEditedFields: ["seriesVolume"] }),
+    mkBook("nocard", S),
+    mkBook("audited", S),
+    mkBook("open", S),
+    mkBook("fullfailed", S),
+    mkBook("auditfailed", S),
+    mkBook("decided", { ...S, userEditedFields: ["seriesName", "seriesVolume"] }),
+  ];
+  const jobs = [
+    ajob("1", "open", "queued", "2026-11-02T00:00:00Z"),
+    job("2", "fullfailed", "failed", "2026-11-02T00:00:00Z"),
+    ajob("3", "auditfailed", "failed", "2026-11-02T00:00:00Z"),
+  ];
+
+  it("estimate constant is the Task 7 figure", () => {
+    expect(AUDIT_PER_BOOK_ESTIMATE_MICRO).toBe(4700);
+  });
+
+  it("auditEligible keeps carded, tagger-filled, unaudited books and retries only a failed audit", () => {
+    expect(auditEligible(books, cards, new Set(["audited"]), jobs)).toEqual(["ok", "auditfailed"]);
+  });
+
+  it("auditRetryCount counts only failed audits", () => {
+    expect(auditRetryCount(["ok", "fullfailed", "auditfailed"], jobs)).toBe(1);
+    expect(auditRetryCount([], jobs)).toBe(0);
+  });
+
+  it("seriesProgress(audit) counts audit jobs with a run id and the default ignores them", () => {
+    const list = [
+      ajob("1", "a", "done", "2026-11-01T00:00:00Z", "r"),
+      ajob("2", "b", "queued", "2026-11-01T00:00:00Z", "r"),
+      ajob("3", "c", "queued", "2026-11-01T00:00:00Z"),
+    ];
+    expect(seriesProgress(list, "audit")).toEqual({ done: 1, total: 2 });
+    expect(seriesProgress(list)).toBeNull();
+  });
+
+  const flag = (id: string, kind: SeriesAuditFlag["kind"], currentVolume: number | null, createdAt = "2026-11-01T00:00:00Z"): SeriesAuditFlag => ({
+    id, bookId: "b" + id, kind, currentName: "Thornmere Cycle", currentVolume, proposedName: null, proposedVolume: null, why: null, createdAt,
+  });
+
+  it("auditTag names each of the three tags", () => {
+    expect(auditTag(flag("1", "wrong_series", 2))).toBe("Wrong series?");
+    expect(auditTag(flag("2", "wrong_number", 2))).toBe("Wrong number?");
+    expect(auditTag(flag("3", "wrong_number", null))).toBe("Missing number?");
+  });
+
+  it("sortAuditFlags orders wrong series, wrong number, missing number, then createdAt and id", () => {
+    const shuffled = [
+      flag("m", "wrong_number", null),
+      flag("n2", "wrong_number", 1, "2026-11-02T00:00:00Z"),
+      flag("s", "wrong_series", 1),
+      flag("n1b", "wrong_number", 1),
+      flag("n1a", "wrong_number", 1),
+    ];
+    expect(sortAuditFlags(shuffled).map((f) => f.id)).toEqual(["s", "n1a", "n1b", "n2", "m"]);
   });
 });

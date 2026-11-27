@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { expectTapTargets } from "./a11y";
 import { newUserWithHousehold, rest, signIn, type TestUser } from "./supabase";
-import { finishOpenJobs, finishOpenJobsWith, insert, rpc, type JobRow } from "./tag-jobs";
+import { closeOpenJobs, finishOpenJobs, finishOpenJobsWith, insert, rpc, type JobRow } from "./tag-jobs";
 
 /**
  * Series suggestions (Plan 10): the tagger's series fills a series the household has, a new name
@@ -360,4 +360,118 @@ test("without the series tables, tag suggestions work and no Series section or s
   await expect(page.getByRole("heading", { name: "Series", exact: true })).toHaveCount(0);
   more = await openMore(page);
   await expect(more.getByRole("link", { name: "Tag suggestions, 1 waiting", exact: true })).toBeVisible();
+});
+
+test("Series audit: a flagged book is settled and a dismissal is undone", async ({ page }) => {
+  const user = await newUserWithHousehold("Member A");
+  const first = await seed(user, [
+    { title: "Thornmere Dawn", series_name: "Thornmere Cycle", series_volume: 1 },
+    { title: "Wren Hollow" },
+    { title: "Wren Ash" },
+  ]);
+  const opened = await first.jobs();
+  expect(opened).toHaveLength(3);
+  // Thornmere Dawn is the household's anchor for the series; the two Wren books are carded and filled by the tagger.
+  await closeOpenJobs(user, opened.filter((j) => j.book_id === first.id("Thornmere Dawn")));
+  await finishOpenJobsWith(user, opened.filter((j) => j.book_id !== first.id("Thornmere Dawn")), (bookId) => ({
+    series: { name: "Thornmere Cycle", volume: bookId === first.id("Wren Hollow") ? 1 : 2, why: "w" },
+  }));
+  const filled = (await first.bookRows()).filter((b) => b.title.startsWith("Wren"));
+  expect(filled.map((b) => [b.title, b.series_name, volume(b.series_volume)])).toEqual([
+    ["Wren Ash", "Thornmere Cycle", 2],
+    ["Wren Hollow", "Thornmere Cycle", 1],
+  ]);
+
+  // A blank book whose tagger answer names a new series: a suggestion to dismiss and undo later.
+  const second = await seed(user, [{ title: "Fen Notes", authors: ["Petra Wynnecombe"] }]);
+  await finishOpenJobsWith(user, await second.jobs(), () => ({
+    series: { name: "Ember Loom", volume: 1, why: "w" },
+    seriesStatus: "found",
+  }));
+
+  // The page must not run the audit jobs itself: hold the function so the test finishes them with its own answers.
+  await page.route("**/functions/v1/library-tagger**", (route) => route.abort());
+  await signIn(page, user);
+  await page.goto("#/tags");
+  const region = page.getByRole("region", { name: "Series", exact: true });
+  const heading = region.getByRole("heading", { name: "Series", exact: true });
+  const status = region.getByRole("status");
+
+  await test.step("Audit series queues the two tagger-filled books", async () => {
+    await region.getByRole("button", { name: "Audit series" }).click();
+    const confirm = region.getByRole("group", { name: "Confirm series audit" });
+    await expect(confirm.getByText(/^Audit 2 books · /)).toBeVisible();
+    await confirm.getByRole("button", { name: "Confirm" }).click();
+    await expect(region.getByText("Queued 2 books for a series audit.")).toBeVisible();
+  });
+
+  await test.step("the audit answers, and one book is flagged", async () => {
+    await page.goto("about:blank");
+    const audits = await rest<JobRow[]>(
+      user,
+      `tag_jobs?select=id,book_id,reason,status&kind=eq.audit&book_id=in.(${first.id("Wren Hollow")},${first.id("Wren Ash")})`,
+    );
+    expect(audits).toHaveLength(2);
+    await finishOpenJobsWith(user, audits, (bookId) => ({
+      audit:
+        bookId === first.id("Wren Hollow")
+          ? { verdict: "wrong_series", name: "Saltglass Archive", volume: 1, why: "Invented reason." }
+          : { verdict: "agree", name: null, volume: null, why: "Fine." },
+    }));
+    await page.goto("#/tags");
+    await page.reload();
+  });
+
+  const card = region.getByRole("listitem", { name: "Wren Hollow: Wrong series?", exact: true });
+  await expect(card).toBeVisible();
+  await expect(region.getByRole("listitem", { name: /^Wren Ash:/ })).toHaveCount(0);
+  await expect(card.getByText("Thornmere Cycle #1")).toBeVisible();
+  await expect(card.getByText("Saltglass Archive #1")).toBeVisible();
+
+  await test.step("dismissing a suggestion lists it under Dismissed (1)", async () => {
+    const ember = region.getByRole("listitem", { name: "Ember Loom", exact: true });
+    await expect(ember).toBeVisible();
+    await ember.getByRole("button", { name: "Dismiss" }).click();
+    await expect(status).toHaveText("Dismissed Ember Loom.");
+    await expect(region.getByRole("button", { name: "Dismissed (1)" })).toBeVisible();
+    await expect(region.getByRole("button", { name: "Undo dismissal of Ember Loom" })).toBeHidden();
+  });
+
+  await test.step("tap targets with a card and the expanded Dismissed list", async () => {
+    await region.getByRole("button", { name: "Dismissed (1)" }).click();
+    await expect(region.getByRole("button", { name: "Undo dismissal of Ember Loom" })).toBeVisible();
+    await expectTapTargets(page, region);
+  });
+
+  await test.step("Use audit's answer changes the book and settles the flag", async () => {
+    await card.getByRole("button", { name: "Use audit's answer" }).click();
+    await expect(status).toHaveText("Changed Wren Hollow to Saltglass Archive #1.");
+    await expect(card).toHaveCount(0);
+    await expect(heading).toBeFocused();
+    const [hollow] = await rest<(BookRow & { user_edited_fields: string[] })[]>(
+      user,
+      `books?select=id,title,series_name,series_volume,user_edited_fields&id=eq.${first.id("Wren Hollow")}`,
+    );
+    expect([hollow.series_name, volume(hollow.series_volume)]).toEqual(["Saltglass Archive", 1]);
+    expect(hollow.user_edited_fields).toEqual(expect.arrayContaining(["seriesName", "seriesVolume"]));
+    const flags = await rest<{ status: string }[]>(user, `series_audit_flags?select=status&book_id=eq.${first.id("Wren Hollow")}`);
+    expect(flags.map((f) => f.status)).toEqual(["applied"]);
+    // Wren Ash was audited and Wren Hollow is hand-set now, so a second press has nothing to spend on.
+    await expect(region.getByRole("button", { name: "Audit series" })).toBeDisabled();
+    await expect(region.getByText("Every series has been audited, apart from the ones you set by hand.")).toBeVisible();
+  });
+
+  await test.step("Undo puts the dismissed suggestion back, free of charge", async () => {
+    const jobsBefore = await rest<{ id: string }[]>(user, "tag_jobs?select=id");
+    await region.getByRole("button", { name: "Undo dismissal of Ember Loom" }).click();
+    await expect(status).toHaveText("Put Ember Loom back in the suggestions.");
+    await expect(heading).toBeFocused();
+    const ember = region.getByRole("listitem", { name: "Ember Loom", exact: true });
+    await expect(ember).toBeVisible();
+    await expect(ember.getByRole("link")).toHaveText(["Fen Notes"]);
+    await expect(region.getByRole("button", { name: /^Dismissed/ })).toHaveCount(0);
+    const [s] = await rest<{ status: string }[]>(user, `${SERIES_PATH}&name=eq.Ember%20Loom`);
+    expect(s.status).toBe("pending");
+    expect(await rest<{ id: string }[]>(user, "tag_jobs?select=id")).toHaveLength(jobsBefore.length);
+  });
 });

@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { CONTROLS, expectTapTargets } from "./a11y";
 import { newUserWithHousehold, rest, signIn } from "./supabase";
-import { finishOpenJobsWith, insert, type JobRow } from "./tag-jobs";
+import { finishOpenJobsWith, insert, seedAuditFlags, seedDismissals, type JobRow } from "./tag-jobs";
 
 /** Tap targets (D11) on the main content of the PR 4 screens, at phone width. */
 
@@ -94,6 +94,97 @@ test("the Tag suggestions page keeps 44px tap targets with an existing-series su
     page.getByRole("region", { name: "Series", exact: true }).getByRole("listitem", { name: "Add to your series Lantern Vale Cycle" }),
   ).toBeVisible();
   await expectTapTargets(page, main(page));
+});
+
+test("the Tag suggestions page keeps 44px tap targets and a keyboard path with audit flags and a Dismissed list", async ({ page }) => {
+  const user = await newUserWithHousehold("Tester");
+  await seedAuditFlags(user, [
+    { title: "Wren Hollow", series: "Thornmere Cycle", volume: 1, audit: { verdict: "wrong_series", name: "Saltglass Archive", volume: 1, why: "Invented reason." } },
+    { title: "Wren Ash", series: "Thornmere Cycle", volume: 2, audit: { verdict: "wrong_number", name: null, volume: 3, why: "Invented number." } },
+    { title: "Wren Fold", series: "Thornmere Cycle", volume: null, audit: { verdict: "wrong_number", name: null, volume: 4, why: "Invented number." } },
+  ]);
+  await seedDismissals(user);
+  // The page must not run any job itself.
+  await page.route("**/functions/v1/library-tagger**", (route) => route.abort());
+  await signIn(page, user);
+  await page.goto("#/tags");
+  const region = page.getByRole("region", { name: "Series", exact: true });
+  const heading = region.getByRole("heading", { name: "Series", exact: true });
+  const status = region.getByRole("status");
+  const card = (title: string, tag: string) => region.getByRole("listitem", { name: `${title}: ${tag}`, exact: true });
+  const hollow = card("Wren Hollow", "Wrong series?");
+  await expect(hollow).toBeVisible();
+  await expect(card("Wren Ash", "Wrong number?")).toBeVisible();
+  await expect(card("Wren Fold", "Missing number?")).toBeVisible();
+
+  const dismissed = region.getByRole("button", { name: "Dismissed (2)" });
+  await test.step("the Dismissed button toggles with Enter and Space", async () => {
+    await expect(dismissed).toHaveAttribute("aria-expanded", "false");
+    await dismissed.focus();
+    await page.keyboard.press("Enter");
+    await expect(dismissed).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Space");
+    await expect(dismissed).toHaveAttribute("aria-expanded", "false");
+    await page.keyboard.press("Enter");
+    await expect(dismissed).toHaveAttribute("aria-expanded", "true");
+  });
+
+  await test.step("each Undo is reachable by Tab", async () => {
+    const undos = region.getByRole("button", { name: /^Undo dismissal of / });
+    await expect(undos).toHaveCount(2);
+    await page.keyboard.press("Tab");
+    await expect(undos.first()).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(undos.last()).toBeFocused();
+  });
+
+  await test.step("tap targets, with the Dismissed list open", async () => {
+    await expectTapTargets(page, main(page));
+  });
+
+  await test.step("keyboard: book link, Use audit's answer, Keep it, Edit… in order", async () => {
+    await hollow.getByRole("link", { name: "Wren Hollow" }).focus();
+    for (const name of ["Use audit's answer", "Keep it", "Edit…"]) {
+      await page.keyboard.press("Tab");
+      await expect(hollow.getByRole("button", { name })).toBeFocused();
+    }
+  });
+
+  await test.step("keyboard: in Edit…, the name, the number, Save and Cancel; Cancel returns to Edit…", async () => {
+    await hollow.getByRole("button", { name: "Edit…" }).press("Enter");
+    const name = hollow.getByLabel("Series name");
+    await expect(name).toHaveValue("Saltglass Archive");
+    await name.focus();
+    for (const target of [hollow.getByLabel("Number"), hollow.getByRole("button", { name: "Save" }), hollow.getByRole("button", { name: "Cancel" })]) {
+      await page.keyboard.press("Tab");
+      await expect(target).toBeFocused();
+    }
+    await expectTapTargets(page, hollow);
+    await page.keyboard.press("Enter");
+    await expect(hollow.getByRole("button", { name: "Edit…" })).toBeFocused();
+  });
+
+  await test.step("Keep it announces the decision and moves focus to the Series heading", async () => {
+    await hollow.getByRole("button", { name: "Keep it" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(status).toHaveText("Kept Wren Hollow as it is.");
+    await expect(heading).toBeFocused();
+    await expect(hollow).toHaveCount(0);
+  });
+
+  await test.step("Save in Edit… does the same", async () => {
+    const ash = card("Wren Ash", "Wrong number?");
+    await ash.getByRole("button", { name: "Edit…" }).press("Enter");
+    await ash.getByRole("button", { name: "Save" }).press("Enter");
+    await expect(status).toHaveText("Saved the series for Wren Ash.");
+    await expect(heading).toBeFocused();
+  });
+
+  await test.step("Undo announces and moves focus to the Series heading", async () => {
+    await region.getByRole("button", { name: /^Undo dismissal of / }).first().press("Enter");
+    await expect(status).toHaveText(/^Put .* back in /);
+    await expect(heading).toBeFocused();
+  });
 });
 
 test("the sign-in page keeps 44px tap targets", async ({ browser, baseURL }) => {

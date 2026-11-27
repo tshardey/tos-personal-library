@@ -40,16 +40,22 @@ vi.mock("@/lib/supabase", () => ({
 import { formatUsd, remainingMicro, budgetUsedUp } from "@/lib/covers/cost";
 import {
   addLibraryTag,
+  applySeriesAudit,
   approveSeriesSuggestion,
   approveSuggestion,
   ask,
   createLibraryTag,
   dismissSeriesSuggestion,
   dismissSuggestion,
+  editSeriesAudit,
   getAiBudget,
   listCardMeta,
+  keepSeriesAudit,
   listLibraryTagsByBook,
+  listSeriesAudited,
+  listSeriesAuditFlags,
   listSeriesChecked,
+  listSeriesDismissals,
   listSeriesSuggestions,
   listSuggestions,
   listTagJobs,
@@ -57,6 +63,7 @@ import {
   removeLibraryTag,
   requestTagging,
   runTagJob,
+  undoSeriesDismissal,
 } from "./tagging-repo";
 import { LIBRARY_TAG_CATEGORIES } from "./types";
 
@@ -314,6 +321,11 @@ describe("runTagJob", () => {
     await expect(runTagJob(JOB)).rejects.toBe(err);
   });
 
+  it("maps outcome audit (an old function meeting an audit job) to busy", async () => {
+    h.invoke.mockResolvedValue({ data: { outcome: "audit" }, error: null });
+    expect(await runTagJob(JOB)).toBe("busy");
+  });
+
   it("rejects on an unknown outcome", async () => {
     h.invoke.mockResolvedValue({ data: { outcome: "weird" }, error: null });
     await expect(runTagJob(JOB)).rejects.toMatchObject({ code: "unexpected_reply" });
@@ -516,5 +528,140 @@ describe("series suggestions", () => {
     expect(h.rpcCalls[0]).toEqual(["dismiss_series_suggestion", { p_suggestion: SUGGESTION }]);
     h.rpcResults.push({ data: null, error: { code: "42501" } });
     await expect(dismissSeriesSuggestion(SUGGESTION)).rejects.toMatchObject({ code: "42501" });
+  });
+});
+
+describe("series audit repo", () => {
+  const FLAG = "00000000-0000-4000-8000-0000000000f1";
+  const SUGGESTION_ID = "00000000-0000-4000-8000-0000000000a1";
+
+  it("lists pending flags, mapping numeric strings to numbers", async () => {
+    h.results.push({
+      data: [
+        { id: FLAG, book_id: BOOK, kind: "wrong_number", current_name: "Thornmere Cycle", current_volume: "2.50", proposed_name: null, proposed_volume: "3.00", why: "Third book", created_at: "2026-11-01T00:00:00Z" },
+        { id: "f2", book_id: JOB, kind: "wrong_series", current_name: "Ember Loom", current_volume: null, proposed_name: null, proposed_volume: null, why: null, created_at: "2026-11-02T00:00:00Z" },
+      ],
+      error: null,
+    });
+    h.results.push({ data: [], error: null });
+    const out = await listSeriesAuditFlags(HOUSEHOLD);
+    expect(out).toEqual([
+      { id: FLAG, bookId: BOOK, kind: "wrong_number", currentName: "Thornmere Cycle", currentVolume: 2.5, proposedName: null, proposedVolume: 3, why: "Third book", createdAt: "2026-11-01T00:00:00Z" },
+      { id: "f2", bookId: JOB, kind: "wrong_series", currentName: "Ember Loom", currentVolume: null, proposedName: null, proposedVolume: null, why: null, createdAt: "2026-11-02T00:00:00Z" },
+    ]);
+    const q = h.queries[0];
+    expect(q.table).toBe("series_audit_flags");
+    expect(q.steps).toContainEqual(["select", ["id, book_id, kind, current_name, current_volume, proposed_name, proposed_volume, why, created_at"]]);
+    expect(q.steps).toContainEqual(["eq", ["household_id", HOUSEHOLD]]);
+    expect(q.steps).toContainEqual(["eq", ["status", "pending"]]);
+  });
+
+  it("keeps the error code on a failed flag read", async () => {
+    h.results.push({ data: null, error: { code: "PGRST205" } });
+    await expect(listSeriesAuditFlags(HOUSEHOLD)).rejects.toMatchObject({ code: "PGRST205" });
+  });
+
+  it("lists the books whose series audit has run", async () => {
+    h.results.push({ data: [{ book_id: BOOK }], error: null });
+    h.results.push({ data: [], error: null });
+    expect([...(await listSeriesAudited(HOUSEHOLD))]).toEqual([BOOK]);
+    expect(h.queries[0].table).toBe("book_cards");
+    expect(h.queries[0].steps).toContainEqual(["select", ["book_id"]]);
+    expect(h.queries[0].steps).toContainEqual(["not", ["series_audited_at", "is", null]]);
+    h.results.push({ data: null, error: { code: "42703" } });
+    await expect(listSeriesAudited(HOUSEHOLD)).rejects.toMatchObject({ code: "42703" });
+  });
+
+  it("merges dismissed new rows and dismissed books of existing rows, newest first, nulls last", async () => {
+    h.results.push({
+      data: [
+        { id: "n1", name: "Ember Loom", decided_at: "2026-11-03T00:00:00Z" },
+        { id: "n2", name: "Wrenfold Tales", decided_at: null },
+      ],
+      error: null,
+    });
+    h.results.push({ data: [], error: null });
+    h.results.push({
+      data: [
+        {
+          id: SUGGESTION_ID,
+          name: "Saltglass Archive",
+          books: [
+            { book_id: BOOK, decided_at: "2026-11-05T00:00:00Z", status: "dismissed" },
+            { book_id: JOB, decided_at: "2026-11-01T00:00:00Z", status: "dismissed" },
+            { book_id: "pending-book", decided_at: null, status: "pending" },
+          ],
+        },
+      ],
+      error: null,
+    });
+    h.results.push({ data: [], error: null });
+    const out = await listSeriesDismissals(HOUSEHOLD);
+    expect(out).toEqual([
+      { kind: "book", suggestionId: SUGGESTION_ID, bookId: BOOK, name: "Saltglass Archive", decidedAt: "2026-11-05T00:00:00Z" },
+      { kind: "name", suggestionId: "n1", name: "Ember Loom", decidedAt: "2026-11-03T00:00:00Z" },
+      { kind: "book", suggestionId: SUGGESTION_ID, bookId: JOB, name: "Saltglass Archive", decidedAt: "2026-11-01T00:00:00Z" },
+      { kind: "name", suggestionId: "n2", name: "Wrenfold Tales", decidedAt: null },
+    ]);
+    expect(h.queries[0].table).toBe("series_suggestions");
+    expect(h.queries[0].steps).toContainEqual(["select", ["id, name, decided_at"]]);
+    expect(h.queries[0].steps).toContainEqual(["eq", ["kind", "new"]]);
+    expect(h.queries[0].steps).toContainEqual(["eq", ["status", "dismissed"]]);
+    expect(h.queries[2].table).toBe("series_suggestions");
+    expect(h.queries[2].steps).toContainEqual(["select", ["id, name, books:series_suggestion_books!inner(book_id, decided_at, status)"]]);
+    expect(h.queries[2].steps).toContainEqual(["eq", ["kind", "existing"]]);
+    expect(h.queries[2].steps).toContainEqual(["eq", ["books.status", "dismissed"]]);
+  });
+
+  it("rejects listSeriesDismissals when a read fails", async () => {
+    h.results.push({ data: null, error: { code: "42703" } });
+    await expect(listSeriesDismissals(HOUSEHOLD)).rejects.toMatchObject({ code: "42703" });
+  });
+
+  it("calls each decision RPC with its argument names and maps the reply", async () => {
+    h.rpcResults.push({ data: "applied", error: null });
+    expect(await applySeriesAudit(FLAG)).toBe("applied");
+    h.rpcResults.push({ data: "stale", error: null });
+    expect(await keepSeriesAudit(FLAG)).toBe("stale");
+    h.rpcResults.push({ data: "edited", error: null });
+    expect(await editSeriesAudit(FLAG, "Thornmere Cycle", 2.5)).toBe("edited");
+    h.rpcResults.push({ data: "not_pending", error: null });
+    expect(await editSeriesAudit(FLAG, null, null)).toBe("not_pending");
+    expect(h.rpcCalls).toEqual([
+      ["apply_series_audit", { p_flag: FLAG }],
+      ["keep_series_audit", { p_flag: FLAG }],
+      ["edit_series_audit", { p_flag: FLAG, p_name: "Thornmere Cycle", p_volume: 2.5 }],
+      ["edit_series_audit", { p_flag: FLAG, p_name: null, p_volume: null }],
+    ]);
+  });
+
+  it("rejects a decision with the code, and on an unexpected reply", async () => {
+    h.rpcResults.push({ data: null, error: { code: "42501" } });
+    await expect(applySeriesAudit(FLAG)).rejects.toMatchObject({ code: "42501" });
+    h.rpcResults.push({ data: "weird", error: null });
+    await expect(keepSeriesAudit(FLAG)).rejects.toMatchObject({ code: "unexpected_reply" });
+    h.rpcResults.push({ data: 3, error: null });
+    await expect(editSeriesAudit(FLAG, "A", 1)).rejects.toMatchObject({ code: "unexpected_reply" });
+  });
+
+  it("undoes a name dismissal and a book dismissal through their own RPCs", async () => {
+    h.rpcResults.push({ data: "restored", error: null });
+    expect(await undoSeriesDismissal({ kind: "name", suggestionId: SUGGESTION_ID, name: "Ember Loom", decidedAt: null })).toBe("restored");
+    h.rpcResults.push({ data: "not_eligible", error: null });
+    expect(await undoSeriesDismissal({ kind: "book", suggestionId: SUGGESTION_ID, bookId: BOOK, name: "Ember Loom", decidedAt: null })).toBe("not_eligible");
+    expect(h.rpcCalls).toEqual([
+      ["undo_series_dismissal", { p_suggestion: SUGGESTION_ID }],
+      ["undo_series_book_dismissal", { p_suggestion: SUGGESTION_ID, p_book: BOOK }],
+    ]);
+  });
+
+  it("rejects an undo on an error or an unexpected reply", async () => {
+    const d = { kind: "name" as const, suggestionId: SUGGESTION_ID, name: "Ember Loom", decidedAt: null };
+    h.rpcResults.push({ data: null, error: { code: "22023" } });
+    await expect(undoSeriesDismissal(d)).rejects.toMatchObject({ code: "22023" });
+    h.rpcResults.push({ data: "not_eligible", error: null });
+    await expect(undoSeriesDismissal(d)).rejects.toMatchObject({ code: "unexpected_reply" });
+    h.rpcResults.push({ data: "weird", error: null });
+    await expect(undoSeriesDismissal({ ...d, kind: "book", bookId: BOOK })).rejects.toMatchObject({ code: "unexpected_reply" });
   });
 });

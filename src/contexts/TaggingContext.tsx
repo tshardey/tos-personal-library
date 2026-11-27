@@ -20,21 +20,28 @@ import {
 } from "@/lib/tagging/drain";
 import {
   newestJobByBook,
+  sortAuditFlags,
   vocabVersion as vocabVersionOf,
 } from "@/lib/tagging/eligibility";
 import { tagIdFromLabel } from "@/lib/tagging/slug";
 import {
   addLibraryTag,
+  applySeriesAudit,
   approveSeriesSuggestion,
   approveSuggestion,
   ask as askRepo,
   createLibraryTag,
   dismissSeriesSuggestion,
   dismissSuggestion,
+  editSeriesAudit,
   getAiBudget,
+  keepSeriesAudit,
   listCardMeta,
   listLibraryTagsByBook,
+  listSeriesAudited,
+  listSeriesAuditFlags,
   listSeriesChecked,
+  listSeriesDismissals,
   listSeriesSuggestions,
   listSuggestions,
   listTagJobs,
@@ -42,13 +49,17 @@ import {
   removeLibraryTag,
   requestTagging,
   runTagJob,
+  undoSeriesDismissal,
 } from "@/lib/tagging/tagging-repo";
 import type {
   AiBudget,
   AskResponse,
+  AuditDecision,
   BookCardMeta,
   LibraryTag,
   LibraryTagCategory,
+  SeriesAuditFlag,
+  SeriesDismissal,
   SeriesSuggestion,
   TagJob,
   TagSuggestion,
@@ -72,7 +83,14 @@ export interface TaggingState {
   seriesSuggestions: SeriesSuggestion[];
   /** Book ids a series check has already covered. */
   seriesChecked: Set<string>;
-  /** Tag suggestions plus (when series is available) series suggestions. */
+  /** False when the audit flags table or marker column is missing; series suggestions are unaffected. */
+  auditAvailable: boolean;
+  /** Pending audit flags, wrong series first (sortAuditFlags). */
+  seriesAuditFlags: SeriesAuditFlag[];
+  /** Book ids a series audit has already covered. */
+  seriesAudited: Set<string>;
+  seriesDismissals: SeriesDismissal[];
+  /** Tag suggestions, series suggestions and audit flags (each when available). */
   pendingCount: number;
   budgets: { tagging: AiBudget | null; ask: AiBudget | null };
   stop: TagStop;
@@ -86,6 +104,17 @@ export interface TaggingState {
   tagAll(bookIds: string[]): Promise<number>;
   checkNewTags(bookIds: string[]): Promise<number>;
   findSeries(bookIds: string[]): Promise<number>;
+  auditSeries(bookIds: string[]): Promise<number>;
+  applyAudit(id: string): Promise<AuditDecision>;
+  keepAudit(id: string): Promise<AuditDecision>;
+  editAudit(
+    id: string,
+    name: string | null,
+    volume: number | null,
+  ): Promise<AuditDecision>;
+  undoDismissal(
+    d: SeriesDismissal,
+  ): Promise<"restored" | "not_dismissed" | "not_eligible">;
   approveSeries(
     id: string,
     name: string,
@@ -124,6 +153,13 @@ export interface TaggingDeps {
   listSeriesChecked: typeof listSeriesChecked;
   approveSeriesSuggestion: typeof approveSeriesSuggestion;
   dismissSeriesSuggestion: typeof dismissSeriesSuggestion;
+  listSeriesAuditFlags: typeof listSeriesAuditFlags;
+  listSeriesAudited: typeof listSeriesAudited;
+  listSeriesDismissals: typeof listSeriesDismissals;
+  applySeriesAudit: typeof applySeriesAudit;
+  keepSeriesAudit: typeof keepSeriesAudit;
+  editSeriesAudit: typeof editSeriesAudit;
+  undoSeriesDismissal: typeof undoSeriesDismissal;
   createLibraryTag: typeof createLibraryTag;
   ask: typeof askRepo;
   loadTosTags: typeof loadTosTags;
@@ -150,6 +186,13 @@ function defaultDeps(): TaggingDeps {
     listSeriesChecked,
     approveSeriesSuggestion,
     dismissSeriesSuggestion,
+    listSeriesAuditFlags,
+    listSeriesAudited,
+    listSeriesDismissals,
+    applySeriesAudit,
+    keepSeriesAudit,
+    editSeriesAudit,
+    undoSeriesDismissal,
     createLibraryTag,
     ask: askRepo,
     loadTosTags,
@@ -163,6 +206,7 @@ const EMPTY_TAGS: Map<string, string[]> = new Map();
 const EMPTY_CARDS: Map<string, BookCardMeta> = new Map();
 const EMPTY_JOBS: Map<string, TagJob> = new Map();
 const EMPTY_SERIES_CHECKED: Set<string> = new Set();
+const EMPTY_AUDITED: Set<string> = new Set();
 const NO_BUDGETS: TaggingState["budgets"] = { tagging: null, ask: null };
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -179,6 +223,10 @@ export const UNAVAILABLE_TAGGING: TaggingState = {
   seriesAvailable: false,
   seriesSuggestions: [],
   seriesChecked: EMPTY_SERIES_CHECKED,
+  auditAvailable: false,
+  seriesAuditFlags: [],
+  seriesAudited: EMPTY_AUDITED,
+  seriesDismissals: [],
   pendingCount: 0,
   budgets: NO_BUDGETS,
   stop: null,
@@ -190,6 +238,11 @@ export const UNAVAILABLE_TAGGING: TaggingState = {
   tagAll: async () => 0,
   checkNewTags: async () => 0,
   findSeries: async () => 0,
+  auditSeries: async () => 0,
+  applyAudit: async () => "not_pending",
+  keepAudit: async () => "not_pending",
+  editAudit: async () => "not_pending",
+  undoDismissal: async () => "not_dismissed",
   approveSeries: async () => 0,
   dismissSeries: async () => {},
   approve: async () => 0,
@@ -209,6 +262,10 @@ const errorCode = (err: unknown): string =>
 /** Series reads fail soft: only a missing table or column (42703) hides the series UI. */
 const isSeriesMissing = (err: unknown): boolean =>
   isMissingFeature(err) || errorCode(err) === "42703";
+
+/** Audit reads fail soft: a missing table or column hides only the audit UI. */
+const isAuditMissing = (err: unknown): boolean =>
+  ["PGRST205", "42P01", "42703"].includes(errorCode(err));
 
 const isOpen = (j: TagJob) =>
   j.status === "queued" || j.status === "processing";
@@ -249,6 +306,15 @@ export function TaggingProvider(props: {
   >([]);
   const [seriesChecked, setSeriesChecked] =
     useState<Set<string>>(EMPTY_SERIES_CHECKED);
+  const [auditAvailable, setAuditAvailable] = useState(false);
+  const [seriesAuditFlags, setSeriesAuditFlags] = useState<SeriesAuditFlag[]>(
+    [],
+  );
+  const [seriesAudited, setSeriesAudited] =
+    useState<Set<string>>(EMPTY_AUDITED);
+  const [seriesDismissals, setSeriesDismissals] = useState<SeriesDismissal[]>(
+    [],
+  );
   const [budgets, setBudgets] = useState<TaggingState["budgets"]>(NO_BUDGETS);
   const [stop, setStopState] = useState<TagStop>(null);
   const [tagsVersion, setTagsVersion] = useState(0);
@@ -261,6 +327,9 @@ export function TaggingProvider(props: {
   const seriesLoadedRef = useRef(false);
   /** Only the newest loadSeries call applies its results. */
   const seriesSeqRef = useRef(0);
+  const auditLoadedRef = useRef(false);
+  /** Only the newest loadAudit call applies its results. */
+  const auditSeqRef = useRef(0);
   const availableRef = useRef(false);
   const drainingRef = useRef(false);
   const againRef = useRef(false);
@@ -315,6 +384,36 @@ export function TaggingProvider(props: {
     }
   }, [d, householdId]);
 
+  /**
+   * Audit reads are apart from the series reads, so a server without the flags table
+   * or marker column turns only auditAvailable off. Never throws.
+   */
+  const loadAudit = useCallback(async (): Promise<void> => {
+    if (householdId === null) return;
+    const seq = ++auditSeqRef.current;
+    try {
+      const [flags, audited, dismissals] = await Promise.all([
+        d.listSeriesAuditFlags(householdId),
+        d.listSeriesAudited(householdId),
+        d.listSeriesDismissals(householdId),
+      ]);
+      if (!mountedRef.current || seq !== auditSeqRef.current) return;
+      setSeriesAuditFlags(sortAuditFlags(flags));
+      setSeriesAudited(audited);
+      setSeriesDismissals(dismissals);
+      auditLoadedRef.current = true;
+      setAuditAvailable(true);
+    } catch (err) {
+      console.warn("audit load failed", errorCode(err));
+      if (
+        mountedRef.current &&
+        seq === auditSeqRef.current &&
+        (!auditLoadedRef.current || isAuditMissing(err))
+      )
+        setAuditAvailable(false);
+    }
+  }, [d, householdId]);
+
   /** Lists everything. Null when the lists failed. */
   const load = useCallback(async (): Promise<TagJob[] | null> => {
     if (householdId === null) return null;
@@ -340,6 +439,7 @@ export function TaggingProvider(props: {
       availableRef.current = true;
       setAvailable(true);
       void loadSeries();
+      void loadAudit();
       return j;
     } catch (err) {
       console.warn("tagging load failed", errorCode(err));
@@ -352,7 +452,7 @@ export function TaggingProvider(props: {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [d, householdId, loadSeries, readBudget]);
+  }, [d, householdId, loadAudit, loadSeries, readBudget]);
 
   /** Loads, then drains unless a stop is set. At most one at a time; a request during one runs once after it. */
   const run = useCallback(async (): Promise<void> => {
@@ -469,7 +569,7 @@ export function TaggingProvider(props: {
   const queue = useCallback(
     async (
       bookIds: string[],
-      reason: "run" | "manual" | "new_tags" | "series",
+      reason: "run" | "manual" | "new_tags" | "series" | "audit",
       runId: string | null,
     ): Promise<number> => {
       if (householdId === null || bookIds.length === 0) return 0;
@@ -506,6 +606,50 @@ export function TaggingProvider(props: {
     [d, queue],
   );
 
+  const auditSeries = useCallback(
+    (bookIds: string[]) => queue(bookIds, "audit", d.newRunId()),
+    [d, queue],
+  );
+
+  /** A decision may change a book's series, so both lists reload and the ToS tags refresh. */
+  const afterDecision = useCallback(async () => {
+    await Promise.all([loadAudit(), loadSeries()]);
+    if (mountedRef.current) setTagsVersion((v) => v + 1);
+  }, [loadAudit, loadSeries]);
+
+  const applyAudit = useCallback(
+    async (id: string) => {
+      const out = await d.applySeriesAudit(id);
+      await afterDecision();
+      return out;
+    },
+    [afterDecision, d],
+  );
+  const keepAudit = useCallback(
+    async (id: string) => {
+      const out = await d.keepSeriesAudit(id);
+      await afterDecision();
+      return out;
+    },
+    [afterDecision, d],
+  );
+  const editAudit = useCallback(
+    async (id: string, name: string | null, volume: number | null) => {
+      const out = await d.editSeriesAudit(id, name, volume);
+      await afterDecision();
+      return out;
+    },
+    [afterDecision, d],
+  );
+  const undoDismissal = useCallback(
+    async (dismissal: SeriesDismissal) => {
+      const out = await d.undoSeriesDismissal(dismissal);
+      await Promise.all([loadAudit(), loadSeries()]);
+      return out;
+    },
+    [d, loadAudit, loadSeries],
+  );
+
   const approveSeries = useCallback(
     async (
       id: string,
@@ -523,9 +667,10 @@ export function TaggingProvider(props: {
   const dismissSeries = useCallback(
     async (id: string) => {
       await d.dismissSeriesSuggestion(id);
-      await loadSeries();
+      // The dismissal joins the Dismissed list, which loads with the audit reads.
+      await Promise.all([loadSeries(), loadAudit()]);
     },
-    [d, loadSeries],
+    [d, loadAudit, loadSeries],
   );
 
   const approve = useCallback(
@@ -601,8 +746,14 @@ export function TaggingProvider(props: {
       seriesAvailable,
       seriesSuggestions,
       seriesChecked,
+      auditAvailable,
+      seriesAuditFlags,
+      seriesAudited,
+      seriesDismissals,
       pendingCount:
-        suggestions.length + (seriesAvailable ? seriesSuggestions.length : 0),
+        suggestions.length +
+        (seriesAvailable ? seriesSuggestions.length : 0) +
+        (auditAvailable ? seriesAuditFlags.length : 0),
       budgets,
       stop,
       runId: currentRunId(jobs),
@@ -613,6 +764,11 @@ export function TaggingProvider(props: {
       tagAll,
       checkNewTags,
       findSeries,
+      auditSeries,
+      applyAudit,
+      keepAudit,
+      editAudit,
+      undoDismissal,
       approveSeries,
       dismissSeries,
       approve,
@@ -633,6 +789,10 @@ export function TaggingProvider(props: {
       seriesAvailable,
       seriesSuggestions,
       seriesChecked,
+      auditAvailable,
+      seriesAuditFlags,
+      seriesAudited,
+      seriesDismissals,
       budgets,
       stop,
       tagsVersion,
@@ -642,6 +802,11 @@ export function TaggingProvider(props: {
       tagAll,
       checkNewTags,
       findSeries,
+      auditSeries,
+      applyAudit,
+      keepAudit,
+      editAudit,
+      undoDismissal,
       approveSeries,
       dismissSeries,
       approve,

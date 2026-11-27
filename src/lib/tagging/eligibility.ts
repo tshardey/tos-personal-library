@@ -1,6 +1,6 @@
 import { isSeriesHandSet } from "../series";
 import type { BookWithCopies } from "../types";
-import type { BookCardMeta, TagJob } from "./types";
+import type { AuditTag, BookCardMeta, SeriesAuditFlag, TagJob } from "./types";
 
 /** The household's vocabulary version: the highest addedVersion (1 when empty). */
 export function vocabVersion(vocab: { addedVersion: number }[]): number {
@@ -100,9 +100,76 @@ export function seriesRetryCount(bookIds: string[], jobs: TagJob[]): number {
   return bookIds.filter((id) => isFailedSeriesCheck(newest.get(id))).length;
 }
 
-/** Finished over total for the newest series run that still has a queued or processing job; null when none is open. */
-export function seriesProgress(jobs: TagJob[]): { done: number; total: number } | null {
-  const series = jobs.filter((j) => j.kind === "series" && j.runId !== null);
+/** A newest job that failed as an audit. Counted by kind, never by reason: the server can turn a queued audit job into a full one. */
+function isFailedAudit(j: TagJob | undefined): boolean {
+  return j !== undefined && j.status === "failed" && j.kind === "audit";
+}
+
+/**
+ * Books an audit would queue: carded, a series filled, neither series field hand-set (a decision hand-sets it),
+ * not yet audited, no active job, and newest job not failed unless it failed as an audit. Shelf or not. Catalogue order.
+ */
+export function auditEligible(
+  books: BookWithCopies[],
+  cards: Map<string, BookCardMeta>,
+  audited: Set<string>,
+  jobs: TagJob[],
+): string[] {
+  const active = new Set(jobs.filter(isActive).map((j) => j.bookId));
+  const newest = newestJobByBook(jobs);
+  return books
+    .filter(
+      (b) =>
+        cards.has(b.id) &&
+        b.seriesName !== null &&
+        !isSeriesHandSet(b) &&
+        !audited.has(b.id) &&
+        !active.has(b.id) &&
+        (newest.get(b.id)?.status !== "failed" || isFailedAudit(newest.get(b.id))),
+    )
+    .map((b) => b.id);
+}
+
+/** How many of these books Audit series would retry: their newest job is a failed audit. */
+export function auditRetryCount(bookIds: string[], jobs: TagJob[]): number {
+  const newest = newestJobByBook(jobs);
+  return bookIds.filter((id) => isFailedAudit(newest.get(id))).length;
+}
+
+/** The badge a flag carries. */
+export function auditTag(f: SeriesAuditFlag): AuditTag {
+  if (f.kind === "wrong_series") return "Wrong series?";
+  return f.currentVolume === null ? "Missing number?" : "Wrong number?";
+}
+
+const place = (name: string, volume: number | null) => (volume === null ? `${name}, no number` : `${name} #${volume}`);
+
+/** What the series is now. */
+export const nowText = (f: SeriesAuditFlag) => place(f.currentName, f.currentVolume);
+
+/** What the audit answered: a standalone, a new series, or the same series with another number. */
+export function auditText(f: SeriesAuditFlag): string {
+  if (f.kind === "wrong_number") return place(f.currentName, f.proposedVolume);
+  return f.proposedName === null ? "Standalone (no series)" : place(f.proposedName, f.proposedVolume);
+}
+
+const TAG_ORDER: Record<AuditTag, number> = { "Wrong series?": 0, "Wrong number?": 1, "Missing number?": 2 };
+
+const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/** Wrong series, then wrong number, then missing number; then oldest first, then id. */
+export function sortAuditFlags(flags: SeriesAuditFlag[]): SeriesAuditFlag[] {
+  return [...flags].sort(
+    (a, b) => TAG_ORDER[auditTag(a)] - TAG_ORDER[auditTag(b)] || cmp(a.createdAt, b.createdAt) || cmp(a.id, b.id),
+  );
+}
+
+/** Finished over total for the newest run of this kind (series by default) that still has a queued or processing job; null when none is open. */
+export function seriesProgress(
+  jobs: TagJob[],
+  kind: "series" | "audit" = "series",
+): { done: number; total: number } | null {
+  const series = jobs.filter((j) => j.kind === kind && j.runId !== null);
   const open = series.filter(isActive);
   if (open.length === 0) return null;
   const newest = open.reduce((a, b) => (isNewer(b, a) ? b : a));

@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import type { TaggingState } from "@/contexts/TaggingContext";
-import type { AiBudget, LibraryTag, SeriesSuggestion, TagJob } from "@/lib/tagging/types";
+import type { AiBudget, LibraryTag, SeriesAuditFlag, SeriesDismissal, SeriesSuggestion, TagJob } from "@/lib/tagging/types";
 
 export const tagFns = { setBookLibraryTag: vi.fn(), retag: vi.fn(), retagMany: vi.fn() };
 export const seriesFns = { findSeries: vi.fn(), approveSeries: vi.fn(), dismissSeries: vi.fn() };
@@ -37,6 +37,24 @@ export const existingSuggestion = (over: Partial<SeriesSuggestion> = {}): Series
   ...over,
 });
 
+/** A pending audit flag; wrong_series by default (Thornmere Cycle #2 -> Saltglass Archive #1). */
+export const auditFlag = (over: Partial<SeriesAuditFlag> = {}): SeriesAuditFlag => ({
+  id: "f1",
+  bookId: "b1",
+  kind: "wrong_series",
+  currentName: "Thornmere Cycle",
+  currentVolume: 2,
+  proposedName: "Saltglass Archive",
+  proposedVolume: 1,
+  why: "The description places it first in the Saltglass Archive.",
+  createdAt: "2026-11-20T00:00:00Z",
+  ...over,
+});
+
+/** A dismissed new suggestion (kind name) or a dismissed book of an existing series (kind book). */
+export const dismissal = (over: Partial<SeriesDismissal> = {}): SeriesDismissal =>
+  ({ kind: "name", suggestionId: "d1", name: "Wrenfold Tales", decidedAt: "2026-11-21T00:00:00Z", ...over }) as SeriesDismissal;
+
 export const aiBudget = (remainingMicro: number, reserveMicro = 1): AiBudget => ({
   month: "2026-11",
   spentMicro: 0,
@@ -61,6 +79,10 @@ export function taggingState(over: Partial<TaggingState> = {}): TaggingState {
     seriesAvailable: false,
     seriesSuggestions: [],
     seriesChecked: new Set<string>(),
+    auditAvailable: false,
+    seriesAuditFlags: [],
+    seriesAudited: new Set<string>(),
+    seriesDismissals: [],
     pendingCount: 0,
     budgets: { tagging: null, ask: null },
     stop: null,
@@ -74,6 +96,11 @@ export function taggingState(over: Partial<TaggingState> = {}): TaggingState {
     ask: vi.fn(),
     clearStop: vi.fn(),
     reload: vi.fn(),
+    auditSeries: vi.fn(),
+    applyAudit: vi.fn(),
+    keepAudit: vi.fn(),
+    editAudit: vi.fn(),
+    undoDismissal: vi.fn(),
     ...tagFns,
     ...seriesFns,
     ...over,
